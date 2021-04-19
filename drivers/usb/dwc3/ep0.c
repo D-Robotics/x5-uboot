@@ -1097,6 +1097,12 @@ void dwc3_ep0_interrupt(struct dwc3 *dwc,
 			epnum >> 1, (epnum & 1) ? "in" : "out",
 			dwc3_ep0_state_string(dwc->ep0state));
 
+	/* invalid ctrl_req_addr ep0_trb_addr cache for read */
+	invalidate_dcache_range(dwc->ctrl_req_addr, dwc->ctrl_req_addr +
+			ARCH_DMA_MINALIGN);
+	invalidate_dcache_range(dwc->ep0_trb_addr, dwc->ep0_trb_addr +
+			ARCH_DMA_MINALIGN);
+
 	switch (event->endpoint_event) {
 	case DWC3_DEPEVT_XFERCOMPLETE:
 		dwc3_ep0_xfer_complete(dwc, event);
