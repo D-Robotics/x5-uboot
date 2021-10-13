@@ -39,6 +39,7 @@
  */
 
 #define RAMDUMP_MAGIC			0xFA47B007AADD00FF
+#define FETCH_MAGIC			0xFA47B007FFEE77CC
 
 typedef struct usb_req usb_req;
 struct usb_req {
@@ -558,6 +559,7 @@ static void rx_handler_dl_image(struct usb_ep *ep, struct usb_request *req)
 
 static void tx_handler_ul_image(struct usb_ep *ep, struct usb_request *req)
 {
+	static void *src_buf = NULL;	// use static value, following loop still use it.
 	char response[FASTBOOT_RESPONSE_LEN] = {0};
 	struct usb_request *in_req = fastboot_func->in_req;
 	unsigned int transfer_size = fastboot_upload_remaining();
@@ -565,7 +567,9 @@ static void tx_handler_ul_image(struct usb_ep *ep, struct usb_request *req)
 	int ret;
 
 	if ((u64)ep == RAMDUMP_MAGIC && (u64)req == RAMDUMP_MAGIC)
-		printf("start ramdump\n");
+		src_buf = (void *)PHYS_SDRAM_1;
+	else if ((u64)ep == FETCH_MAGIC && (u64)req == FETCH_MAGIC)
+		src_buf = NULL;	// use default fastboot_buf_addr data
 	else if (req->status)
 		printf("status: %d ep '%s' trans: %d len %d\n", req->status,
 		      ep->name, req->actual, req->length);
@@ -586,7 +590,7 @@ static void tx_handler_ul_image(struct usb_ep *ep, struct usb_request *req)
 	if (transfer_size > EP_BUFFER_SIZE)
 		transfer_size = EP_BUFFER_SIZE;
 
-	fastboot_data_upload(buffer, transfer_size, response);
+	fastboot_data_upload(buffer, src_buf, transfer_size, response);
 	if (response[0]) {
 		fastboot_tx_write_str(response);
 	} else {
@@ -603,8 +607,17 @@ static void tx_handler_ul_image(struct usb_ep *ep, struct usb_request *req)
 
 void fastboot_upload_ramdump(void)
 {
+	printf("start ramdump\n");
+
 	tx_handler_ul_image((struct usb_ep *)RAMDUMP_MAGIC,
 			(struct usb_request *)RAMDUMP_MAGIC);
+}
+void fastboot_fetch_data(void)
+{
+	printf("start fetch image/partition");
+
+	tx_handler_ul_image((struct usb_ep *)FETCH_MAGIC,
+			(struct usb_request *)FETCH_MAGIC);
 }
 
 static void do_exit_on_complete(struct usb_ep *ep, struct usb_request *req)

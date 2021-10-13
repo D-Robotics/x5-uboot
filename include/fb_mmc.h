@@ -39,4 +39,26 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
  * @response: Pointer to fastboot response buffer
  */
 void fastboot_mmc_erase(const char *cmd, char *response);
+
+/**
+ * fastboot_mmc_flash_read() - Read image from eMMC to upload buffer
+ *
+ * @cmd: Named partition to write image to
+ * @upload_buffer: buffer to load image data
+ * @buffer_size: size of upload_buffer
+ * @offset: offset that bytes already loaded
+ * @response: Pointer to fastboot response buffer
+ */
+int64_t fastboot_mmc_flash_read(char *cmd, void *upload_buffer,
+			u64 buffer_size, s64 offset, char *response);
+
+/**
+ * fastboot_mmc_get_dev() - Lookup indicated mmc device
+ *
+ * @response: Pointer to fastboot response buffer
+ *
+ * Return: the indicated mmc block description, struct blk_desc *
+ */
+struct blk_desc *fastboot_mmc_get_dev(char *response);
+
 #endif

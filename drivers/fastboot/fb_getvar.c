@@ -30,6 +30,7 @@ static void getvar_partition_type(char *part_name, char *response);
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
 static void getvar_partition_size(char *part_name, char *response);
+static void getvar_block_size(char *part_name, char *response);
 #endif
 static void getvar_is_userspace(char *var_parameter, char *response);
 
@@ -78,6 +79,9 @@ static const struct {
 	}, {
 		.variable = "partition-size",
 		.dispatch = getvar_partition_size
+	}, {
+		.variable = "block-size",
+		.dispatch = getvar_block_size
 #endif
 	}, {
 		.variable = "is-userspace",
@@ -102,6 +106,8 @@ static const struct {
 static int getvar_get_part_info(const char *part_name, char *response,
 				size_t *size)
 {
+	char *cur, *next;
+	unsigned long start, length;
 	int r = -ENODEV;
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
@@ -110,10 +116,36 @@ static int getvar_get_part_info(const char *part_name, char *response,
 		struct blk_desc *dev_desc;
 		struct disk_partition part_info;
 
+		next = (char *)part_name;
+		cur = strsep(&next, "@");
+
+		/* addr@length or addr@end_part case */
+		if (cur && !strict_strtoul(cur, 16, &start)) {
+			if (!next)
+				goto out;
+
+			/* addr@length */
+			if (!strict_strtoul(next, 16, &length)) {
+				*size = length;
+
+				r = 0;
+				goto out;
+			}
+
+			/* addr@end_part_name */
+			r = fastboot_mmc_get_part_info(next, &dev_desc, &part_info,
+						       response);
+			if (r >= 0) {
+				*size = part_info.start + part_info.size;
+
+				goto out;
+			}
+		}
+
 		r = fastboot_mmc_get_part_info(part_name, &dev_desc, &part_info,
 					       response);
 		if (r >= 0 && size)
-			*size = part_info.size * part_info.blksz;
+			*size = part_info.size;
 	}
 #endif
 
@@ -145,6 +177,7 @@ static int getvar_get_part_info(const char *part_name, char *response,
 	}
 #endif
 
+out:
 	return r;
 }
 #endif
@@ -265,6 +298,7 @@ static void getvar_partition_size(char *part_name, char *response)
 	size_t size;
 
 	r = getvar_get_part_info(part_name, response, &size);
+
 	if (r >= 0)
 		fastboot_response("OKAY", response, "0x%016zx", size);
 }
@@ -274,6 +308,49 @@ static void getvar_is_userspace(char *var_parameter, char *response)
 {
 	fastboot_okay("no", response);
 }
+
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
+static void getvar_block_size(char *part_name, char *response)
+{
+	int r = -1;
+	size_t size = 0;
+
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
+	if (fastboot_get_flash_type() == FLASH_TYPE_UNKNOWN ||
+			fastboot_get_flash_type() == FLASH_TYPE_EMMC) {
+		struct blk_desc *dev_desc;
+
+		dev_desc = fastboot_mmc_get_dev(response);
+		if (!dev_desc) {
+			fastboot_fail("block device not found", response);
+		} else {
+			size = dev_desc->blksz;
+			r = 0;
+		}
+	}
+#endif
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
+	if (fastboot_get_flash_type() == FLASH_TYPE_NAND) {
+		struct part_info *part_info;
+
+		r = fastboot_nand_get_part_info(part_name, &part_info, response);
+		if (r >= 0)
+			size = part_info->sector_size;
+	}
+#endif
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_SPINAND)
+	if (fastboot_get_flash_type() == FLASH_TYPE_SPINAND) {
+		struct part_info *part_info;
+
+		r = fastboot_spinand_get_part_info(part_name, &part_info, response);
+		if (r >= 0)
+			size = part_info->sector_size;
+	}
+#endif
+	if (r >= 0)
+		fastboot_response("OKAY", response, "0x%016zx", size);
+}
+#endif
 
 /**
  * fastboot_getvar() - Writes variable indicated by cmd_parameter to response.

@@ -107,6 +107,14 @@ config FASTBOOT_FLASH_RAM
 
 endmenu
 
+config FASTBOOT_FETCH
+	bool "Enable FASTBOOT FETCH command"
+	depends on MMC || (NAND && CMD_MTDPARTS) || MTD_SPI_NAND
+	help
+	  The fastboot protocol includes a "fetch" command for reading
+	  the mmc partition image and save to a specified file. Define
+	  this to enable the "fastboot fetch" command.
+
 config FASTBOOT_FLASH_MMC_DEV
 	int "Define FASTBOOT MMC FLASH default device"
 	depends on FASTBOOT_FLASH_MMC

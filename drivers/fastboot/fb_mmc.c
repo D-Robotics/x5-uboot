@@ -20,6 +20,7 @@
 #include <android_image.h>
 
 #define FASTBOOT_MAX_BLK_WRITE 16384
+#define FASTBOOT_MAX_BLK_READ 16384
 
 #define BOOT_PARTITION_NAME "boot"
 
@@ -136,7 +137,7 @@ static lbaint_t fb_mmc_blk_write(struct blk_desc *block_dev, lbaint_t start,
 	lbaint_t blks_written;
 	lbaint_t cur_blkcnt;
 	lbaint_t blks = 0;
-	int i;
+	int32_t i;
 
 	for (i = 0; i < blkcnt; i += FASTBOOT_MAX_BLK_WRITE) {
 		cur_blkcnt = min((int)blkcnt - i, FASTBOOT_MAX_BLK_WRITE);
@@ -169,6 +170,39 @@ static lbaint_t fb_mmc_sparse_reserve(struct sparse_storage *info,
 		lbaint_t blk, lbaint_t blkcnt)
 {
 	return blkcnt;
+}
+
+/**
+ * fb_mmc_blk_read() - Read partition from MMC
+ *
+ * @block_dev: Pointer to block device
+ * @start: First block to read
+ * @blkcnt: Count of blocks
+ * @buffer: Pointer to data buffer for read and upload
+ */
+static lbaint_t fb_mmc_blk_read(struct blk_desc *block_dev, lbaint_t start,
+				 lbaint_t blkcnt, void *buffer)
+{
+	lbaint_t blk = start;
+	lbaint_t blks_read;
+	lbaint_t cur_blkcnt;
+	lbaint_t blks = 0;
+	int32_t i;
+
+	if (!buffer)
+		return -1;
+
+	for (i = 0; i < blkcnt; i += FASTBOOT_MAX_BLK_READ) {
+		cur_blkcnt = min((int)blkcnt - i, FASTBOOT_MAX_BLK_READ);
+		if (fastboot_progress_callback)
+			fastboot_progress_callback("reading");
+		blks_read = blk_dread(block_dev, blk, cur_blkcnt,
+					  buffer + (i * block_dev->blksz));
+
+		blk += blks_read;
+		blks += blks_read;
+	}
+	return blks;
 }
 
 /**
@@ -229,6 +263,85 @@ static void write_raw_image(struct blk_desc *dev_desc,
 	printf("........ wrote " LBAFU " bytes to '%s'\n", blkcnt * info->blksz,
 	       part_name);
 	fastboot_okay(NULL, response);
+}
+
+static int read_raw_image(struct blk_desc *dev_desc, struct disk_partition *info,
+		const char *part_name, void *buffer,
+		u32 size, u32 offset, char *response)
+{
+	lbaint_t blkcnt;
+	lbaint_t blks;
+	lbaint_t blks_offset;
+
+	/* determine number of blocks to write */
+	blkcnt = ((size + (info->blksz - 1)) & ~(info->blksz - 1));
+	blkcnt = lldiv(blkcnt, info->blksz);
+
+	if (blkcnt > info->size) {
+		pr_err("too large for partition: '%s'\n", part_name);
+		fastboot_fail("too large for partition", response);
+		return -1;
+	}
+
+	blks_offset = ((offset + (info->blksz - 1)) & ~(info->blksz - 1));
+	blks_offset = lldiv(blks_offset, info->blksz);
+
+	if (blkcnt + blks_offset > info->size) {
+		pr_err("too large for partition: '%s'. blkcnt(%lu), blks_offset(%lu), size(%lu)\n",
+				part_name, blkcnt, blks_offset, info->size);
+		fastboot_fail("too large for partition", response);
+		return -1;
+	}
+
+	puts("Loading Raw Image\n");
+
+	blks = fb_mmc_blk_read(dev_desc, info->start + blks_offset, blkcnt, buffer);
+
+	if (blks != blkcnt) {
+		pr_err("failed to read from device %d\n", dev_desc->devnum);
+		fastboot_fail("failed to read from device", response);
+		return blks * info->blksz;
+	}
+
+	printf("........ read " LBAFU " bytes from '%s'\n", blkcnt * info->blksz,
+	       part_name);
+	fastboot_okay(NULL, response);
+
+	return blks * info->blksz;
+}
+
+/**
+ * read_raw_image_to_addr - write raw image to addr
+ */
+static int64_t read_raw_image_from_addr(struct blk_desc *dev_desc, u64 addr,
+		u64 blksz, void *buffer, u64 size, s64 offset, char *response)
+{
+	lbaint_t blkcnt;
+	lbaint_t blks;
+	lbaint_t blks_offset;
+
+	/* determine number of blocks to read */
+	blkcnt = ((size + (blksz - 1)) & ~(blksz - 1));
+	blkcnt = lldiv(blkcnt, blksz);
+
+	blks_offset = ((offset + (blksz - 1)) & ~(blksz - 1));
+	blks_offset = lldiv(blks_offset, blksz);
+
+	puts("Flashing Raw Image\n");
+
+	blks = fb_mmc_blk_read(dev_desc, addr + blks_offset, blkcnt, buffer);
+
+	if (blks != blkcnt) {
+		pr_err("failed reading from device %d\n", dev_desc->devnum);
+		fastboot_fail("failed reading from device", response);
+		return -1;
+	}
+
+	printf("........ read \" %llu \" bytes from 0x%llx\n",
+			blkcnt * blksz, addr + blks_offset);
+	fastboot_okay(NULL, response);
+
+	return blks * dev_desc->blksz;
 }
 
 #if defined(CONFIG_FASTBOOT_MMC_BOOT_SUPPORT) || \
@@ -513,7 +626,7 @@ int fastboot_mmc_get_part_info(const char *part_name,
 	return ret;
 }
 
-static struct blk_desc *fastboot_mmc_get_dev(char *response)
+struct blk_desc *fastboot_mmc_get_dev(char *response)
 {
 	u32 mmc_dev;
 
@@ -542,7 +655,7 @@ static struct blk_desc *fastboot_mmc_get_dev(char *response)
 void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 			      u32 download_bytes, char *response)
 {
-	struct blk_desc *dev_desc;
+	struct blk_desc *dev_desc = NULL;
 	struct disk_partition info = {0};
 	long start_addr = -1;
 	char *s, *stringp;
@@ -588,6 +701,8 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 		printf("........ success\n");
 		fastboot_okay(NULL, response);
 		return;
+	} else {
+		// do nothing
 	}
 #endif
 
@@ -652,7 +767,7 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 			strsep(&s, ":");
 
 		/* fallback on using the 'partition name' as a number */
-		if (strict_strtoul(s, 16, (unsigned long *)&start_addr) < 0) {
+		if (strict_strtoul(s, 16, (unsigned long*)&start_addr) < 0) {
 			free(stringp);
 			return;
 		}
@@ -779,4 +894,97 @@ void fastboot_mmc_erase(const char *cmd, char *response)
 	printf("........ erased " LBAFU " bytes from '%s'\n",
 	       blks_size * info.blksz, cmd);
 	fastboot_okay(NULL, response);
+}
+
+/**
+ * fastboot_mmc_flash_read() - Read image from eMMC to upload buffer
+ *
+ * @cmd: Named partition to write image to
+ * @upload_buffer: buffer to load image data
+ * @buffer_size: size of upload_buffer
+ * @offset: offset that bytes already loaded
+ * @response: Pointer to fastboot response buffer
+ *
+ * On success, the number of bytes read is returned.
+ * On error, -1 is returned.
+ */
+int64_t fastboot_mmc_flash_read(char *cmd, void *upload_buffer,
+			u64 buffer_size, s64 offset, char *response)
+{
+	struct blk_desc *dev_desc;
+	struct disk_partition info;
+	char *cur, *next;
+	int64_t start_addr = -1;
+	uint64_t length = 0;
+	int64_t partition_size = 0;
+	int64_t remaining_size = 0;
+	int64_t read_size = 0;
+	int64_t r = -1;
+
+	dev_desc = fastboot_mmc_get_dev(response);
+	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
+		pr_err("invalid mmc device\n");
+		fastboot_fail("invalid mmc device", response);
+		return -1;
+	}
+
+	memset(&info, 0, sizeof(struct disk_partition));
+
+	next = cmd;
+	cur = strsep(&next, "@");
+
+	/* addr@length or addr@end_part case */
+	if (cur && next && !strict_strtoul(cur, 16, (unsigned long *)&start_addr)) {
+		/* addr@length */
+		if (strict_strtoul(next, 16, (unsigned long *)&length) < 0) {
+			/* addr@end_part_name */
+			if (part_get_info_by_name_or_alias(&dev_desc, next, &info) < 0) {
+				pr_err("cannot find partition: '%s'\n", next);
+				fastboot_fail("cannot find partition", response);
+			} else {
+				length = info.start + info.size;
+			}
+		}
+	} else if (fastboot_mmc_get_part_info(cmd, &dev_desc, &info, response) < 0) {
+
+		pr_err("cannot find partition: '%s'\n", cmd);
+		fastboot_fail("cannot find partition", response);
+
+		return -1;
+	}
+
+	if (start_addr != -1 && length > 0)
+		partition_size = length * dev_desc->blksz;
+	else
+		partition_size = info.size * info.blksz;
+
+	remaining_size = partition_size - offset;
+	if (remaining_size <= 0) {
+		pr_err("Error: No remaining bytes to be fetched. partition_size(%llu), offset(%llu)\n",
+				partition_size, offset);
+
+		fastboot_fail("Error: No remaining bytes to be fetched.", response);
+		return -1;
+	}
+
+	printf("remaining(%llu bytes) to be fetched. continue...\n", remaining_size);
+
+	read_size = buffer_size > remaining_size ? remaining_size : buffer_size;
+
+	if (start_addr < 0 && start_addr != -1) {
+		pr_err("Error: start_addr: %08lld(%08llx) invalid...\n", start_addr, start_addr);
+		fastboot_fail("Error: start_addr(< 0) invalid...\n", response);
+
+		return -1;
+	}
+
+	if (start_addr == -1)
+		r = read_raw_image(dev_desc, &info, cmd, upload_buffer,
+				read_size, offset, response);
+	else
+		r = read_raw_image_from_addr(dev_desc, (u64)start_addr,
+				dev_desc->blksz, upload_buffer,
+				read_size, offset, response);
+
+	return r;
 }
