@@ -112,6 +112,7 @@ int write_sparse_image(struct sparse_storage *info,
 	lbaint_t blk;
 	lbaint_t blkcnt;
 	lbaint_t blks;
+	lbaint_t bad_blkcnt = 0;
 	uint64_t bytes_written = 0;
 	unsigned int chunk;
 	unsigned int offset;
@@ -200,7 +201,7 @@ int write_sparse_image(struct sparse_storage *info,
 				return -1;
 			}
 
-			if (blk + blkcnt > info->start + info->size) {
+			if (blk + blkcnt > info->start + info->size + bad_blkcnt) {
 				printf(
 				    "%s: Request would exceed partition size!\n",
 				    __func__);
@@ -216,6 +217,7 @@ int write_sparse_image(struct sparse_storage *info,
 
 			blk += blks;
 			bytes_written += ((u64)blkcnt) * info->blksz;
+			bad_blkcnt += blks - blkcnt;
 			total_blocks += chunk_header->chunk_sz;
 			data += chunk_data_sz;
 			break;
@@ -247,7 +249,7 @@ int write_sparse_image(struct sparse_storage *info,
 			     i++)
 				fill_buf[i] = fill_val;
 
-			if (blk + blkcnt > info->start + info->size) {
+			if (blk + blkcnt > info->start + info->size + bad_blkcnt) {
 				printf(
 				    "%s: Request would exceed partition size!\n",
 				    __func__);
@@ -274,6 +276,7 @@ int write_sparse_image(struct sparse_storage *info,
 					return -1;
 				}
 				blk += blks;
+				bad_blkcnt += blks - j;
 				i += j;
 			}
 			bytes_written += ((u64)blkcnt) * info->blksz;
