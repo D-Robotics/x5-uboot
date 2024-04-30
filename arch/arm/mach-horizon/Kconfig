@@ -1,0 +1,10 @@
+if ARCH_HORIZON
+
+config X5
+	bool "Horizon X5 SOC"
+	help
+	  Support for the Horizon X5 SoC.
+
+source "arch/arm/mach-horizon/x5/Kconfig"
+
+endif

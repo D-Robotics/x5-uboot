@@ -1,0 +1,157 @@
+// SPDX-License-Identifier: BSD-2-Clause
+/*
+ * Copyright (C) 2023 VeriSilicon Holdings Co., Ltd.
+ */
+
+/dts-v1/;
+
+#include <configs/x5.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	aliases {
+		spi0 = &qspi1;
+		mmc0 = &sdio_0;
+		mmc1 = &emmc;
+	};
+
+	clocks {
+		refclk: ref {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <CONFIG_SYS_CLK_FREQ>;
+		};
+		sdclk: sdclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <SD_EMMC_CLK_FREQ>; /* 200M */
+		};
+		qspiclk: spiclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <QSPI_CLK_FREQ>; /* 200M */
+		};
+	};
+
+	uart1: serial@34070000 {
+		compatible = "ns16550a";
+		reg = <0x34070000 0x10000>;
+		clock-frequency = <UART_CLK_FREQ>;
+		reg-shift = <2>;
+		current-speed = <115200>;
+		u-boot,dm-pre-reloc;
+	};
+
+	qspi1: spi@35000000 {
+		compatible = "snps,dw-apb-ssi";
+		reg = <0x35000000 0x1000>;
+		clocks = <&qspiclk>;
+		spi-max-frequency = <50000000>;
+		num-cs = <1>;
+		reg-io-width = <4>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	sdio_0: sdio-host@35020000 {
+		compatible = "snps,dw-sdhci";
+		reg = <0x35020000 0x10000>;
+		clocks = <&sdclk>;
+		max-frequency = <50000000>;
+		no-1-8-v;
+		no-sdio;
+		status = "okay";
+	};
+
+	sdio_1: sdio-host@35030000 {
+		compatible = "snps,dw-sdhci";
+		reg = <0x35030000 0x10000>;
+		clocks = <&sdclk>;
+		max-frequency = <50000000>;
+		no-1-8-v;
+		no-sdio;
+		status = "okay";
+	};
+
+	emmc: sdio-host@35040000 {
+		compatible = "snps,dw-sdhci";
+		reg = <0x35040000 0x10000>;
+		clocks = <&sdclk>;
+		max-frequency = <200000000>;
+		phy-pads;
+		bus-width = <8>;
+		mmc-hs200-1_8v;
+		non-removable;
+		no-sdio;
+		no-sd;
+		disable-wp;
+		status = "okay";
+	};
+
+	ethernet_tsn: gmac-tsn@0x0a220000 {
+		compatible = "verisilicon,stm32mp1-dwmac";
+		status = "disabled";
+		reg = <0x0a220000 0x10000>;
+		reg-names = "stmmaceth";
+		clock-names = "stmmaceth",
+				"mac-clk-tx",
+				"mac-clk-rx",
+				"ethstp",
+				"syscfg-clk";
+		clocks = <&refclk>,
+			<&refclk>,
+			<&refclk>,
+			<&refclk>,
+			<&refclk>;
+		phy-mode = "rgmii-id";
+		phy-handle = <&ethphy0>;
+
+		mdio {
+			compatible = "snps,dwmac-mdio";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ethphy0: ethernet-phy@1 {
+				compatible = "ethernet-phy-ieee802.3-c22";
+				reg = <1>;
+			};
+		};
+	};
+
+	dwc3: usb@35100000 {
+		compatible = "snps,dwc3";
+		status = "disabled";
+		reg = <0x35100000 0x10000>;
+		dr_mode = "host"; // peripheral/host
+		phy_type = "ulpi";
+		phy-names = "usb3-phy";
+		clocks = <&refclk &refclk &refclk>;
+		clock-names = "ref", "bus_early", "suspend";
+	};
+
+
+	dwc2: usb@35300000 {
+		compatible = "snps,dwc2";
+		status = "disabled";
+		reg = <0x35300000 0x80000>;
+		dr_mode = "host"; // peripheral/host
+		clocks = <&refclk>;
+		clock-names = "host";
+		g-rx-fifo-size = <539>;
+		g-np-tx-fifo-size = <32>;
+		g-tx-fifo-size = <256 256 512 512 768 768 256 256>;
+		hnp-srp-disable;
+	};
+
+	watchdog: watchdog@34140000 {
+		compatible = "snps,dw-wdt";
+		reg = <0x34140000 0x10000>;
+		status = "okay";
+		clocks = <&refclk>, <&refclk>;
+		clock-names = "pclk", "tclk";
+		timeout-sec = <60>;
+	};
+};

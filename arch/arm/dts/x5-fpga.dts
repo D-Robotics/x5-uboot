@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: BSD-2-Clause
+/*
+ * Copyright (C) 2023 VeriSilicon Holdings Co., Ltd.
+ */
+
+/dts-v1/;
+
+#include <configs/x5.h>
+#include <dt-bindings/gpio/gpio.h>
+
+#include "x5.dtsi"
+
+/ {
+	compatible = "Horizon,x5";
+	model = "X5 FPGA Board";
+
+	chosen {
+		stdout-path = &uart1;
+	};
+};
+
+&qspi1 {
+	spi-nor@0 {
+		compatible ="jedec,spi-nor";
+		spi-max-frequency = <500000>;
+		reg = <0>;
+	};
+};
+
+&ethernet_tsn {
+	status = "okay";
+};

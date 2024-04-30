@@ -1,0 +1,6 @@
+X5 BOARD
+M:
+S:  Maintained
+F:  board/x/
+F:  include/configs/x5.h
+F:  configs/x5_defconfig

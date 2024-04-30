@@ -1,0 +1,15 @@
+if X5
+
+config SYS_BOARD
+	default "x5"
+
+config SYS_VENDOR
+	default "horizon"
+
+config SYS_SOC
+	default "x5"
+
+config SYS_CONFIG_NAME
+	default "x5"
+
+endif
