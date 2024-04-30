@@ -44,6 +44,9 @@ enum {
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_BOOTBUS)
 	FASTBOOT_COMMAND_OEM_BOOTBUS,
 #endif
+#if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_RAMDUMP)
+	FASTBOOT_COMMAND_OEM_RAMDUMP,
+#endif
 #if CONFIG_IS_ENABLED(FASTBOOT_UUU_SUPPORT)
 	FASTBOOT_COMMAND_ACMD,
 	FASTBOOT_COMMAND_UCMD,
@@ -90,6 +93,13 @@ void fastboot_fail(const char *reason, char *response);
 void fastboot_okay(const char *reason, char *response);
 
 /**
+ * fastboot_none_resp() - Skip the common write operation, nothing output.
+ *
+ * @response: Pointer to fastboot response buffer
+ */
+void fastboot_none_resp(char *response);
+
+/**
  * fastboot_set_reboot_flag() - Set flag to indicate reboot-bootloader
  *
  * Set flag which indicates that we should reboot into the bootloader
@@ -118,8 +128,9 @@ void fastboot_set_progress_callback(void (*progress)(const char *msg));
  *
  * @buf_addr: Pointer to download buffer, or NULL for default
  * @buf_size: Size of download buffer, or zero for default
+ * @medium_devnum: Medium device number(eg. mmc 0 or 1)
  */
-void fastboot_init(void *buf_addr, u32 buf_size);
+void fastboot_init(void *buf_addr, u32 buf_size, s32 medium_devnum);
 
 /**
  * fastboot_boot() - Execute fastboot boot command
@@ -144,11 +155,18 @@ void fastboot_boot(void);
 int fastboot_handle_command(char *cmd_string, char *response);
 
 /**
- * fastboot_data_remaining() - return bytes remaining in current transfer
+ * fastboot_download_remaining() - return bytes remaining in current transfer
  *
  * Return: Number of bytes left in the current download
  */
-u32 fastboot_data_remaining(void);
+u32 fastboot_download_remaining(void);
+
+/**
+ * fastboot_upload_remaining() - return bytes remaining in current transfer
+ *
+ * Return: Number of bytes left in the current upload
+ */
+u32 fastboot_upload_remaining(void);
 
 /**
  * fastboot_data_download() - Copy image data to fastboot_buf_addr.
@@ -165,15 +183,79 @@ void fastboot_data_download(const void *fastboot_data,
 			    unsigned int fastboot_data_len, char *response);
 
 /**
- * fastboot_data_complete() - Mark current transfer complete
+ * fastboot_data_upload() - Copy specify data to fastboot_data.
+ *
+ * @fastboot_data: Pointer to send fastboot data
+ * @fastboot_data_len: Length of send fastboot data
+ * @response: Pointer to fastboot response buffer
+ *
+ * Copies specify data(Only support ramdump currently) to fastboot_data.
+ * Writes to response. fastboot_bytes_send is updated to indicate the number
+ * of bytes that have been transferred.
+ */
+void fastboot_data_upload(void *fastboot_data,
+			    unsigned int fastboot_data_len, char *response);
+/**
+ * fastboot_download_complete() - Mark current transfer complete
  *
  * @response: Pointer to fastboot response buffer
  *
  * Set image_size and ${filesize} to the total size of the downloaded image.
  */
-void fastboot_data_complete(char *response);
+void fastboot_download_complete(char *response);
+
+/**
+ * fastboot_tx_write() - fastboot tx write data
+ *
+ * @buffer: buffer to be send
+ * @buffer_size: buffer size
+ *
+ * fastboot tx transfer data through usb bulk-ep1
+ * (fastboot_func->in_ep)
+ */
+int fastboot_tx_write(const char *buffer, unsigned int buffer_size);
+
+/**
+ * fastboot_tx_write_more() - fastboot tx write more buffer
+ *
+ * @buffer: string buffer to more fastboot response
+ *
+ * fastboot_tx_write(_str) use const bulk-ep1 to transfer data,
+ * fastboot_tx_write_more will alloc new urb/trb to transfer more
+ * buffer.
+ */
+int fastboot_tx_write_more(const char *buffer);
+
+/**
+ * fastboot_upload_ramdump() - wrapper function for upload ramdump to host
+ *
+ * wrapper function to upload requested ram data to host pc,
+ * used for oem ramdump feature..
+ */
+void fastboot_upload_ramdump(void);
+
+/**
+ * fastboot_upload_complete() - Mark current transfer complete
+ *
+ * @response: Pointer to fastboot response buffer
+ *
+ * Mark current upload transfer complete, and reset global transfer info.
+ */
+void fastboot_upload_complete(char *response);
+
 
 #if CONFIG_IS_ENABLED(FASTBOOT_UUU_SUPPORT)
 void fastboot_acmd_complete(void);
 #endif
+
+/*
+ * fastboot_medium_devnum() - get fastboot medium devnum
+ *
+ * @void
+ * Return: flash medium devnum. (eg. mmc 0 or 1)
+ * >= 0: meaningful
+ * < 0: no user input
+ */
+s32 fastboot_medium_devnum(void);
+
 #endif /* _FASTBOOT_H_ */

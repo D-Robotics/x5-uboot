@@ -79,9 +79,13 @@ static int do_get_part_info(struct blk_desc **dev_desc, const char *name,
 			    struct disk_partition *info)
 {
 	int ret;
+	u32 mmc_dev;
+
+	mmc_dev = (fastboot_medium_devnum() < 0) ?
+		CONFIG_FASTBOOT_FLASH_MMC_DEV : fastboot_medium_devnum();
 
 	/* First try partition names on the default device */
-	*dev_desc = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	*dev_desc = blk_get_dev("mmc", mmc_dev);
 	if (*dev_desc) {
 		ret = part_get_info_by_name(*dev_desc, name, info);
 		if (ret >= 0)
@@ -165,6 +169,34 @@ static lbaint_t fb_mmc_sparse_reserve(struct sparse_storage *info,
 		lbaint_t blk, lbaint_t blkcnt)
 {
 	return blkcnt;
+}
+
+/**
+ * write_raw_image_to_addr - write raw image to addr
+ */
+static void write_raw_image_to_addr(struct blk_desc *dev_desc, long addr,
+		int blksz, void *buffer, u32 download_bytes, char *response)
+{
+	lbaint_t blkcnt;
+	lbaint_t blks;
+
+	/* determine number of blocks to write */
+	blkcnt = ((download_bytes + (blksz - 1)) & ~(blksz - 1));
+	blkcnt = lldiv(blkcnt, blksz);
+
+	puts("Flashing Raw Image\n");
+
+	blks = fb_mmc_blk_write(dev_desc, addr, blkcnt, buffer);
+
+	if (blks != blkcnt) {
+		pr_err("failed writing to device %d\n", dev_desc->devnum);
+		fastboot_fail("failed writing to device", response);
+		return;
+	}
+
+	printf("........ wrote " LBAFU " bytes to 0x%lx\n",
+			blkcnt * blksz, addr);
+	fastboot_okay(NULL, response);
 }
 
 static void write_raw_image(struct blk_desc *dev_desc,
@@ -483,8 +515,13 @@ int fastboot_mmc_get_part_info(const char *part_name,
 
 static struct blk_desc *fastboot_mmc_get_dev(char *response)
 {
+	u32 mmc_dev;
+
+	mmc_dev = (fastboot_medium_devnum() < 0) ?
+		CONFIG_FASTBOOT_FLASH_MMC_DEV : fastboot_medium_devnum();
+
 	struct blk_desc *ret = blk_get_dev("mmc",
-					   CONFIG_FASTBOOT_FLASH_MMC_DEV);
+					   mmc_dev);
 
 	if (!ret || ret->type == DEV_TYPE_UNKNOWN) {
 		pr_err("invalid mmc device\n");
@@ -507,6 +544,8 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 {
 	struct blk_desc *dev_desc;
 	struct disk_partition info = {0};
+	long start_addr = -1;
+	char *s, *stringp;
 
 #ifdef CONFIG_FASTBOOT_MMC_BOOT_SUPPORT
 	if (strcmp(cmd, CONFIG_FASTBOOT_MMC_BOOT1_NAME) == 0) {
@@ -601,8 +640,26 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 #endif
 
 	if (!info.name[0] &&
-	    fastboot_mmc_get_part_info(cmd, &dev_desc, &info, response) < 0)
-		return;
+	    fastboot_mmc_get_part_info(cmd, &dev_desc, &info, response) < 0) {
+		pr_err("cannot find partition: '%s'\n", cmd);
+		fastboot_fail("cannot find partition", response);
+
+		stringp = strdup(cmd);
+		s = stringp;
+		if (strncmp(stringp, "addr:", 5) == 0)
+			strsep(&s, ":");
+
+		/* fallback on using the 'partition name' as a number */
+		if (strict_strtoul(s, 16, (unsigned long *)&start_addr) < 0) {
+			free(stringp);
+			return;
+		}
+		free(stringp);
+
+		printf("fastboot emmc flash start_addr: 0x%lx\n", start_addr);
+	}
+
+	printf("Starting flash to mmc%d\n", dev_desc->devnum);
 
 	if (is_sparse_image(download_buffer)) {
 		struct fb_mmc_sparse sparse_priv;
@@ -611,9 +668,16 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 
 		sparse_priv.dev_desc = dev_desc;
 
-		sparse.blksz = info.blksz;
-		sparse.start = info.start;
-		sparse.size = info.size;
+		if (start_addr == -1) {
+			sparse.blksz = info.blksz;
+			sparse.start = info.start;
+			sparse.size = info.size;
+		} else {
+			sparse.blksz = dev_desc->blksz;
+			sparse.start = start_addr;
+			sparse.size  = dev_desc->lba * dev_desc->blksz;
+		}
+
 		sparse.write = fb_mmc_sparse_write;
 		sparse.reserve = fb_mmc_sparse_reserve;
 		sparse.mssg = fastboot_fail;
@@ -627,8 +691,13 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 		if (!err)
 			fastboot_okay(NULL, response);
 	} else {
-		write_raw_image(dev_desc, &info, cmd, download_buffer,
-				download_bytes, response);
+		if (start_addr == -1)
+			write_raw_image(dev_desc, &info, cmd, download_buffer,
+					download_bytes, response);
+		else
+			write_raw_image_to_addr(dev_desc, start_addr,
+					dev_desc->blksz, download_buffer,
+					download_bytes, response);
 	}
 }
 
@@ -643,7 +712,12 @@ void fastboot_mmc_erase(const char *cmd, char *response)
 	struct blk_desc *dev_desc;
 	struct disk_partition info;
 	lbaint_t blks, blks_start, blks_size, grp_size;
-	struct mmc *mmc = find_mmc_device(CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	struct mmc *mmc;
+	u32 mmc_dev;
+
+	mmc_dev = (fastboot_medium_devnum() < 0) ?
+		CONFIG_FASTBOOT_FLASH_MMC_DEV : fastboot_medium_devnum();
+	mmc = find_mmc_device(mmc_dev);
 
 #ifdef CONFIG_FASTBOOT_MMC_BOOT_SUPPORT
 	if (strcmp(cmd, CONFIG_FASTBOOT_MMC_BOOT1_NAME) == 0) {

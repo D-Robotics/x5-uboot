@@ -56,6 +56,9 @@
 #define DW_SPI_IDR			0x58
 #define DW_SPI_VERSION			0x5c
 #define DW_SPI_DR			0x60
+#define DW_SPI_RX_SAMPLE_DLY		0xf0
+
+#define NSEC_PER_SEC	1000000000L
 
 /* Bit fields in CTRLR0 */
 /*
@@ -136,6 +139,8 @@ struct dw_spi_priv {
 	void *rx_end;
 	u32 fifo_len;			/* depth of the FIFO buffer */
 	u32 max_xfer;			/* Maximum transfer size (in bits) */
+	u32 cur_rx_sample_dly;
+	u32 def_rx_sample_dly_ns;
 
 	int bits_per_word;
 	int len;
@@ -388,6 +393,9 @@ static int dw_spi_probe(struct udevice *bus)
 
 	priv->tmode = 0; /* Tx & Rx */
 
+	/* Get default rx sample delay */
+	dev_read_u32(bus, "rx-sample-delay-ns", &priv->def_rx_sample_dly_ns);
+
 	/* Basic HW init */
 	spi_hw_init(bus, priv);
 
@@ -589,11 +597,13 @@ static int dw_spi_exec_op(struct spi_slave *slave, const struct spi_mem_op *op)
 	u8 op_len = op->cmd.nbytes + op->addr.nbytes + op->dummy.nbytes;
 	u8 op_buf[op_len];
 	u32 cr0;
+	u32 rx_sample_dly;
+	u32 rx_sample_dly_ns;
 
 	if (read)
 		priv->tmode = CTRLR0_TMOD_EPROMREAD;
 	else
-		priv->tmode = CTRLR0_TMOD_TO;
+		priv->tmode = CTRLR0_TMOD_TR;
 
 	cr0 = priv->update_cr0(priv);
 	dev_dbg(bus, "cr0=%08x buf=%p len=%u [bytes]\n", cr0, op->data.buf.in,
@@ -603,6 +613,18 @@ static int dw_spi_exec_op(struct spi_slave *slave, const struct spi_mem_op *op)
 	dw_write(priv, DW_SPI_CTRLR0, cr0);
 	if (read)
 		dw_write(priv, DW_SPI_CTRLR1, op->data.nbytes - 1);
+	/* Update RX sample delay if required */
+	if (dev_read_u32(slave->dev,"rx-sample-delay-ns", &rx_sample_dly_ns) != 0)
+			/* Use default controller value */
+			rx_sample_dly_ns = priv->def_rx_sample_dly_ns;
+	rx_sample_dly = DIV_ROUND_CLOSEST(rx_sample_dly_ns,
+					NSEC_PER_SEC /
+					priv->bus_clk_rate);
+
+	if (priv->cur_rx_sample_dly != rx_sample_dly) {
+		dw_write(priv, DW_SPI_RX_SAMPLE_DLY, rx_sample_dly);
+		priv->cur_rx_sample_dly = rx_sample_dly;
+	}
 	dw_write(priv, DW_SPI_SSIENR, 1);
 
 	/* From spi_mem_exec_op */

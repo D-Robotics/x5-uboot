@@ -728,6 +728,30 @@ config AVB_BUF_SIZE
 	  AVB requires a buffer for memory transactions. This variable defines the
 	  buffer size.
 
+config AVB_VERIFY_MTD
+	bool "Build Android Verified Boot operations with mtd device"
+	depends on LIBAVB
+	depends on MTD_PARTITIONS
+	help
+	  This option enables compilation of bootloader-dependent operations,
+	  used by Android Verified Boot 2.0 library (libavb). Includes:
+	    * Helpers to process strings in order to build OS bootargs.
+	    * Helpers to access MTD deivce, similar to drivers/fastboot/fb_spinand.c.
+	    * Helpers to alloc/init/free avb ops.
+
+config AVB_VERIFY_BLK
+	bool "Build Android Verified Boot operations of BLK"
+	depends on LIBAVB
+	depends on BLK
+	help
+	  This option enables compilation of bootloader-dependent operations,
+	  used by Android Verified Boot 2.0 library (libavb). Includes:
+	    * Helpers to process strings in order to build OS bootargs.
+	    * Helpers to access UFS deivce, similar to drivers/scsi/scsi.c.
+	    * Helpers to access NVME deivce, similar to drivers/nvme/nvme.c.
+		* Helpers to alloc/init/free avb ops.
+
+
 endif # AVB_VERIFY
 
 config SCP03
@@ -825,6 +849,12 @@ config ANDROID_AB
 	  information provided by userspace via the Android boot_ctrl HAL. This
 	  allows a bootloader to try a new version of the system but roll back
 	  to previous version if the new one didn't boot all the way.
+
+config MEMDUMP
+	bool "Memory Dump support"
+	default n
+	help
+	  If enabled, adds support for the memdump support.
 
 endmenu
 

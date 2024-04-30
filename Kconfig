@@ -57,6 +57,19 @@ config LOCALVERSION_AUTO
 
 	  which is done within the script "scripts/setlocalversion".)
 
+config WERROR
+	bool "Compile the U-Boot with warnings as errors"
+	help
+	  A u-boot build should not cause any compiler warnings, and this
+	  enables the '-Werror' (for C) to enforce that rule by default.
+
+	  However, if you have a new (or very old) compiler with odd and
+	  unusual warnings, or you have some architecture with problems,
+	  you may need to disable this config option in order to
+	  successfully build the kernel.
+
+	  If in doubt, say N.
+
 config CC_IS_GCC
 	def_bool $(success,$(CC) --version | head -n 1 | grep -q gcc)
 

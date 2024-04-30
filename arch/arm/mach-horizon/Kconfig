@@ -1,10 +1,15 @@
 if ARCH_HORIZON
 
-config X5
+config TARGET_X5
 	bool "Horizon X5 SOC"
 	help
 	  Support for the Horizon X5 SoC.
 
+config DROBOT_DISABLE_WDT
+	bool "Drobot disable watchdog"
+	depends on WDT
+	help
+	  Support disable watchdog in drobotic X5 SOC.
 source "arch/arm/mach-horizon/x5/Kconfig"
 
 endif

@@ -24,7 +24,7 @@
 #define MAX_NUMBER_OF_VBMETA_IMAGES 32
 
 /* Maximum size of a vbmeta image - 64 KiB. */
-#define VBMETA_MAX_SIZE (64 * 1024)
+#define VBMETA_MAX_SIZE (16 * 1024)
 
 static AvbSlotVerifyResult initialize_persistent_digest(
     AvbOps* ops,
@@ -1549,7 +1549,7 @@ AvbSlotVerifyResult avb_slot_verify(AvbOps* ops,
       }
     }
     slot_data->resolved_hashtree_error_mode = resolved_hashtree_error_mode;
-
+#ifndef CONFIG_TARGET_X5
     /* Add options... */
     AvbSlotVerifyResult sub_ret;
     sub_ret = avb_append_options(ops,
@@ -1563,6 +1563,7 @@ AvbSlotVerifyResult avb_slot_verify(AvbOps* ops,
       ret = sub_ret;
       goto fail;
     }
+#endif
   }
 
   /* Substitute $(ANDROID_SYSTEM_PARTUUID) and friends. */

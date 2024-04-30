@@ -812,6 +812,44 @@ __weak int clear_bss(void)
 	return 0;
 }
 
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_F
+static int bootstage_initf_bootstage(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "initf_bootstage");
+	return 0;
+}
+
+static int bootstage_arch_cpu_init_dm(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "arch_cpu_init_dm");
+	return 0;
+}
+
+static int bootstage_board_early_init_f(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "board_early_init_f");
+	return 0;
+}
+
+static int bootstage_display_text_info(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "display_text_info");
+	return 0;
+}
+
+static int bootstage_dram_init(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "dram_init");
+	return 0;
+}
+
+static int bootstage_clear_bss(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "clear_bss");
+	return 0;
+}
+#endif /* CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_F */
+
 static int misc_init_f(void)
 {
 	return event_notify_null(EVT_MISC_INIT_F);
@@ -828,6 +866,9 @@ static const init_fnc_t init_sequence_f[] = {
 	initf_malloc,
 	log_init,
 	initf_bootstage,	/* uses its own timer, so does not need DM */
+#if defined(CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_F)
+	bootstage_initf_bootstage,
+#endif
 	event_init,
 #ifdef CONFIG_BLOBLIST
 	bloblist_init,
@@ -840,10 +881,16 @@ static const init_fnc_t init_sequence_f[] = {
 	arch_fsp_init,
 #endif
 	arch_cpu_init,		/* basic arch cpu dependent setup */
+#if defined(CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_F)
+	bootstage_arch_cpu_init_dm,
+#endif
 	mach_cpu_init,		/* SoC/machine dependent CPU setup */
 	initf_dm,
 #if defined(CONFIG_BOARD_EARLY_INIT_F)
 	board_early_init_f,
+#endif
+#if defined(CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_F)
+	bootstage_board_early_init_f,
 #endif
 #if defined(CONFIG_PPC) || defined(CONFIG_SYS_FSL_CLK) || defined(CONFIG_M68K)
 	/* get CPU and bus clocks according to the environment variable */
@@ -861,6 +908,9 @@ static const init_fnc_t init_sequence_f[] = {
 	console_init_f,		/* stage 1 init of console */
 	display_options,	/* say that we are here */
 	display_text_info,	/* show debugging info if required */
+#if defined(CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_F)
+	bootstage_display_text_info,
+#endif
 	checkcpu,
 #if defined(CONFIG_SYSRESET)
 	print_resetinfo,
@@ -885,6 +935,9 @@ static const init_fnc_t init_sequence_f[] = {
 #endif
 	announce_dram_init,
 	dram_init,		/* configure available RAM banks */
+#if defined(CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_F)
+	bootstage_dram_init,
+#endif
 #ifdef CONFIG_POST
 	post_init_f,
 #endif
@@ -945,6 +998,9 @@ static const init_fnc_t init_sequence_f[] = {
 	do_elf_reloc_fixups,
 #endif
 	clear_bss,
+#if defined(CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_F)
+	bootstage_clear_bss,
+#endif
 #if !defined(CONFIG_ARM) && !defined(CONFIG_SANDBOX) && \
 		!CONFIG_IS_ENABLED(X86_64)
 	jump_to_copy,

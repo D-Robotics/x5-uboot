@@ -1,0 +1,43 @@
+menu "Horizon SOC drivers"
+
+config HOBOT_BOARD_TYPE
+	bool "Horizon Board Type"
+	depends on ARCH_HORIZON
+	help
+	  Select the board type for your target platform.
+	  If unsure, leave the default value.
+
+choice
+	prompt "Select Horizon Board Type"
+	depends on HOBOT_BOARD_TYPE
+	default HOBOT_X5_SOC
+
+config HOBOT_ADC_BTYPE
+	bool "ADC_BTYPE"
+	select ADC
+	help
+	  Setup board_type according to adc value.
+
+config HOBOT_X5_SOC
+	bool "X5SOC"
+	help
+	  Select this option for Board Type X5 SOC.
+
+config HOBOT_X5_FPGA
+	bool "X5FPGA"
+	help
+	  Select this option for Board Type X5 FPGA.
+
+config HOBOT_X5_SVB
+	bool "X5SVB"
+	help
+	  Select this option for Board Type X5 SVB.
+
+config HOBOT_X5_EVB
+	bool "X5EVB"
+	help
+	  Select this option for Board Type X5 EVB.
+
+endchoice
+
+endmenu

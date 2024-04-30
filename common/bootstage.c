@@ -263,6 +263,7 @@ static int h_compare_record(const void *r1, const void *r2)
 }
 
 #ifdef CONFIG_OF_LIBFDT
+#include <fdt_support.h>
 /**
  * Add all bootstage timings to a device tree.
  *
@@ -276,6 +277,7 @@ static int add_bootstages_devicetree(struct fdt_header *blob)
 	char buf[20];
 	int recnum;
 	int i;
+	int ret;
 
 	if (!blob)
 		return 0;
@@ -288,6 +290,9 @@ static int add_bootstages_devicetree(struct fdt_header *blob)
 	if (bootstage < 0)
 		return -EINVAL;
 
+	ret = fdt_shrink_to_minimum(blob, CONFIG_SYS_FDT_PAD);
+	if (ret < 0)
+		return -EINVAL;
 	/*
 	 * Insert the timings to the device tree in the reverse order so
 	 * that they can be printed in the Linux kernel in the right order.
@@ -314,6 +319,10 @@ static int add_bootstages_devicetree(struct fdt_header *blob)
 				rec->time_us))
 			return -EINVAL;
 	}
+
+	ret = fdt_shrink_to_minimum(blob, 0);
+	if (ret < 0)
+		return -EINVAL;
 
 	return 0;
 }

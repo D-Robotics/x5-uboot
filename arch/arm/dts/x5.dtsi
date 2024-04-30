@@ -1,24 +1,55 @@
 // SPDX-License-Identifier: BSD-2-Clause
 /*
- * Copyright (C) 2023 VeriSilicon Holdings Co., Ltd.
+ * Copyright(C) 2024, D-Robotics Co., Ltd. All rights reserved
  */
 
 /dts-v1/;
 
 #include <configs/x5.h>
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/board/hb_board_id.h>
 
 / {
+	compatible = "Horizon,x5";
+
 	#address-cells = <1>;
 	#size-cells = <1>;
 
-	aliases {
-		spi0 = &qspi1;
-		mmc0 = &sdio_0;
-		mmc1 = &emmc;
+	chosen {
+		stdout-path = &dsp_uart;
+		initial-devices = &board_type;
+	};
+
+	config {
+		u-boot,mmc-env-partition = "ubootenv";
+		u-boot,mmc-env-offset = "0x887000";
+	};
+
+	board_type: board_type {
+		compatible = "hobot,btype";
+		adc_dev = &adc, &adc;
+		adc_channel = <0 1>;
+		board_type_array =
+				<0 50 0 40 HOBOT_X5_FPGA_ID 0 0 0 0 0>,
+				<1100 1300 800 1000 HOBOT_X5_SOC_ID 1 0 0 1 1>,
+				<0 40 40 80 HOBOT_X5_SVB_ID 2 0 0 2 0>,
+				<151 240 51 140 HOBOT_X5_EVB_ID 3 0 0 3 1>;
+		hardware_array = "x5-fpga", "x5-soc", "x5-svb", "x5-evb";
+		ethact_array = "default";
+		net_eth0_ipaddr = "192.168.1.10";
+		board_name_array = "x5-fpga", "x5-soc", "x5-svb", "x5-evb";
+		pmic_type = "dual-pmic", "single-pmic";
+	};
+
+	reg_adc_vref_1v8: regulator-1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "adc_1v8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
 	};
 
 	clocks {
+		compatible = "simple-bus";
 		refclk: ref {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
@@ -27,131 +58,82 @@
 		sdclk: sdclk {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
-			clock-frequency = <SD_EMMC_CLK_FREQ>; /* 200M */
+			clock-frequency = <SD_EMMC_CLK_FREQ>;
 		};
-		qspiclk: spiclk {
+		qspiclk: qspiclk {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
-			clock-frequency = <QSPI_CLK_FREQ>; /* 200M */
+			clock-frequency = <QSPI_CLK_FREQ>;
+		};
+		adcclk: adcclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <ADC_CLK_FREQ>;
+		};
+		wdtclk: wdtclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <WDT_CLK_FREQ>;
 		};
 	};
 
-	uart1: serial@34070000 {
+	dsp_uart: serial@32120000 {
 		compatible = "ns16550a";
-		reg = <0x34070000 0x10000>;
+		reg = <0x32120000 0x10000>;
 		clock-frequency = <UART_CLK_FREQ>;
 		reg-shift = <2>;
 		current-speed = <115200>;
 		u-boot,dm-pre-reloc;
+		status = "okay";
 	};
 
-	qspi1: spi@35000000 {
-		compatible = "snps,dw-apb-ssi";
-		reg = <0x35000000 0x1000>;
-		clocks = <&qspiclk>;
-		spi-max-frequency = <50000000>;
-		num-cs = <1>;
-		reg-io-width = <4>;
+	watchdog: watchdog@34250000 {
+		compatible = "snps,dw-wdt";
+		reg = <0x34250000 0x10000>;
+		clocks = <&wdtclk>, <&wdtclk>;
+		clock-names = "pclk", "tclk";
+		timeout-sec = <10>;
+		clk-rate-div = <2>;
+		syscon-wdt-rst = <&reset_sys_con>;
+		syscon-wdt-rst-offset = <0x54>;
+		syscon-wdt-rst-bit = <4>;
+		status = "okay";
+	};
+
+	optee: optee {
+		compatible = "linaro,optee-tz";
+		method = "smc";
+		status = "okay";
+	};
+
+	reset_sys_con: syscon@34210000 {
+		compatible = "syscon";
+		reg = <0x34210000 0x2400>;
+	};
+
+	adc: adc@34190000 {
+		compatible = "guc,igav04a";
+		status = "okay";
+		reg = <0x34190000 0x10000>,	/*adc*/
+			<0x34180100 0x10>;	/*password*/
+		clocks = <&adcclk>;
+		clock-names = "adc-clk";
+		vref-supply = <&reg_adc_vref_1v8>;
+		#io-channel-cells = <1>;
+		guc,adc-channels = <0 1 2 3 4 5 6 7>;
+		guc,passwd = <12345678>;
+		efuse-offset = <0x74>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 	};
 
-	sdio_0: sdio-host@35020000 {
-		compatible = "snps,dw-sdhci";
-		reg = <0x35020000 0x10000>;
-		clocks = <&sdclk>;
-		max-frequency = <50000000>;
-		no-1-8-v;
-		no-sdio;
-		status = "okay";
+	board_dts: board_dts {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
 	};
 
-	sdio_1: sdio-host@35030000 {
-		compatible = "snps,dw-sdhci";
-		reg = <0x35030000 0x10000>;
-		clocks = <&sdclk>;
-		max-frequency = <50000000>;
-		no-1-8-v;
-		no-sdio;
-		status = "okay";
-	};
-
-	emmc: sdio-host@35040000 {
-		compatible = "snps,dw-sdhci";
-		reg = <0x35040000 0x10000>;
-		clocks = <&sdclk>;
-		max-frequency = <200000000>;
-		phy-pads;
-		bus-width = <8>;
-		mmc-hs200-1_8v;
-		non-removable;
-		no-sdio;
-		no-sd;
-		disable-wp;
-		status = "okay";
-	};
-
-	ethernet_tsn: gmac-tsn@0x0a220000 {
-		compatible = "verisilicon,stm32mp1-dwmac";
-		status = "disabled";
-		reg = <0x0a220000 0x10000>;
-		reg-names = "stmmaceth";
-		clock-names = "stmmaceth",
-				"mac-clk-tx",
-				"mac-clk-rx",
-				"ethstp",
-				"syscfg-clk";
-		clocks = <&refclk>,
-			<&refclk>,
-			<&refclk>,
-			<&refclk>,
-			<&refclk>;
-		phy-mode = "rgmii-id";
-		phy-handle = <&ethphy0>;
-
-		mdio {
-			compatible = "snps,dwmac-mdio";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			ethphy0: ethernet-phy@1 {
-				compatible = "ethernet-phy-ieee802.3-c22";
-				reg = <1>;
-			};
-		};
-	};
-
-	dwc3: usb@35100000 {
-		compatible = "snps,dwc3";
-		status = "disabled";
-		reg = <0x35100000 0x10000>;
-		dr_mode = "host"; // peripheral/host
-		phy_type = "ulpi";
-		phy-names = "usb3-phy";
-		clocks = <&refclk &refclk &refclk>;
-		clock-names = "ref", "bus_early", "suspend";
-	};
-
-
-	dwc2: usb@35300000 {
-		compatible = "snps,dwc2";
-		status = "disabled";
-		reg = <0x35300000 0x80000>;
-		dr_mode = "host"; // peripheral/host
-		clocks = <&refclk>;
-		clock-names = "host";
-		g-rx-fifo-size = <539>;
-		g-np-tx-fifo-size = <32>;
-		g-tx-fifo-size = <256 256 512 512 768 768 256 256>;
-		hnp-srp-disable;
-	};
-
-	watchdog: watchdog@34140000 {
-		compatible = "snps,dw-wdt";
-		reg = <0x34140000 0x10000>;
-		status = "okay";
-		clocks = <&refclk>, <&refclk>;
-		clock-names = "pclk", "tclk";
-		timeout-sec = <60>;
-	};
 };
+#include "x5-fpga.dtsi"
+#include "x5-soc.dtsi"

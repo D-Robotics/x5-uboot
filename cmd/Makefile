@@ -78,6 +78,7 @@ obj-$(CONFIG_CMD_FS_GENERIC) += fs.o
 obj-$(CONFIG_CMD_FUSE) += fuse.o
 obj-$(CONFIG_CMD_GETTIME) += gettime.o
 obj-$(CONFIG_CMD_GPIO) += gpio.o
+obj-$(CONFIG_CMD_SEND_ID) += socinfo.o
 obj-$(CONFIG_CMD_HVC) += smccc.o
 obj-$(CONFIG_CMD_I2C) += i2c.o
 obj-$(CONFIG_CMD_IOTRACE) += iotrace.o
@@ -97,6 +98,7 @@ obj-$(CONFIG_CMD_LSBLK) += lsblk.o
 obj-$(CONFIG_ID_EEPROM) += mac.o
 obj-$(CONFIG_CMD_MD5SUM) += md5sum.o
 obj-$(CONFIG_CMD_MEMORY) += mem.o
+obj-$(CONFIG_CMD_MEMDUMP) += memdump.o
 obj-$(CONFIG_CMD_IO) += io.o
 obj-$(CONFIG_CMD_MFSL) += mfsl.o
 obj-$(CONFIG_CMD_MII) += mii.o
@@ -193,6 +195,7 @@ obj-$(CONFIG_CMD_MBR) += mbr.o
 obj-$(CONFIG_CMD_ETHSW) += ethsw.o
 obj-$(CONFIG_CMD_AXI) += axi.o
 obj-$(CONFIG_CMD_PVBLOCK) += pvblock.o
+obj-$(CONFIG_CMD_BTYPE)   += btype.o
 
 # Power
 obj-$(CONFIG_CMD_PMIC) += pmic.o
@@ -202,6 +205,7 @@ obj-$(CONFIG_CMD_BLOB) += blob.o
 
 # Android Verified Boot 2.0
 obj-$(CONFIG_CMD_AVB) += avb.o
+obj-$(CONFIG_CMD_AVB) += avb_helper.o
 
 # Foundries.IO SCP03
 obj-$(CONFIG_CMD_SCP03) += scp03.o

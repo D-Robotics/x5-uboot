@@ -745,6 +745,22 @@ int console_record_init(void)
 {
 	int ret;
 
+#ifdef CONFIG_ARCH_HORIZON
+	if ((gd->flags & GD_FLG_RELOC) && gd->console_out.start) {
+		printf("console out start addr:0x%p, end addr:0x%p\n",
+				gd->console_out.start,
+				gd->console_out.end);
+	} else {
+		gd->console_out.start = (char *)DROBOT_UBOOT_OUTPUT_LOG_ADDR;
+		gd->console_out.end = (char *)(DROBOT_UBOOT_OUTPUT_LOG_ADDR + CONFIG_CONSOLE_RECORD_OUT_SIZE);
+		gd->console_in.start = (char *)DROBOT_UBOOT_INPUT_LOG_ADDR;
+		gd->console_in.end = (char *)(DROBOT_UBOOT_INPUT_LOG_ADDR + CONFIG_CONSOLE_RECORD_OUT_SIZE);
+		console_record_reset_enable();
+		memset(gd->console_out.start, 0, CONFIG_CONSOLE_RECORD_OUT_SIZE);
+	}
+	return 0;
+#endif
+
 	ret = membuff_new((struct membuff *)&gd->console_out,
 			  gd->flags & GD_FLG_RELOC ?
 				  CONFIG_CONSOLE_RECORD_OUT_SIZE :

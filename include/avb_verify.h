@@ -27,6 +27,7 @@ enum avb_boot_state {
 struct AvbOpsData {
 	struct AvbOps ops;
 	int mmc_dev;
+	enum if_type if_type;
 	enum avb_boot_state boot_state;
 #ifdef CONFIG_OPTEE_TA_AVB
 	struct udevice *tee;
@@ -46,7 +47,7 @@ enum mmc_io_type {
 	IO_WRITE
 };
 
-AvbOps *avb_ops_alloc(int boot_device);
+AvbOps *avb_ops_alloc(const char *intf, int boot_device);
 void avb_ops_free(AvbOps *ops);
 
 char *avb_set_state(AvbOps *ops, enum avb_boot_state boot_state);
@@ -98,4 +99,24 @@ static inline int get_boot_device(AvbOps *ops)
 	return -1;
 }
 
+// Horizon Modify
+enum hb_avb_if_type {
+	HB_IF_TYPE_MTD = IF_TYPE_UNKNOWN + 1,
+	HB_IF_TYPE_UBI,
+	HB_IF_TYPE_UNKNOWN,
+};
+
+struct hb_avb_if_info {
+	const char *name;
+	int (*alloc)(struct AvbOpsData **ops,
+		const char *if_typename, int boot_device);
+};
+
+#define HB_AVB_IF_INFO(_name, _alloc)			\
+	ll_entry_declare(struct hb_avb_if_info, _name, \
+			hb_avb_if_info) = {		\
+		.alloc = _alloc,			\
+	}
+
+// Horizon Modify
 #endif /* _AVB_VERIFY_H */

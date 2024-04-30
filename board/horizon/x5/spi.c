@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2023 VeriSilicon Holdings Co., Ltd.
+ * Copyright(C) 2024, D-Robotics Co., Ltd. All rights reserved
  */
 
 #include <common.h>
@@ -8,11 +8,11 @@
 #include <spi.h>
 #include <linux/bitops.h>
 
-#define SYS_CS_BASE		0x0a23001c /* qspi1 */
+#define SYS_CS_BASE		(0x35050000 + 0x44) /* qspi1 */
 
-#define CS_MASK			(0x0f << 4)
-#define CS_HIGH			(0x03 << 6)
-#define CS_LOW			(0x01 << 6)
+#define CS_MASK			(0x03)
+#define CS_HIGH			(0x03)
+#define CS_LOW			(0x01)
 
 void external_cs_manage(struct udevice *dev, bool enable)
 {

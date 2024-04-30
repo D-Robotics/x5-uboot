@@ -46,6 +46,7 @@ obj-$(CONFIG_CMDLINE) += cli_readline.o cli_simple.o
 
 endif # !CONFIG_SPL_BUILD
 
+obj-$(CONFIG_MEMDUMP) += memdump.o
 obj-$(CONFIG_$(SPL_TPL_)BOOTSTAGE) += bootstage.o
 obj-$(CONFIG_$(SPL_TPL_)BLOBLIST) += bloblist.o
 
@@ -108,6 +109,9 @@ obj-$(CONFIG_CMD_LOADB) += xyzModem.o
 obj-$(CONFIG_$(SPL_TPL_)YMODEM_SUPPORT) += xyzModem.o
 
 obj-$(CONFIG_$(SPL_TPL_)AVB_VERIFY) += avb_verify.o
+obj-$(CONFIG_AVB_VERIFY) += avb_verify.o
+obj-$(CONFIG_AVB_VERIFY_MTD) += avb_verify_mtd.o
+obj-$(CONFIG_AVB_VERIFY_BLK) += avb_verify_blk.o
 obj-$(CONFIG_$(SPL_TPL_)STACKPROTECTOR) += stackprot.o
 obj-$(CONFIG_SCP03) += scp03.o
 

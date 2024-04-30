@@ -1,0 +1,204 @@
+&board_dts {
+	board_x5_soc {
+		compatible = "btype-bus";
+		model = "X5 SOC Board";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		btype-dev = &board_type;
+		supported-btype =
+			<
+			HOBOT_X5_SOC_ID
+			HOBOT_X5_SVB_ID
+			HOBOT_X5_EVB_ID
+			>;
+
+		x5_soc_uart1: serial@34070000 {
+			compatible = "ns16550a";
+			reg = <0x34070000 0x10000>;
+			clock-frequency = <UART_CLK_FREQ>;
+			reg-shift = <2>;
+			current-speed = <115200>;
+			u-boot,dm-pre-reloc;
+			status = "disabled";
+		};
+
+		lsio_sys_con: syscon@34180000 {
+			compatible = "syscon";
+			reg = <0x34180000 0x10000>;
+		};
+
+		x5_soc_qspi1: spi@35000000 {
+			status = "okay";
+			compatible = "snps,dwc-ssi-1.01a";
+			reg = <0x35000000 0x1000>;
+			clocks = <&qspiclk>;
+			spi-max-frequency = <50000000>;
+			num-cs = <1>;
+			reg-io-width = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			x5_soc_nand: spi-flash@0 {
+				compatible = "spi-nand";
+				rx-sample-delay-ns = <10>;
+				spi-max-frequency = <100000000>;
+				reg = <0>;
+			};
+		};
+
+		x5_soc_emmc: sdio-host@35040000 {
+			compatible = "horizon,x5-sdhci";
+			reg = <0x35040000 0x10000>;
+			clocks = <&sdclk>;
+			bus-width = <8>;
+			non-removable;
+			no-sdio;
+			no-sd;
+			disable-wp;
+			// dwcmshc,no-cmd-conflict-check;
+			// dwcmshc,negative-edge-sample;
+			status = "okay";
+			max-frequency = <50000000>;
+			cap-mmc-highspeed;
+			// mmc-hs200-1_8v;
+		};
+
+		x5_soc_sdio_0: sdio-host@35020000 {
+			compatible = "horizon,x5-sdhci";
+			reg = <0x35020000 0x10000>;
+			clocks = <&sdclk>;
+			max-frequency = <52000000>;
+			no-1-8-v;
+			no-sdio;
+			status = "okay";
+		};
+
+		x5_soc_sdio_1: sdio-host@35030000 {
+			compatible = "horizon,x5-sdhci";
+			reg = <0x35030000 0x10000>;
+			clocks = <&sdclk>;
+			max-frequency = <52000000>;
+			no-1-8-v;
+			no-sdio;
+			status = "disabled";
+		};
+
+		x5_soc_ethernet_tsn: gmac-tsn@35010000 {
+			compatible = "horizon,stm32mp1-dwmac";
+			status = "okay";
+			reg = <0x35010000 0x10000>;
+			reg-names = "stmmaceth";
+			clock-names = "stmmaceth",
+					"mac-clk-tx",
+					"mac-clk-rx",
+					"ethstp",
+					"syscfg-clk";
+			clocks = <&refclk>,
+				<&refclk>,
+				<&refclk>,
+				<&refclk>,
+				<&refclk>;
+			phy-mode = "rgmii-txid";
+			phy-handle = <&x5_soc_ethphy0>;
+			max-speed = <100>;
+
+			mdio {
+				compatible = "snps,dwmac-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				x5_soc_ethphy0: ethernet-phy@1 {
+					compatible = "ethernet-phy-ieee802.3-c22";
+					reg = <1>;
+					max-frequency = <25000000>;
+				};
+			};
+		};
+
+		x5_soc_dwc3_usb3_host: usb_host@35100000 {
+			compatible = "snps,dwc3";
+			status = "disabled";
+			reg = <0x35100000 0x10000>;
+			dr_mode = "host"; // peripheral/host
+			phy_type = "utmi";
+			phy-names = "usb3-phy";
+			snps,dis_enblslpm_quirk;
+			snps,dis_u2_susphy_quirk;
+			snps,dis_u3_susphy_quirk;
+			snps,rx_detect_poll_quirk;
+			snps,del_phy_power_chg_quirk;
+			snps,quirk-frame-length-adjustment = <0x20>;
+			clocks = <&refclk &refclk &refclk>;
+			clock-names = "ref", "bus_early", "suspend";
+		};
+
+		x5_soc_dwc3_usb2_host: usb_host@35300000 {
+			compatible = "snps,dwc3";
+			status = "disabled";
+			reg = <0x35300000 0x10000>;
+			dr_mode = "host"; // peripheral/host
+			phy_type = "utmi";
+			phy-names = "usb2-phy";
+			maximum-speed = "high-speed";
+			snps,dis_enblslpm_quirk;
+			snps,dis_u2_susphy_quirk;
+			snps,quirk-frame-length-adjustment = <0x20>;
+			clocks = <&refclk &refclk &refclk>;
+			clock-names = "ref", "bus_early", "suspend";
+		};
+
+		x5_soc_usb2_0: usb@35300000 {
+			compatible = "horizon,sunrise5-dwc3";
+			reg = <0x35410000 0x2000>;
+			reg-names = "usb2-csr-base";
+
+			#address-cells = <2>;
+			#size-cells = <2>;
+			status = "okay";
+
+			x5_soc_dwc3_usb2_dev: usb_otg@35300000 {
+				compatible = "snps,dwc3";
+				status = "okay";
+				reg = <0x0 0x35300000 0x0 0x10000>;
+				reg-names = "dwc3-base";
+				dr_mode = "otg"; // peripheral/host
+				phy_type = "utmi";
+				phy-names = "usb2-phy";
+				maximum-speed = "high-speed";
+				snps,dis_enblslpm_quirk;
+				snps,dis_u2_susphy_quirk;
+				snps,quirk-frame-length-adjustment = <0x20>;
+				clocks = <&refclk &refclk &refclk>;
+				clock-names = "ref", "bus_early", "suspend";
+			};
+		};
+
+		x5_soc_usb3_0: usb@35100000 {
+			compatible = "horizon,sunrise5-dwc3";
+			reg = <0x35210000 0x2000>;
+			reg-names = "usb3-csr-base";
+
+			#address-cells = <2>;
+			#size-cells = <2>;
+			status = "okay";
+
+			x5_soc_dwc3_usb3_dev: usb_otg@35100000 {
+				compatible = "snps,dwc3";
+				status = "okay";
+				reg = <0x0 0x35100000 0x0 0x10000>;
+				dr_mode = "otg"; // peripheral/host
+				phy_type = "utmi";
+				phy-names = "usb3-phy";
+				snps,dis_enblslpm_quirk;
+				snps,dis_u2_susphy_quirk;
+				snps,quirk-frame-length-adjustment = <0x20>;
+				snps,dis_u3_susphy_quirk;
+				snps,rx_detect_poll_quirk;
+				snps,del_phy_power_chg_quirk;
+				clocks = <&refclk &refclk &refclk>;
+				clock-names = "ref", "bus_early", "suspend";
+			};
+		};
+	};
+};

@@ -1,0 +1,27 @@
+/* SPDX-License-Identifier: GPL-2.0+ */
+/*
+ * Copyright 2023 Horizon Robotics Co,. Ltd
+ */
+#ifndef __ASM_ARCH_HORIZON_HSIO_H_
+#define __ASM_ARCH_HORIZON_HSIO_H_
+
+/* HSIO system control register offsets */
+#define HSIO_SYS_REG_BASE 0x35050000
+#define SD_DAT_IO_CFG_REG (HSIO_SYS_REG_BASE + 0x30) /**< For SD DATA lines */
+#define SD_CTL_IO_CFG_REG (HSIO_SYS_REG_BASE + 0x34) /**< For SD CLK/CMD/WP/CD lines */
+#define EMMC_DAT0_3_IO_CFG_REG (HSIO_SYS_REG_BASE + 0x4C)
+#define EMMC_DAT4_7_IO_CFG_REG (HSIO_SYS_REG_BASE + 0x50)
+#define EMMC_CTL_IO_CFG_REG (HSIO_SYS_REG_BASE + 0x54)
+#define EMMC_DLL_MASTER_CTL (HSIO_SYS_REG_BASE + 0x64)
+#define SD_DLL_MASTER_CTL (HSIO_SYS_REG_BASE + 0x78)
+
+/* HSIO eMMC/SD pinctrl and DLL defaults */
+#define EMMC_DAT_IOCTL_DEFAULT 0x10101010
+#define EMMC_CTL_IOCTL_DEFAULT 0x00101010
+#define SD_DAT_IOCTL_DEFAULT 0x50505050
+#define SD_CTL_IOCTL_DEFAULT 0x50105050
+
+#define EMMC_DLL_DEFAULT 0x3AA40004
+#define SD_DLL_DEFAULT 0x3AA40004
+
+#endif /* __ASM_ARCH_HORIZON_HSIO_H_ */

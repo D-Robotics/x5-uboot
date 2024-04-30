@@ -104,3 +104,6 @@ __pycache__
 # pylint files
 /pylint.cur
 /pylint.out/
+nt_fw_content.crt
+nt_fw_key.crt
+trusted_key.crt

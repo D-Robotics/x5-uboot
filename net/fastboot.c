@@ -168,8 +168,8 @@ static void fastboot_send(struct fastboot_header header, char *fastboot_data,
 		break;
 	case FASTBOOT_FASTBOOT:
 		if (cmd == FASTBOOT_COMMAND_DOWNLOAD) {
-			if (!fastboot_data_len && !fastboot_data_remaining()) {
-				fastboot_data_complete(response);
+			if (!fastboot_data_len && !fastboot_download_remaining()) {
+				fastboot_download_complete(response);
 			} else {
 				fastboot_data_download(fastboot_data,
 						       fastboot_data_len,

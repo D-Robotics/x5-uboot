@@ -722,6 +722,18 @@ config TEGRA124_MMC_DISABLE_EXT_LOOPBACK
 	  TODO(marcel.ziswiler@toradex.com): Move to device tree controlled
 	  approach once proper kernel integration made it mainline.
 
+config MMC_SDHCI_X5
+	bool "X5 SDHCI controller support"
+	depends on TARGET_X5
+	depends on DM_MMC
+	depends on MMC_SDHCI
+	help
+		This enables support for the Horizon X5 SDHCI controller.
+		If you have an X5 board with SD/eMMC card,
+		say Y here.
+
+		If unsure, say N.
+
 config MMC_SDHCI_ZYNQ
 	bool "Arasan SDHCI controller support"
 	depends on DM_MMC && OF_CONTROL && BLK

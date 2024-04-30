@@ -1,4 +1,4 @@
-if X5
+if TARGET_X5
 
 config SYS_BOARD
 	default "x5"

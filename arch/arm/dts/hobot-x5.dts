@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Hobot X5 board device tree source
+ *
+ * Copyright (c) 2024, Horizon. All rights reserved.
+ */
+
+/dts-v1/;
+
+#include "x5.dtsi"
+
+/ {
+	model = "Horizon X5";
+};

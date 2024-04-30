@@ -42,6 +42,15 @@
 /* Number of supported configurations */
 #define CONFIGURATION_NUMBER 1
 
+/*
+ * Normal gadget download driver can't be used by fastboot in win10.
+ * So we need to use android device's id or change win10 driver according
+ * to android_winusb.inf. It is convenient to directly to use below
+ * google & android ids.
+ */
+#define	GOOGLE_VENDOR_NUM	0x18d1	/* Google Inc. */
+#define	ANDROID_PRODUCT_NUM	0xd00d	/* Android device */
+
 #define DRIVER_VERSION		"usb_dnl 2.0"
 
 static const char product[] = "USB download gadget";
@@ -303,6 +312,24 @@ int g_dnl_register(const char *name)
 
 	debug("%s: g_dnl_driver.name = %s\n", __func__, name);
 	g_dnl_driver.name = name;
+
+	/*
+	 * reset vid & pid to default value, otherwise when user ctrl-c and re-run
+	 * an another gadget, the vid&pid will be wrong.
+	 */
+	device_desc.idVendor =
+	__constant_cpu_to_le16(CONFIG_USB_GADGET_VENDOR_NUM);
+	device_desc.idProduct =
+	__constant_cpu_to_le16(CONFIG_USB_GADGET_PRODUCT_NUM);
+
+#ifdef CONFIG_USB_FUNCTION_FASTBOOT
+	if (!strncmp(name, "usb_dnl_fastboot", 16)) {
+		device_desc.idVendor =
+			__constant_cpu_to_le16(GOOGLE_VENDOR_NUM);
+		device_desc.idProduct =
+			__constant_cpu_to_le16(ANDROID_PRODUCT_NUM);
+	}
+#endif
 
 	ret = usb_composite_register(&g_dnl_driver);
 	if (ret) {

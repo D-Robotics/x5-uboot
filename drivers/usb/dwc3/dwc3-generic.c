@@ -29,9 +29,12 @@
 #include <asm/gpio.h>
 
 struct dwc3_glue_data {
-	struct clk_bulk		clks;
-	struct reset_ctl_bulk	resets;
+	struct clk_bulk         clks;
+	struct reset_ctl_bulk   resets;
 	fdt_addr_t regs;
+
+	/* specific registers for some chip */
+	fdt_addr_t usb_csr_base;
 };
 
 struct dwc3_generic_plat {
@@ -389,6 +392,49 @@ struct dwc3_glue_ops ti_ops = {
 	.glue_configure = dwc3_ti_glue_configure,
 };
 
+
+void dwc3_sunrise5_glue_configure(struct udevice *dev, int index,
+			    enum usb_dr_mode mode)
+{
+/* USB glue registers */
+#define USB_CSR_SOFT_RESET_OFFSET	0x0
+#define USB_CSR_CTRL_RESET		BIT(1)
+#define USB_CSR_PHY_RESET		BIT(0)
+
+#define USB_CSR_CLOCK_ENABLE_OFFSET	0x1000
+#define USB_CSR_CLOCK_ENABLE		BIT(6)
+
+	struct dwc3_glue_data *glue = dev_get_plat(dev);
+	u32 reg;
+
+	glue->usb_csr_base = dev_read_addr_index(dev, 0);
+	if (glue->usb_csr_base == FDT_ADDR_T_NONE)
+		return;
+
+	void *usb_csr_base = map_physmem(glue->usb_csr_base, 0x2000, MAP_NOCACHE);
+
+	/* usb2 ctrl & phy reset */
+	reg = readl(usb_csr_base + USB_CSR_SOFT_RESET_OFFSET);
+	reg |= (USB_CSR_CTRL_RESET | USB_CSR_PHY_RESET);
+	writel(reg, usb_csr_base + USB_CSR_SOFT_RESET_OFFSET);
+	mdelay(10);
+	reg &= ((~USB_CSR_CTRL_RESET) & (~USB_CSR_PHY_RESET));
+	writel(reg, usb_csr_base + USB_CSR_SOFT_RESET_OFFSET);
+
+	mdelay(10);
+
+	/* enable usb2 clock */
+	reg = readl(usb_csr_base + USB_CSR_CLOCK_ENABLE_OFFSET);
+	reg &= ~USB_CSR_CLOCK_ENABLE;
+	writel(reg, usb_csr_base + USB_CSR_CLOCK_ENABLE_OFFSET);
+
+	return;
+}
+
+struct dwc3_glue_ops sunrise5_ops = {
+	.glue_configure = dwc3_sunrise5_glue_configure,
+};
+
 static int dwc3_glue_bind(struct udevice *parent)
 {
 	ofnode node;
@@ -568,6 +614,7 @@ static const struct udevice_id dwc3_glue_ids[] = {
 	{ .compatible = "fsl,imx8mp-dwc3", .data = (ulong)&imx8mp_ops },
 	{ .compatible = "fsl,imx8mq-dwc3" },
 	{ .compatible = "intel,tangier-dwc3" },
+	{ .compatible = "horizon,sunrise5-dwc3", .data = (ulong)&sunrise5_ops },
 	{ }
 };
 

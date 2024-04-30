@@ -31,5 +31,8 @@ struct disk_partition;
  * Return: The slot number (>= 0) on success, or a negative on error
  */
 int ab_select_slot(struct blk_desc *dev_desc, struct disk_partition *part_info);
-
+int ab_set_verity_corrupted(struct blk_desc *dev_desc,
+			struct disk_partition *part_info, int slot);
+int ab_set_verity_corrupted_mem(struct bootloader_control *abc, int slot);
+int get_slot_from_abc(struct bootloader_control *abc);
 #endif /* __ANDROID_AB_H */

@@ -221,6 +221,7 @@ default_delay:
 static int rtl8211f_config(struct phy_device *phydev)
 {
 	u16 reg;
+	u32 max_freq;
 
 	if (phydev->flags & PHY_RTL8211F_FORCE_EEE_RXC_ON) {
 		unsigned int reg;
@@ -232,6 +233,14 @@ static int rtl8211f_config(struct phy_device *phydev)
 
 	phy_write(phydev, MDIO_DEVAD_NONE, MII_BMCR, BMCR_RESET);
 
+	max_freq = dev_read_u32_default(phydev->dev, "max-frequency", 1000000000);
+	if (max_freq == 25000000) {
+		/* For FPGA set phy clock to 25M */
+		phy_write(phydev, MDIO_DEVAD_NONE, MIIM_RTL8211F_PAGE_SELECT, 0xa43);
+		reg = phy_read(phydev, MDIO_DEVAD_NONE, 0x19);
+		reg &= ~BIT(11);
+		phy_write(phydev, MDIO_DEVAD_NONE, 0x19, reg);
+	}
 	phy_write(phydev, MDIO_DEVAD_NONE,
 		  MIIM_RTL8211F_PAGE_SELECT, 0xd08);
 	reg = phy_read(phydev, MDIO_DEVAD_NONE, 0x11);

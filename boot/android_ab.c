@@ -3,8 +3,8 @@
  * Copyright (C) 2017 The Android Open Source Project
  */
 #include <common.h>
-#include <android_ab.h>
 #include <android_bootloader_message.h>
+#include <android_ab.h>
 #include <blk.h>
 #include <log.h>
 #include <malloc.h>
@@ -302,4 +302,191 @@ int ab_select_slot(struct blk_desc *dev_desc, struct disk_partition *part_info)
 		return -EINVAL;
 
 	return slot;
+}
+
+int get_slot_from_abc(struct bootloader_control *abc)
+{
+	u32 crc32_le;
+	int slot, i, ret;
+	char slot_suffix[4];
+
+	crc32_le = ab_control_compute_crc(abc);
+	if (abc->crc32_le != crc32_le) {
+		log_err("ANDROID: Invalid CRC-32 (expected %.8x, found %.8x),",
+			crc32_le, abc->crc32_le);
+		log_err("re-initializing A/B metadata.\n");
+
+		ret = ab_control_default(abc);
+		if (ret < 0) {
+			free(abc);
+			return -ENODATA;
+		}
+	}
+
+	if (abc->magic != BOOT_CTRL_MAGIC) {
+		log_err("ANDROID: Unknown A/B metadata: %.8x\n", abc->magic);
+		free(abc);
+		return -ENODATA;
+	}
+
+	if (abc->version > BOOT_CTRL_VERSION) {
+		log_err("ANDROID: Unsupported A/B metadata version: %.8x\n",
+			abc->version);
+		free(abc);
+		return -ENODATA;
+	}
+
+	/*
+	 * At this point a valid boot control metadata is stored in abc,
+	 * followed by other reserved data in the same block. We select a with
+	 * the higher priority slot that
+	 *  - is not marked as corrupted and
+	 *  - either has tries_remaining > 0 or successful_boot is true.
+	 * If the selected slot has a false successful_boot, we also decrement
+	 * the tries_remaining until it eventually becomes unbootable because
+	 * tries_remaining reaches 0. This mechanism produces a bootloader
+	 * induced rollback, typically right after a failed update.
+	 */
+
+	/* Safety check: limit the number of slots. */
+	if (abc->nb_slot > ARRAY_SIZE(abc->slot_info)) {
+		abc->nb_slot = ARRAY_SIZE(abc->slot_info);
+	}
+
+	slot = -1;
+	for (i = 0; i < abc->nb_slot; ++i) {
+		if (abc->slot_info[i].verity_corrupted ||
+		    !abc->slot_info[i].tries_remaining) {
+			log_debug("ANDROID: unbootable slot %d tries: %d, ",
+				  i, abc->slot_info[i].tries_remaining);
+			log_debug("corrupt: %d\n",
+				  abc->slot_info[i].verity_corrupted);
+			continue;
+		}
+		log_debug("ANDROID: bootable slot %d pri: %d, tries: %d, ",
+			  i, abc->slot_info[i].priority,
+			  abc->slot_info[i].tries_remaining);
+		log_debug("corrupt: %d, successful: %d\n",
+			  abc->slot_info[i].verity_corrupted,
+			  abc->slot_info[i].successful_boot);
+
+		if (slot < 0 ||
+		    ab_compare_slots(&abc->slot_info[i],
+				     &abc->slot_info[slot]) < 0) {
+			slot = i;
+		}
+	}
+
+	if (slot >= 0 && !abc->slot_info[slot].successful_boot) {
+		log_err("ANDROID: Attempting slot %c, tries remaining %d\n",
+			BOOT_SLOT_NAME(slot),
+			abc->slot_info[slot].tries_remaining);
+		abc->slot_info[slot].tries_remaining--;
+	}
+
+	if (slot >= 0) {
+		/*
+		 * Legacy user-space requires this field to be set in the BCB.
+		 * Newer releases load this slot suffix from the command line
+		 * or the device tree.
+		 */
+		memset(slot_suffix, 0, sizeof(slot_suffix));
+		slot_suffix[0] = BOOT_SLOT_NAME(slot);
+		if (memcmp(abc->slot_suffix, slot_suffix,
+			   sizeof(slot_suffix))) {
+			memcpy(abc->slot_suffix, slot_suffix,
+			       sizeof(slot_suffix));
+		}
+	}
+
+	if (slot < 0)
+		return -EINVAL;
+
+	return slot;
+}
+
+int ab_set_verity_corrupted_mem(struct bootloader_control *abc, int slot)
+{
+	u32 crc32_le;
+	int ret;
+
+	crc32_le = ab_control_compute_crc(abc);
+	if (abc->crc32_le != crc32_le) {
+		log_err("ANDROID: Invalid CRC-32 (expected %.8x, found %.8x),",
+			crc32_le, abc->crc32_le);
+		log_err("re-initializing A/B metadata.\n");
+
+		ret = ab_control_default(abc);
+		if (ret < 0) {
+			return -ENODATA;
+		}
+	}
+
+	if (abc->magic != BOOT_CTRL_MAGIC) {
+		log_err("ANDROID: Unknown A/B metadata: %.8x\n", abc->magic);
+		return -ENODATA;
+	}
+
+	if (abc->version > BOOT_CTRL_VERSION) {
+		log_err("ANDROID: Unsupported A/B metadata version: %.8x\n",
+			abc->version);
+		return -ENODATA;
+	}
+
+	/*
+	 * At this point a valid boot control metadata is stored in abc,
+	 * followed by other reserved data in the same block. We select a with
+	 * the higher priority slot that
+	 *  - is not marked as corrupted and
+	 *  - either has tries_remaining > 0 or successful_boot is true.
+	 * If the selected slot has a false successful_boot, we also decrement
+	 * the tries_remaining until it eventually becomes unbootable because
+	 * tries_remaining reaches 0. This mechanism produces a bootloader
+	 * induced rollback, typically right after a failed update.
+	 */
+
+	/* Safety check: limit the number of slots. */
+	if (abc->nb_slot > ARRAY_SIZE(abc->slot_info)) {
+		abc->nb_slot = ARRAY_SIZE(abc->slot_info);
+		return -EBADF;
+	}
+
+	if (slot >= 0 && slot >= abc->nb_slot) {
+		return -EINVAL;
+	}
+
+	abc->slot_info[slot].verity_corrupted = 1;
+
+	abc->crc32_le = ab_control_compute_crc(abc);
+
+	return 0;
+}
+
+int ab_set_verity_corrupted(struct blk_desc *dev_desc,
+                            struct disk_partition *part_info, int slot)
+{
+	struct bootloader_control *abc = NULL;
+	int ret;
+
+	ret = ab_control_create_from_disk(dev_desc, part_info, &abc);
+	if (ret < 0) {
+		/*
+		 * This condition represents an actual problem with the code or
+		 * the board setup, like an invalid partition information.
+		 * Signal a repair mode and do not try to boot from either slot.
+		 */
+		return ret;
+	}
+
+
+	ret =  ab_set_verity_corrupted_mem(abc, slot);
+	if (ret) {
+		free(abc);
+		return ret;
+	}
+
+	ab_control_store(dev_desc, part_info, abc);
+	free(abc);
+
+	return ret;
 }

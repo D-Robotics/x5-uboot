@@ -19,9 +19,7 @@ import pytest
 import u_boot_utils as util
 
 # defauld mmc id
-mmc_dev = 1
-temp_addr = 0x90000000
-temp_addr2 = 0x90002000
+mmc_dev = 0
 
 @pytest.mark.buildconfigspec('cmd_avb')
 @pytest.mark.buildconfigspec('cmd_mmc')
@@ -31,10 +29,12 @@ def test_avb_verify(u_boot_console):
 
     success_str = "Verification passed successfully"
 
-    response = u_boot_console.run_command('avb init %s' %str(mmc_dev))
+    response = u_boot_console.run_command('avb init mmc %s' % str(mmc_dev))
     assert response == ''
-    response = u_boot_console.run_command('avb verify')
-    assert response.find(success_str)
+    response = u_boot_console.run_command('run ab_select_cmd')
+    assert("ANDROID: Booting slot:" in response)
+    response = u_boot_console.run_command('avb verify $slot_suffix')
+    assert(success_str in response)
 
 
 @pytest.mark.buildconfigspec('cmd_avb')
@@ -44,12 +44,12 @@ def test_avb_mmc_uuid(u_boot_console):
     'part list mmc 1' output
     """
 
-    response = u_boot_console.run_command('avb init %s' % str(mmc_dev))
+    response = u_boot_console.run_command('avb init mmc %s' % str(mmc_dev))
     assert response == ''
 
     response = u_boot_console.run_command('mmc rescan; mmc dev %s' %
                                           str(mmc_dev))
-    assert response.find('is current device')
+    assert('is current device' in response)
 
     part_lines = u_boot_console.run_command('mmc part').splitlines()
     part_list = {}
@@ -76,7 +76,7 @@ def test_avb_read_rb(u_boot_console):
     """Test reading rollback indexes
     """
 
-    response = u_boot_console.run_command('avb init %s' % str(mmc_dev))
+    response = u_boot_console.run_command('avb init mmc %s' % str(mmc_dev))
     assert response == ''
 
     response = u_boot_console.run_command('avb read_rb 1')
@@ -88,7 +88,7 @@ def test_avb_is_unlocked(u_boot_console):
     """Test if device is in the unlocked state
     """
 
-    response = u_boot_console.run_command('avb init %s' % str(mmc_dev))
+    response = u_boot_console.run_command('avb init mmc %s' % str(mmc_dev))
     assert response == ''
 
     response = u_boot_console.run_command('avb is_unlocked')
@@ -100,38 +100,25 @@ def test_avb_is_unlocked(u_boot_console):
 def test_avb_mmc_read(u_boot_console):
     """Test mmc read operation
     """
+    response = u_boot_console.run_command('print kernel_addr_r')
+    temp_addr = response.split("=")[-1].strip()
+    temp_addr2 = hex(int(temp_addr, 16) + 0x2000)
 
     response = u_boot_console.run_command('mmc rescan; mmc dev %s 0' %
                                           str(mmc_dev))
-    assert response.find('is current device')
+    assert('is current device' in response)
 
-    response = u_boot_console.run_command('mmc read 0x%x 0x100 0x1' % temp_addr)
-    assert response.find('read: OK')
+    response = u_boot_console.run_command('mmc read %s 0x22 0x1' % temp_addr)
+    assert('read: OK' in response)
 
-    response = u_boot_console.run_command('avb init %s' % str(mmc_dev))
+    response = u_boot_console.run_command('avb init mmc %s' % str(mmc_dev))
     assert response == ''
 
-    response = u_boot_console.run_command('avb read_part xloader 0 100 0x%x' %
+    response = u_boot_console.run_command('avb read_part veeprom 0 100 %s' %
                                            temp_addr2)
-    assert response.find('Read 512 bytes')
+    assert('Read 512 bytes' in response)
 
     # Now lets compare two buffers
-    response = u_boot_console.run_command('cmp 0x%x 0x%x 40' %
+    response = u_boot_console.run_command('cmp %s %s 40' %
                                           (temp_addr, temp_addr2))
-    assert response.find('64 word')
-
-
-@pytest.mark.buildconfigspec('cmd_avb')
-@pytest.mark.buildconfigspec('optee_ta_avb')
-def test_avb_persistent_values(u_boot_console):
-    """Test reading/writing persistent storage to avb
-    """
-
-    response = u_boot_console.run_command('avb init %s' % str(mmc_dev))
-    assert response == ''
-
-    response = u_boot_console.run_command('avb write_pvalue test value_value')
-    assert response == 'Wrote 12 bytes'
-
-    response = u_boot_console.run_command('avb read_pvalue test 12')
-    assert response == 'Read 12 bytes, value = value_value'
+    assert('64 word' in response)

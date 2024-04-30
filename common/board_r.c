@@ -582,6 +582,62 @@ static int run_main_loop(void)
 	return 0;
 }
 
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R
+int bootstage_initr_malloc(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "initr_malloc");
+	return 0;
+}
+
+int bootstage_initr_dm(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "initr_dm");
+	return 0;
+}
+
+int bootstage_serial_initialize(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "serial_initialize");
+	return 0;
+}
+
+int bootstage_pci_init(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "pci_init");
+	return 0;
+}
+
+int bootstage_initr_mmc(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "initr_mmc");
+	return 0;
+}
+
+int bootstage_initr_env(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "initr_env");
+	return 0;
+}
+
+int bootstage_console_init_r(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "console_init_r");
+	return 0;
+}
+
+int bootstage_initr_net(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "initr_net");
+	return 0;
+}
+
+int bootstage_last_stage_init(void)
+{
+	bootstage_mark_name(BOOTSTAGE_ID_ALLOC, "last_stage_init");
+	return 0;
+}
+#endif /* CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R */
+
 /*
  * We hope to remove most of the driver-related init and do it if/when
  * the driver is later used.
@@ -611,6 +667,9 @@ static init_fnc_t init_sequence_r[] = {
 #endif
 	initr_barrier,
 	initr_malloc,
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R
+	bootstage_initr_malloc,
+#endif
 	log_init,
 	initr_bootstage,	/* Needs malloc() but has its own timer */
 #if defined(CONFIG_CONSOLE_RECORD)
@@ -622,6 +681,9 @@ static init_fnc_t init_sequence_r[] = {
 	initr_of_live,
 #ifdef CONFIG_DM
 	initr_dm,
+#endif
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R
+	bootstage_initr_dm,
 #endif
 #ifdef CONFIG_ADDR_MAP
 	init_addr_map,
@@ -648,6 +710,9 @@ static init_fnc_t init_sequence_r[] = {
 	initr_dm_devices,
 	stdio_init_tables,
 	serial_initialize,
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R
+	bootstage_serial_initialize,
+#endif
 	initr_announce,
 	dm_announce,
 #if CONFIG_IS_ENABLED(WDT)
@@ -676,6 +741,9 @@ static init_fnc_t init_sequence_r[] = {
 	 */
 	pci_init,
 #endif
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R
+	bootstage_pci_init,
+#endif
 #ifdef CONFIG_ARCH_EARLY_INIT_R
 	arch_early_init_r,
 #endif
@@ -700,6 +768,9 @@ static init_fnc_t init_sequence_r[] = {
 #ifdef CONFIG_MMC
 	initr_mmc,
 #endif
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R
+	bootstage_initr_mmc,
+#endif
 #ifdef CONFIG_XEN
 	xen_init,
 #endif
@@ -707,6 +778,9 @@ static init_fnc_t init_sequence_r[] = {
 	initr_pvblock,
 #endif
 	initr_env,
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R
+	bootstage_initr_env,
+#endif
 #ifdef CONFIG_SYS_MALLOC_BOOTPARAMS
 	initr_malloc_bootparams,
 #endif
@@ -728,6 +802,9 @@ static init_fnc_t init_sequence_r[] = {
 	api_init,
 #endif
 	console_init_r,		/* fully init console as a device */
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R
+	bootstage_console_init_r,
+#endif
 #ifdef CONFIG_DISPLAY_BOARDINFO_LATE
 	console_announce_r,
 	show_board_info,
@@ -770,6 +847,9 @@ static init_fnc_t init_sequence_r[] = {
 	INIT_FUNC_WATCHDOG_RESET
 	initr_net,
 #endif
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R
+	bootstage_initr_net,
+#endif
 #ifdef CONFIG_POST
 	initr_post,
 #endif
@@ -784,6 +864,9 @@ static init_fnc_t init_sequence_r[] = {
 	 * keyboard).
 	 */
 	last_stage_init,
+#endif
+#ifdef CONFIG_BOOTSTAGE_RECORD_BOARD_INIT_R
+	bootstage_last_stage_init,
 #endif
 #if defined(CONFIG_PRAM)
 	initr_mem,

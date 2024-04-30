@@ -398,7 +398,7 @@ LD		= $(CROSS_COMPILE)ld.bfd
 else
 LD		= $(CROSS_COMPILE)ld
 endif
-CC		= $(CROSS_COMPILE)gcc
+CC		= ${CCACHE_COMMAND} $(CROSS_COMPILE)gcc
 CPP		= $(CC) -E
 AR		= $(CROSS_COMPILE)ar
 NM		= $(CROSS_COMPILE)nm
@@ -754,10 +754,10 @@ KBUILD_CFLAGS += $(call cc-disable-warning, maybe-uninitialized)
 # change __FILE__ to the relative path from the srctree
 KBUILD_CFLAGS	+= $(call cc-option,-fmacro-prefix-map=$(srctree)/=)
 
-KBUILD_CFLAGS	+= -g
+KBUILD_CFLAGS	+= -g -gdwarf-4 -gstrict-dwarf
 # $(KBUILD_AFLAGS) sets -g, which causes gcc to pass a suitable -g<format>
 # option to the assembler.
-KBUILD_AFLAGS	+= -g
+KBUILD_AFLAGS	+= -g -gdwarf-4 -gstrict-dwarf
 
 # Report stack usage if supported
 # ARC tools based on GCC 7.1 has an issue with stack usage
@@ -798,6 +798,10 @@ include scripts/Makefile.extrawarn
 KBUILD_CPPFLAGS += $(KCPPFLAGS)
 KBUILD_AFLAGS += $(KAFLAGS)
 KBUILD_CFLAGS += $(KCFLAGS)
+
+ifdef CONFIG_WERROR
+KBUILD_CFLAGS += -Werror
+endif
 
 KBUILD_HOSTCFLAGS += $(if $(CONFIG_TOOLS_DEBUG),-g)
 

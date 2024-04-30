@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
- * Copyright (C) 2023 VeriSilicon Holdings Co., Ltd.
+ * Copyright(C) 2024, D-Robotics Co., Ltd. All rights reserved
  */
 
 #ifndef __ASM_ARCH_HORIZON_GPIO_H__

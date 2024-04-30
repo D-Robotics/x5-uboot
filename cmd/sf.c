@@ -422,8 +422,8 @@ static const char *stage_name[STAGE_COUNT] = {
 struct test_info {
 	int stage;
 	int bytes;
-	unsigned base_ms;
-	unsigned time_ms[STAGE_COUNT];
+	ulong base_ms;
+	ulong time_ms[STAGE_COUNT];
 };
 
 static void show_time(struct test_info *test, int stage)
@@ -436,7 +436,7 @@ static void show_time(struct test_info *test, int stage)
 		do_div(speed, test->time_ms[stage] * 1024);
 	bps = speed * 8;
 
-	printf("%d %s: %u ticks, %d KiB/s %d.%03d Mbps\n", stage,
+	printf("%d %s: %lu ticks, %d KiB/s %d.%03d Mbps\n", stage,
 	       stage_name[stage], test->time_ms[stage],
 	       (int)speed, bps / 1000, bps % 1000);
 }

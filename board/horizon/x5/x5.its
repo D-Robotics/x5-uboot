@@ -1,0 +1,50 @@
+/*
+ * Compilation:
+ * mkimage -f fit_kernel_dtb.its fit_kernel_dtb.itb
+ *
+ */
+
+/dts-v1/;
+/ {
+	description = "U-Boot FIT for x5";
+	#address-cells = <1>;
+
+	images {
+		kernel {
+			description = "Linux kernel";
+			data = /incbin/("Image");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "none";
+			load = <0xc0008000>;
+			entry = <0xc0008000>;
+			/*
+			hash-1 {
+				algo = "sha1";
+			};
+			*/
+		};
+
+		fdt {
+			description = "FDT";
+			data = /incbin/("x5.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			hash-1 {
+				algo = "sha1";
+			};
+		};
+	};
+
+	configurations {
+		default = "vbd";
+
+		vbd {
+			description = "x5";
+			kernel = "kernel";
+			fdt = "fdt";
+		};
+	};
+};

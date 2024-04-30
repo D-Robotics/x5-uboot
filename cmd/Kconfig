@@ -1071,6 +1071,12 @@ config CMD_FUSE
 	  which control the behaviour of the device. The command uses the
 	  fuse_...() API.
 
+config CMD_SEND_ID
+	bool "send_id - support for transfer board_id by dtb to kernel"
+	default y
+	help
+	  enable send_id cmd.
+
 config CMD_GPIO
 	bool "gpio"
 	help
@@ -1113,6 +1119,13 @@ config CMD_GPT_RENAME
 	  Enables the 'gpt' command to interchange names on two GPT
 	  partitions via the 'gpt swap' command or to rename single
 	  partitions via the 'rename' command.
+
+config CMD_GPT_EXTEND
+	bool "GPT partition extending commands"
+	depends on CMD_GPT_RENAME
+	help
+	  Enables the 'gpt' command to extend the last partition to the size
+	  of remaining mmc size.
 
 config CMD_IDE
 	bool "ide - Support for IDE drivers"
@@ -2122,6 +2135,13 @@ config CMD_UUID
 	  The two commands are very similar except for the endianness of the
 	  output.
 
+config CMD_BTYPE
+	bool "btype - boardtype command"
+	depends on ARCH_HORIZON
+	default y
+	help
+	  This command used to get & set hobot board information:
+
 endmenu
 
 source "cmd/ti/Kconfig"
@@ -2583,6 +2603,18 @@ config CMD_STACKPROTECTOR_TEST
 	  Enable stackprot_test command
 	  The stackprot_test command will force a stack overrun to test
 	  the stack smashing detection mechanisms.
+
+config CMD_MEMDUMP
+	bool "memdump - Memory Dump Command"
+    depends on MEMDUMP
+	select EFI_PARTITION
+	select HAVE_BLOCK_DEVICE
+	default n
+	help
+	  Enables a "memdump" command to perform ramdump using block device interface.
+	  It includes such subcommands:
+	    memdump init - initialize memdump subsystem
+	    memdump dumpall - dumpall to block devices
 
 endmenu
 

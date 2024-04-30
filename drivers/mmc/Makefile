@@ -56,6 +56,7 @@ obj-$(CONFIG_NEXELL_DWMMC) += nexell_dw_mmc.o
 
 # SDHCI
 obj-$(CONFIG_MMC_SDHCI)			+= sdhci.o
+obj-$(CONFIG_MMC_SDHCI_X5)		+= x5_sdhci.o
 obj-$(CONFIG_MMC_SDHCI_ASPEED)		+= aspeed_sdhci.o
 obj-$(CONFIG_MMC_SDHCI_ATMEL)		+= atmel_sdhci.o
 obj-$(CONFIG_MMC_SDHCI_BCM2835)		+= bcm2835_sdhci.o

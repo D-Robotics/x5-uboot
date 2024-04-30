@@ -28,6 +28,13 @@ void *fastboot_buf_addr;
 u32 fastboot_buf_size;
 
 /**
+ * fastboot_medium_number - fastboot flash medium number info
+ * >= 0: meaningful
+ * < 0: no user input
+ */
+s32 fastboot_medium_number;
+
+/**
  * fastboot_progress_callback - callback executed during long operations
  */
 void (*fastboot_progress_callback)(const char *msg);
@@ -80,6 +87,16 @@ void fastboot_okay(const char *reason, char *response)
 }
 
 /**
+ * fastboot_none() - Skip the common write operation, nothing output.
+ *
+ * @response: Pointer to fastboot response buffer
+ */
+void fastboot_none_resp(char *response)
+{
+	*response = 0;
+}
+
+/**
  * fastboot_set_reboot_flag() - Set flag to indicate reboot-bootloader
  *
  * Set flag which indicates that we should reboot into the bootloader
@@ -92,6 +109,8 @@ void fastboot_okay(const char *reason, char *response)
 int __weak fastboot_set_reboot_flag(enum fastboot_reboot_reason reason)
 {
 #ifdef CONFIG_FASTBOOT_FLASH_MMC_DEV
+	u32 mmc_dev;
+
 	static const char * const boot_cmds[] = {
 		[FASTBOOT_REBOOT_REASON_BOOTLOADER] = "bootonce-bootloader",
 		[FASTBOOT_REBOOT_REASON_FASTBOOTD] = "boot-fastboot",
@@ -101,7 +120,10 @@ int __weak fastboot_set_reboot_flag(enum fastboot_reboot_reason reason)
 	if (reason >= FASTBOOT_REBOOT_REASONS_COUNT)
 		return -EINVAL;
 
-	return bcb_write_reboot_reason(CONFIG_FASTBOOT_FLASH_MMC_DEV, "misc", boot_cmds[reason]);
+	mmc_dev = (fastboot_medium_devnum() < 0) ?
+		CONFIG_FASTBOOT_FLASH_MMC_DEV : fastboot_medium_devnum();
+
+	return bcb_write_reboot_reason(mmc_dev, "misc", boot_cmds[reason]);
 #else
     return -EINVAL;
 #endif
@@ -176,10 +198,25 @@ void fastboot_set_progress_callback(void (*progress)(const char *msg))
  * @buf_addr: Pointer to download buffer, or NULL for default
  * @buf_size: Size of download buffer, or zero for default
  */
-void fastboot_init(void *buf_addr, u32 buf_size)
+void fastboot_init(void *buf_addr, u32 buf_size, s32 medium_devnum)
 {
 	fastboot_buf_addr = buf_addr ? buf_addr :
 				       (void *)CONFIG_FASTBOOT_BUF_ADDR;
 	fastboot_buf_size = buf_size ? buf_size : CONFIG_FASTBOOT_BUF_SIZE;
 	fastboot_set_progress_callback(NULL);
+
+	fastboot_medium_number = medium_devnum;
+}
+
+/*
+ * fastboot_medium_devnum() - get fastboot medium devnum
+ *
+ * @void
+ * Return: flash medium devnum. (eg. mmc 0 or 1)
+ * >= 0: meaningful
+ * < 0: no user input
+ */
+s32 fastboot_medium_devnum(void)
+{
+	return fastboot_medium_number;
 }

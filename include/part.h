@@ -418,6 +418,8 @@ int gpt_fill_pte(struct blk_desc *dev_desc,
 int gpt_fill_header(struct blk_desc *dev_desc, gpt_header *gpt_h,
 		char *str_guid, int parts_count);
 
+int gpt_restore_no_mbr(struct blk_desc *dev_desc, char *str_disk_guid,
+		struct disk_partition *partitions, const int parts_count);
 /**
  * gpt_restore(): Restore GPT partition table
  *

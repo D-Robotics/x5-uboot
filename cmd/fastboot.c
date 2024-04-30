@@ -27,6 +27,8 @@ static int do_fastboot_udp(int argc, char *const argv[],
 		return CMD_RET_FAILURE;
 	}
 
+	printf("do fastboot udp\n");
+
 	return CMD_RET_SUCCESS;
 #else
 	pr_err("Fastboot UDP not enabled\n");
@@ -45,6 +47,8 @@ static int do_fastboot_usb(int argc, char *const argv[],
 
 	if (argc < 2)
 		return CMD_RET_USAGE;
+
+	printf("do fastboot usb\n");
 
 	usb_controller = argv[1];
 	controller_index = simple_strtoul(usb_controller, &endp, 0);
@@ -99,6 +103,7 @@ static int do_fastboot(struct cmd_tbl *cmdtp, int flag, int argc,
 {
 	uintptr_t buf_addr = (uintptr_t)NULL;
 	size_t buf_size = 0;
+	s32 medium_devnum = -ENODEV;	/* means no user input. then will use system default medium number */
 
 	if (argc < 2)
 		return CMD_RET_USAGE;
@@ -121,6 +126,12 @@ static int do_fastboot(struct cmd_tbl *cmdtp, int flag, int argc,
 				buf_size = hextoul(*++argv, NULL);
 				goto NXTARG;
 
+			case 'm':
+				if (--argc <= 0)
+					return CMD_RET_USAGE;
+				medium_devnum = hextoul(*++argv, NULL);
+				goto NXTARG;
+
 			default:
 				return CMD_RET_USAGE;
 			}
@@ -135,7 +146,7 @@ NXTARG:
 		return CMD_RET_USAGE;
 	}
 
-	fastboot_init((void *)buf_addr, buf_size);
+	fastboot_init((void *)buf_addr, buf_size, medium_devnum);
 
 	if (!strcmp(argv[1], "udp"))
 		return do_fastboot_udp(argc, argv, buf_addr, buf_size);
@@ -150,7 +161,7 @@ NXTARG:
 
 #ifdef CONFIG_SYS_LONGHELP
 static char fastboot_help_text[] =
-	"[-l addr] [-s size] usb <controller> | udp\n"
+	"[-l addr] [-s size] [-m medium_devnum] usb <controller> | udp\n"
 	"\taddr - address of buffer used during data transfers ("
 	__stringify(CONFIG_FASTBOOT_BUF_ADDR) ")\n"
 	"\tsize - size of buffer used during data transfers ("

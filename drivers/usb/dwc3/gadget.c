@@ -1128,8 +1128,10 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 			dwc3_stop_active_transfer(dwc, dep->number, true);
 			goto out1;
 		}
-		dev_err(dwc->dev, "request %p was not queued to %s\n",
-				request, ep->name);
+		/* ramdump trigger below case frequently, use dev_dbg instead */
+		dev_dbg(dwc->dev, "request %p was not queued to %s\n",
+					request, ep->name);
+
 		ret = -EINVAL;
 		goto out0;
 	}

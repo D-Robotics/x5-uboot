@@ -99,6 +99,9 @@ config FASTBOOT_FLASH_NAND
 	bool "FASTBOOT on NAND"
 	depends on MTD_RAW_NAND && CMD_MTDPARTS
 
+config FASTBOOT_FLASH_RAM
+	bool "FASTBOOT on RAM"
+
 endchoice
 
 config FASTBOOT_FLASH_MMC_DEV
@@ -217,6 +220,13 @@ config FASTBOOT_CMD_OEM_BOOTBUS
 	help
 	  Add support for the "oem bootbus" command from a client. This set
 	  the mmc boot configuration for the selecting eMMC device.
+
+config FASTBOOT_CMD_OEM_RAMDUMP
+	bool "Enable the 'oem ramdump' command"
+	help
+	  Add support for the "oem ramdump" command from a client. This
+	  could help to dump indicated/whole dram data to host pc through
+	  fastboot oem command.
 
 endif # FASTBOOT
 

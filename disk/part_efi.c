@@ -363,6 +363,51 @@ static int set_protective_mbr(struct blk_desc *dev_desc)
 	return 0;
 }
 
+int write_gpt_table_no_mbr(struct blk_desc *dev_desc,
+		gpt_header *gpt_h, gpt_entry *gpt_e)
+{
+	const int pte_blk_cnt = BLOCK_CNT((gpt_h->num_partition_entries
+					   * sizeof(gpt_entry)), dev_desc);
+	u32 calc_crc32;
+
+	debug("max lba: %x\n", (u32) dev_desc->lba);
+
+	/* Generate CRC for the Primary GPT Header */
+	calc_crc32 = efi_crc32((const unsigned char *)gpt_e,
+			      le32_to_cpu(gpt_h->num_partition_entries) *
+			      le32_to_cpu(gpt_h->sizeof_partition_entry));
+	gpt_h->partition_entry_array_crc32 = cpu_to_le32(calc_crc32);
+
+	calc_crc32 = efi_crc32((const unsigned char *)gpt_h,
+			      le32_to_cpu(gpt_h->header_size));
+	gpt_h->header_crc32 = cpu_to_le32(calc_crc32);
+
+	/* Write the First GPT to the block right after the Legacy MBR */
+	if (blk_dwrite(dev_desc, 1, 1, gpt_h) != 1)
+		goto err;
+
+	if (blk_dwrite(dev_desc, le64_to_cpu(gpt_h->partition_entry_lba),
+		       pte_blk_cnt, gpt_e) != pte_blk_cnt)
+		goto err;
+
+	prepare_backup_gpt_header(gpt_h);
+
+	if (blk_dwrite(dev_desc, (lbaint_t)le64_to_cpu(gpt_h->last_usable_lba)
+		       + 1, pte_blk_cnt, gpt_e) != pte_blk_cnt)
+		goto err;
+
+	if (blk_dwrite(dev_desc, (lbaint_t)le64_to_cpu(gpt_h->my_lba), 1,
+		       gpt_h) != 1)
+		goto err;
+
+	debug("GPT successfully written to block device!\n");
+	return 0;
+
+ err:
+	printf("** Can't write to device %d **\n", dev_desc->devnum);
+	return -1;
+}
+
 int write_gpt_table(struct blk_desc *dev_desc,
 		gpt_header *gpt_h, gpt_entry *gpt_e)
 {
@@ -638,6 +683,50 @@ int gpt_restore(struct blk_desc *dev_desc, char *str_disk_guid,
 
 	/* Write GPT partition table */
 	ret = write_gpt_table(dev_desc, gpt_h, gpt_e);
+
+err:
+	free(gpt_e);
+	free(gpt_h);
+	return ret;
+}
+
+int gpt_restore_no_mbr(struct blk_desc *dev_desc, char *str_disk_guid,
+		struct disk_partition *partitions, int parts_count)
+{
+	gpt_header *gpt_h;
+	gpt_entry *gpt_e;
+	int ret, size;
+
+	size = PAD_TO_BLOCKSIZE(sizeof(gpt_header), dev_desc);
+	gpt_h = malloc_cache_aligned(size);
+	if (gpt_h == NULL) {
+		printf("%s: calloc failed!\n", __func__);
+		return -1;
+	}
+	memset(gpt_h, 0, size);
+
+	size = PAD_TO_BLOCKSIZE(GPT_ENTRY_NUMBERS * sizeof(gpt_entry),
+				dev_desc);
+	gpt_e = malloc_cache_aligned(size);
+	if (gpt_e == NULL) {
+		printf("%s: calloc failed!\n", __func__);
+		free(gpt_h);
+		return -1;
+	}
+	memset(gpt_e, 0, size);
+
+	/* Generate Primary GPT header (LBA1) */
+	ret = gpt_fill_header(dev_desc, gpt_h, str_disk_guid, parts_count);
+	if (ret)
+		goto err;
+
+	/* Generate partition entries */
+	ret = gpt_fill_pte(dev_desc, gpt_h, gpt_e, partitions, parts_count);
+	if (ret)
+		goto err;
+
+	/* Write GPT partition table */
+	ret = write_gpt_table_no_mbr(dev_desc, gpt_h, gpt_e);
 
 err:
 	free(gpt_e);
