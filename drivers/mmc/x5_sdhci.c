@@ -19,6 +19,9 @@
 #define DWCMSHC_AREA1_MASK		GENMASK(11, 0)
 /* Offset inside the  vendor area 1 */
 #define DWCMSHC_HOST_CTRL3		0x8
+#define NOC_IDLE_REQ_REG0 0x31032000
+#define HSIO_SW_RST 0x342100A4
+#define NOC_IDLE_STATUS_REG0 0x31032008
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -216,6 +219,61 @@ const struct sdhci_ops x5_sdhci_ops = {
 	.set_control_reg = &x5_sdhci_set_control_reg,
 };
 
+static int x5_soc_reset(struct udevice *dev)
+{
+	u32 val;
+	bool do_socrst = false;
+	u32 rst_bit;
+	u32 noc_bit;
+	u32 noc_bit_shift;
+
+	if (dev_read_bool(dev, "emmc-socrst")) {
+		rst_bit = BIT(2);
+		noc_bit = BIT(12);
+		noc_bit_shift = 12;
+
+		do_socrst = true;
+	} else if (dev_read_bool(dev, "sd-socrst")) {
+		rst_bit = BIT(3);
+		noc_bit = BIT(14);
+		noc_bit_shift = 14;
+
+		do_socrst = true;
+	} else if (dev_read_bool(dev, "sdio-socrst")) {
+		rst_bit = BIT(4);
+		noc_bit = BIT(15);
+		noc_bit_shift = 15;
+
+		do_socrst = true;
+	}
+
+	if (do_socrst) {
+		val = readl(NOC_IDLE_REQ_REG0);
+		val |= noc_bit;
+		writel(val, NOC_IDLE_REQ_REG0);
+		do {
+			val = readl(NOC_IDLE_STATUS_REG0);
+			val = (val & noc_bit) >> noc_bit_shift;
+		} while(!val);
+
+		val = readl(HSIO_SW_RST);
+		val |= rst_bit;
+		writel(val, HSIO_SW_RST);
+		val &= ~rst_bit;
+		writel(val, HSIO_SW_RST);
+
+		val = readl(NOC_IDLE_REQ_REG0);
+		val &= (~noc_bit);
+		writel(val, NOC_IDLE_REQ_REG0);
+		do {
+			val = readl(NOC_IDLE_STATUS_REG0);
+			val = (val & noc_bit) >> noc_bit_shift;
+		} while(val);
+	}
+
+	return 0;
+}
+
 static int x5_sdhci_probe(struct udevice *dev)
 {
 	struct mmc_uclass_priv *upriv = dev_get_uclass_priv(dev);
@@ -229,6 +287,7 @@ static int x5_sdhci_probe(struct udevice *dev)
 	host = priv->host;
 
 	debug("sdio is at %s %d\n", __FILE__, __LINE__);
+	x5_soc_reset(dev);
 	ret = clk_get_by_index(dev, 0, &clk);
 	if (ret) {
 		debug("%s: Failed to get the clock\n", __func__);

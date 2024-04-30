@@ -366,6 +366,7 @@ int sdhci_set_clock(struct mmc *mmc, unsigned int clock)
 	struct sdhci_host *host = mmc->priv;
 	unsigned int div, clk = 0, timeout;
 	int ret;
+	u32 reg;
 
 	/* Wait max 20 ms */
 	timeout = 200;
@@ -381,7 +382,10 @@ int sdhci_set_clock(struct mmc *mmc, unsigned int clock)
 		udelay(100);
 	}
 
-	sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
+	reg = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+	reg &= ~SDHCI_CLOCK_CARD_EN;
+	reg &= ~SDHCI_CLOCK_INT_EN;
+	sdhci_writew(host, reg, SDHCI_CLOCK_CONTROL);
 
 	if (clock == 0)
 		return 0;
