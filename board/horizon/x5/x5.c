@@ -13,6 +13,13 @@
 #include <asm/arch/hb_aon.h>
 #include <asm/arch/hb_hsio.h>
 
+#define HPS_CRM_CLK_GENERATOR_REG   (0x34211000)
+#define HSIO_ENET_AXI_CLK_GEN       (HPS_CRM_CLK_GENERATOR_REG + 0x6a0)
+#define HSIO_ENET_RGMII_CLK_GEN     (HPS_CRM_CLK_GENERATOR_REG + 0x6c0)
+#define HSIO_ENET_PTP_CLK_GEN       (HPS_CRM_CLK_GENERATOR_REG + 0x6e0)
+#define HSIO_ENET_REF_CLK_GEN       (HPS_CRM_CLK_GENERATOR_REG + 0x700)
+
+#define HSIO_SYS_REG_BASE 0x35050000
 /**
  * @brief Initialize all pin voltage here, the actual configuration
  * should be board specific.
@@ -46,6 +53,14 @@ int board_early_init_f(void)
 	/* Reset SD DLL to default */
 	writel(SD_DLL_DEFAULT, SD_DLL_MASTER_CTL);
 
+	/* enet_clk_aclk_i: 400M */
+	writel(0x12000000, HSIO_ENET_AXI_CLK_GEN);
+	/* enet_phy_rx_clk_i: 125M */
+	writel(0x16030000, HSIO_ENET_RGMII_CLK_GEN);
+	/* enet_clk_ptp_refclk_i: 200M */
+	writel(0x12010000, HSIO_ENET_PTP_CLK_GEN);
+	/* enet_phy_ref_clk_i: 50M */
+	writel(0x12070000, HSIO_ENET_REF_CLK_GEN);
 	// set enet clk turn on
 	value = readl(HSIO_SYS_REG_BASE + 0);
 	value |= 0x8;
