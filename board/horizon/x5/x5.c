@@ -54,13 +54,13 @@ int board_early_init_f(void)
 	writel(SD_DLL_DEFAULT, SD_DLL_MASTER_CTL);
 
 	/* enet_clk_aclk_i: 400M */
-	writel(0x12000000, HSIO_ENET_AXI_CLK_GEN);
+	writel(0x11000002, HSIO_ENET_AXI_CLK_GEN);
 	/* enet_phy_rx_clk_i: 125M */
 	writel(0x16030000, HSIO_ENET_RGMII_CLK_GEN);
 	/* enet_clk_ptp_refclk_i: 200M */
-	writel(0x12010000, HSIO_ENET_PTP_CLK_GEN);
+	writel(0x11000005, HSIO_ENET_PTP_CLK_GEN);
 	/* enet_phy_ref_clk_i: 50M */
-	writel(0x12070000, HSIO_ENET_REF_CLK_GEN);
+	writel(0x11000017, HSIO_ENET_REF_CLK_GEN);
 	// set enet clk turn on
 	value = readl(HSIO_SYS_REG_BASE + 0);
 	value |= 0x8;
