@@ -1650,7 +1650,25 @@ static const struct eqos_config __maybe_unused eqos_stm32_config = {
 	.ops = &eqos_stm32_ops
 };
 
-static const struct eqos_config __maybe_unused horizon_eqos_stm32_config = {
+static struct eqos_ops eqos_sunrise5_ops = {
+	.eqos_inval_desc = eqos_inval_desc_generic,
+	.eqos_flush_desc = eqos_flush_desc_generic,
+	.eqos_inval_buffer = eqos_inval_buffer_generic,
+	.eqos_flush_buffer = eqos_flush_buffer_generic,
+	.eqos_probe_resources = eqos_probe_resources_stm32,
+	.eqos_remove_resources = eqos_remove_resources_stm32,
+	.eqos_stop_resets = eqos_null_ops,
+	.eqos_start_resets = eqos_null_ops,
+	.eqos_stop_clks = eqos_stop_clks_stm32,
+	.eqos_start_clks = eqos_start_clks_stm32,
+	.eqos_calibrate_pads = eqos_null_ops,
+	.eqos_disable_calibration = eqos_null_ops,
+	.eqos_set_tx_clk_speed = eqos_null_ops,
+	.eqos_get_enetaddr = eqos_null_ops,
+	.eqos_get_tick_clk_rate = eqos_get_tick_clk_rate_stm32
+};
+
+static const struct eqos_config __maybe_unused horizon_eqos_sunrise5_config = {
 	.reg_access_always_ok = false,
 	.mdio_wait = 10000,
 	.swr_wait = 50,
@@ -1658,7 +1676,7 @@ static const struct eqos_config __maybe_unused horizon_eqos_stm32_config = {
 	.config_mac_mdio = EQOS_MAC_MDIO_ADDRESS_CR_20_35,
 	.axi_bus_width = EQOS_AXI_WIDTH_128,
 	.interface = dev_read_phy_mode,
-	.ops = &eqos_stm32_ops
+	.ops = &eqos_sunrise5_ops
 };
 
 static const struct udevice_id eqos_ids[] = {
@@ -1674,8 +1692,8 @@ static const struct udevice_id eqos_ids[] = {
 		.data = (ulong)&eqos_stm32_config
 	},
 	{
-		.compatible = "horizon,stm32mp1-dwmac",
-		.data = (ulong)&horizon_eqos_stm32_config
+		.compatible = "horizon,sunrise5-dwmac",
+		.data = (ulong)&horizon_eqos_sunrise5_config
 	},
 #endif
 #if IS_ENABLED(CONFIG_DWC_ETH_QOS_IMX)

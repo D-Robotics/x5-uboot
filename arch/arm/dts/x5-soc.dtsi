@@ -96,7 +96,7 @@
 		};
 
 		x5_soc_ethernet_tsn: gmac-tsn@35010000 {
-			compatible = "horizon,stm32mp1-dwmac";
+			compatible = "horizon,sunrise5-dwmac";
 			status = "okay";
 			reg = <0x35010000 0x10000>;
 			reg-names = "stmmaceth";
