@@ -92,8 +92,10 @@ static u64 get_ddr_size(void)
     ddr_size = (ddr_size << 30);
     // printf("ddr_size: %llx\n", ddr_size);
 
-    /* TODO: if ecc enabled */
-    // ddr_size = (ddr_size - ddr_size / 8);
+    /* check ecc enabled */
+    if(val & DDR_ECC_BIT_MASK) {
+        ddr_size = (ddr_size - ddr_size / 8);
+    }
 
     ddr_size = (ddr_size -  DDR_RESERVED_SIZE);
     return ddr_size;
