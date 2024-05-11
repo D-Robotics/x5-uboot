@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0
+config PINCTRL_HORIZON
+	bool "horizon pinctrl driver"
+    depends on ARCH_HORIZON && PINCTRL_FULL
+	help
+	  Say Y here to enable the horizon pinctrl driver

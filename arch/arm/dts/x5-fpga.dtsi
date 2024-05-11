@@ -1,3 +1,5 @@
+#include "pinmux-func.dtsi"
+
 &board_dts {
 	board_x5_fpga {
 		compatible = "btype-bus";
@@ -32,6 +34,8 @@
 			reg-io-width = <4>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_qspi>;
 			x5_fpga_nor: spi-nor@0 {
 				compatible ="jedec,spi-nor";
 				spi-max-frequency = <500000>;
@@ -47,6 +51,8 @@
 			no-1-8-v;
 			no-sdio;
 			status = "okay";
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_sd>;
 		};
 
 		x5_fpga_sdio_1: sdio-host@35030000 {
@@ -71,6 +77,8 @@
 			disable-wp;
 			status = "okay";
 			max-frequency = <5000000>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_emmc>;
 		};
 
 		x5_fpga_ethernet_tsn: gmac-tsn@35010000 {
@@ -91,6 +99,8 @@
 			phy-mode = "rgmii-txid";
 			phy-handle = <&x5_fpga_ethphy0>;
 			max-speed = <100>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_enet &pinctrl_lsio_gpio0_29>;
 
 			mdio {
 				compatible = "snps,dwmac-mdio";

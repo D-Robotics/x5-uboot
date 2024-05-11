@@ -1,3 +1,5 @@
+#include "pinmux-func.dtsi"
+
 &board_dts {
 	board_x5_soc {
 		compatible = "btype-bus";
@@ -39,6 +41,8 @@
 			reg-io-width = <4>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_qspi>;
 			x5_soc_nand: spi-flash@0 {
 				compatible = "spi-nand";
 				rx-sample-delay-ns = <10>;
@@ -62,6 +66,8 @@
 			max-frequency = <50000000>;
 			cap-mmc-highspeed;
 			// mmc-hs200-1_8v;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_emmc>;
 		};
 
 		x5_soc_sdio_0: sdio-host@35020000 {
@@ -72,6 +78,8 @@
 			no-1-8-v;
 			no-sdio;
 			status = "okay";
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_sd>;
 		};
 
 		x5_soc_sdio_1: sdio-host@35030000 {
@@ -102,6 +110,8 @@
 			phy-mode = "rgmii-txid";
 			phy-handle = <&x5_soc_ethphy0>;
 			max-speed = <100>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_enet &pinctrl_lsio_gpio0_29>;
 
 			mdio {
 				compatible = "snps,dwmac-mdio";
