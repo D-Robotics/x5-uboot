@@ -52,6 +52,11 @@
 				<0x31040040 0x4>;	/* mode select */
 	};
 
+	lsio_sys_con: syscon@34180000 {
+		compatible = "syscon";
+		reg = <0x34180000 0x10000>;
+	};
+
 	reg_adc_vref_1v8: regulator-1v8 {
 		compatible = "regulator-fixed";
 		regulator-name = "adc_1v8";
@@ -147,4 +152,5 @@
 
 };
 #include "x5-fpga.dtsi"
+#include "x5-svb.dtsi"
 #include "x5-soc.dtsi"
