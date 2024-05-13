@@ -422,6 +422,12 @@
 		>;
 	};
 
+	pinctrl_lsio_gpio0_31_output_normal: lsiogpio0grp12 {
+		horizon,pins = <
+			LSIO_SPI4_MOSI	LSIO_PINMUX_2	BIT_OFFSET6	MUX_ALT1	&pconf_output_normal
+		>;
+	};
+
 	pinctrl_lsio_gpio0_4: lsiogpio0grp13 {
 		horizon,pins = <
 			LSIO_UART1_RX   LSIO_PINMUX_3 BIT_OFFSET12      MUX_ALT2        &pconf_input_en

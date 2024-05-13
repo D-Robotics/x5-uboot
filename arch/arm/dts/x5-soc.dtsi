@@ -108,7 +108,7 @@
 			phy-handle = <&x5_soc_ethphy0>;
 			max-speed = <100>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_enet &pinctrl_lsio_gpio0_29>;
+			pinctrl-0 = <&pinctrl_enet &pinctrl_lsio_gpio0_31_output_normal>;
 
 			mdio {
 				compatible = "snps,dwmac-mdio";
