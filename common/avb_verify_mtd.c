@@ -30,74 +30,74 @@ enum flash_io_type {
  * ============================================================================
  */
 
-static struct mtd_info *mtd_get_partition_level(
-	struct mtd_info *mtd, const char *partition, int level)
-{
-	struct mtd_info *part;
-	struct mtd_info *out;
+// static struct mtd_info *mtd_get_partition_level(
+// 	struct mtd_info *mtd, const char *partition, int level)
+// {
+// 	struct mtd_info *part;
+// 	struct mtd_info *out;
 
-	list_for_each_entry(part, &mtd->partitions, node) {
-		if (!strcmp(part->name, partition))
-			return part;
+// 	list_for_each_entry(part, &mtd->partitions, node) {
+// 		if (!strcmp(part->name, partition))
+// 			return part;
 
-		out = mtd_get_partition_level(part, partition, level + 1);
-		if (out)
-			return out;
-	}
+// 		out = mtd_get_partition_level(part, partition, level + 1);
+// 		if (out)
+// 			return out;
+// 	}
 
-	return NULL;
-}
+// 	return NULL;
+// }
 
-static struct mtd_info *mtd_get_partition(struct mtd_info **mtd,
-					const char *partition)
-{
-	if (!mtd || !(*mtd)) {
-		/* Ensure all devices (and their partitions) are probed */
-		mtd_probe_devices();
+// static struct mtd_info *mtd_get_partition(struct mtd_info **mtd,
+// 					const char *partition)
+// {
+// 	if (!mtd || !(*mtd)) {
+// 		/* Ensure all devices (and their partitions) are probed */
+// 		mtd_probe_devices();
 
-		*mtd = get_mtd_device(NULL, 0);
-		if (IS_ERR_OR_NULL(*mtd)) {
-			*mtd = NULL;
-			pr_err("Failed to get mtd device\n");
-			return NULL;
-		}
-		put_mtd_device(*mtd);
-	}
+// 		*mtd = get_mtd_device(NULL, 0);
+// 		if (IS_ERR_OR_NULL(*mtd)) {
+// 			*mtd = NULL;
+// 			pr_err("Failed to get mtd device\n");
+// 			return NULL;
+// 		}
+// 		put_mtd_device(*mtd);
+// 	}
 
-	return mtd_get_partition_level(*mtd, partition, 1);
-}
+// 	return mtd_get_partition_level(*mtd, partition, 1);
+// }
 
-static AvbIOResult mtd_byte_io(AvbOps *ops,
-			const char *partition,
-			s64 offset,
-			size_t num_bytes,
-			void *buffer,
-			size_t *out_num_read,
-			enum flash_io_type io_type)
-{
-	struct mtd_avb_info *info = OPS_TO_INFO(ops);
-	struct mtd_info *part = mtd_get_partition(&info->mtd, partition);
-	u64 start_offset;
-	int ret;
+// static AvbIOResult mtd_byte_io(AvbOps *ops,
+// 			const char *partition,
+// 			s64 offset,
+// 			size_t num_bytes,
+// 			void *buffer,
+// 			size_t *out_num_read,
+// 			enum flash_io_type io_type)
+// {
+// 	struct mtd_avb_info *info = OPS_TO_INFO(ops);
+// 	struct mtd_info *part = mtd_get_partition(&info->mtd, partition);
+// 	u64 start_offset;
+// 	int ret;
 
-	if (!partition || !buffer || io_type > FLASH_IO_WRITE)
-		return AVB_IO_RESULT_ERROR_IO;
+// 	if (!partition || !buffer || io_type > FLASH_IO_WRITE)
+// 		return AVB_IO_RESULT_ERROR_IO;
 
-	if (!part)
-		return AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION;
+// 	if (!part)
+// 		return AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION;
 
-	start_offset = offset < 0 ? part->size + offset : offset;
-	if (io_type == FLASH_IO_READ) {
-		ret = mtd_read(part, start_offset, num_bytes, out_num_read, buffer);
-	} else {
-		ret = mtd_write(part, start_offset, num_bytes, out_num_read, buffer);
-	}
+// 	start_offset = offset < 0 ? part->size + offset : offset;
+// 	if (io_type == FLASH_IO_READ) {
+// 		ret = mtd_read(part, start_offset, num_bytes, out_num_read, buffer);
+// 	} else {
+// 		ret = mtd_write(part, start_offset, num_bytes, out_num_read, buffer);
+// 	}
 
-	if (ret)
-		return AVB_IO_RESULT_ERROR_IO;
+// 	if (ret)
+// 		return AVB_IO_RESULT_ERROR_IO;
 
-	return AVB_IO_RESULT_OK;
-}
+// 	return AVB_IO_RESULT_OK;
+// }
 
 static uint64_t ubi_read_and_flush(struct ubi_volume *part,
 					lbaint_t start,
@@ -196,22 +196,22 @@ static AvbIOResult ubi_byte_io(AvbOps *ops,
 	return AVB_IO_RESULT_OK;
 }
 
-static AvbIOResult mtd_get_size_of_partition(AvbOps *ops, const char *partition,
-                                         u64 *out_size_num_bytes)
-{
-	struct mtd_avb_info *info = OPS_TO_INFO(ops);
-	struct mtd_info *part = mtd_get_partition(&info->mtd, partition);
+// static AvbIOResult mtd_get_size_of_partition(AvbOps *ops, const char *partition,
+//                                          u64 *out_size_num_bytes)
+// {
+// 	struct mtd_avb_info *info = OPS_TO_INFO(ops);
+// 	struct mtd_info *part = mtd_get_partition(&info->mtd, partition);
 
-	if (!out_size_num_bytes)
-		return AVB_IO_RESULT_ERROR_INSUFFICIENT_SPACE;
+// 	if (!out_size_num_bytes)
+// 		return AVB_IO_RESULT_ERROR_INSUFFICIENT_SPACE;
 
-	if (!part)
-		return AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION;
+// 	if (!part)
+// 		return AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION;
 
-	*out_size_num_bytes = part->size;
+// 	*out_size_num_bytes = part->size;
 
-	return AVB_IO_RESULT_OK;
-}
+// 	return AVB_IO_RESULT_OK;
+// }
 
 static AvbIOResult ubi_get_size_of_partition(AvbOps *ops, const char *partition,
                                          u64 *out_size_num_bytes)
@@ -261,8 +261,10 @@ static AvbIOResult read_from_partition(AvbOps *ops,
 		return ubi_byte_io(ops, partition_name, offset_from_partition,
 				num_bytes, buffer, out_num_read, FLASH_IO_READ);
 	} else if(strncmp(boot_mode, "nor", strlen(boot_mode) + 1) == 0) {
-		return mtd_byte_io(ops, partition_name, offset_from_partition,
+		return ubi_byte_io(ops, partition_name, offset_from_partition,
 				num_bytes, buffer, out_num_read, FLASH_IO_READ);
+		// return mtd_byte_io(ops, partition_name, offset_from_partition,
+		// 		num_bytes, buffer, out_num_read, FLASH_IO_READ);
 	} else {
 		printf("boot device is invalid, set boot_mode to nand or nor");
 		return AVB_IO_RESULT_ERROR_NO_SUCH_VALUE;
@@ -298,8 +300,10 @@ static AvbIOResult write_to_partition(AvbOps *ops,
 		return ubi_byte_io(ops, partition_name, offset_from_partition,
 				num_bytes, (void *)buffer, NULL, FLASH_IO_WRITE);
 	} else if(strncmp(boot_mode, "nor", strlen(boot_mode) + 1) == 0) {
-		return mtd_byte_io(ops, partition_name, offset_from_partition,
+		return ubi_byte_io(ops, partition_name, offset_from_partition,
 				num_bytes, (void *)buffer, NULL, FLASH_IO_WRITE);
+		// return mtd_byte_io(ops, partition_name, offset_from_partition,
+		// 		num_bytes, (void *)buffer, NULL, FLASH_IO_WRITE);
 	} else {
 		printf("boot device is invalid, set boot_mode to nand or nor");
 		return AVB_IO_RESULT_ERROR_NO_SUCH_VALUE;
@@ -359,7 +363,8 @@ static AvbIOResult get_size_of_partition(AvbOps *ops, const char *partition,
 	if(strncmp(boot_mode, "nand", strlen(boot_mode) + 1) == 0) {
 		return ubi_get_size_of_partition(ops, partition, out_size_num_bytes);
 	} else if(strncmp(boot_mode, "nor", strlen(boot_mode) + 1) == 0) {
-		return mtd_get_size_of_partition(ops, partition, out_size_num_bytes);
+		return ubi_get_size_of_partition(ops, partition, out_size_num_bytes);
+		// return mtd_get_size_of_partition(ops, partition, out_size_num_bytes);
 	} else {
 		printf("boot device is invalid, set boot_mode to nand or nor");
 		return AVB_IO_RESULT_ERROR_NO_SUCH_VALUE;
