@@ -197,8 +197,13 @@ static int esmt_spinand_detect(struct spinand_device *spinand)
 		return 0;
 	}
 
-	if (ret)
-		return ret;
+	if (ret){
+		/* 
+		 * ESMT has same manufacturer ID with gigadevice and micron.
+		 * So it can not return wrong device ID only by scanning ESMT.
+		 */
+		return 0;
+	}
 
 	return 1;
 };
