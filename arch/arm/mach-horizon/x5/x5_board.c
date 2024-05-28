@@ -152,7 +152,7 @@ static void set_bootdev(void)
 	env_set("boot_device", boot_mode);
 }
 
-static char *hb_bootmode_for_udev(void)
+static char *hb_bootmedium_for_udev(void)
 {
 	char *boot_mode = env_get("boot_device");
 	if (boot_mode == NULL) {
@@ -169,6 +169,12 @@ static char *hb_bootmode_for_udev(void)
 		printf("boot device is invalid, set udev boot_mode to MMC");
 		return "MMC";
 	}
+}
+
+static char *hb_bootmode(void)
+{
+	/* tmp code */
+	return "normal";
 }
 
 static void board_env_setup(void)
@@ -256,6 +262,7 @@ void board_bootargs_setup(void)
 		"root=%s ro rootwait "
 		"hobotboot.slot_suffix=%s "
 		"hobotboot.reason=%s "
+		"hobotboot.medium=%s "
 		"hobotboot.mode=%s "
 		"pmic_type=%s "
 		" %s"
@@ -264,7 +271,8 @@ void board_bootargs_setup(void)
 		env_get("system_part"),
 		slot_suffix,
 		env_get("reset_reason"),
-		hb_bootmode_for_udev(),
+		hb_bootmedium_for_udev(),
+		hb_bootmode(),
 		hb_pmic_type_get(),
 		X5_DEFAULT_BOOTARGS,
 		cmdline ? cmdline : "");
