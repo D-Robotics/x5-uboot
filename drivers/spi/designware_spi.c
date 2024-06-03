@@ -57,6 +57,7 @@
 #define DW_SPI_VERSION			0x5c
 #define DW_SPI_DR			0x60
 #define DW_SPI_RX_SAMPLE_DLY		0xf0
+#define DW_SPI_ENHANCE_CTRLR0		0xf4
 
 #define NSEC_PER_SEC	1000000000L
 
@@ -114,7 +115,80 @@
 #define SR_TX_ERR			BIT(5)
 #define SR_DCOL				BIT(6)
 
+/* Bit fields in (R)ISR */
+
+/* TX FIFO Empty */
+#define ISR_TXEI			BIT(0)
+/* TX FIFO Overflow */
+#define ISR_TXOI			BIT(1)
+/* RX FIFO Underflow */
+#define ISR_RXUI			BIT(2)
+/* RX FIFO Overflow */
+#define ISR_RXOI			BIT(3)
+/* RX FIFO Full */
+#define ISR_RXFI			BIT(4)
+/* Multi-master contention */
+#define ISR_MSTI			BIT(5)
+/* XIP Receive FIFO Overflow */
+#define ISR_XRXOI			BIT(6)
+/* TX FIFO Underflow */
+#define ISR_TXUI			BIT(7)
+/* AXI Error */
+#define ISR_AXIE			BIT(8)
+/* SPI TX Error */
+#define ISR_SPITE			BIT(10)
+/* SSI Done */
+#define ISR_DONE			BIT(11)
+
+/* Bit fields in SPI_CTRLR0 */
+
+/*
+ * Whether the instruction or address use the value of SPI_FRF or use
+ * FRF_BYTE
+ */
+#define SPI_CTRLR0_TRANS_TYPE_MASK	GENMASK(1, 0)
+#define SPI_CTRLR0_TRANS_TYPE_0	0x0
+#define SPI_CTRLR0_TRANS_TYPE_1	0x1
+#define SPI_CTRLR0_TRANS_TYPE_2	0x2
+/* Address length in 4-bit units */
+#define SPI_CTRLR0_ADDR_L_MASK		GENMASK(5, 2)
+/* Enable mode bits after address in XIP mode */
+#define SPI_CTRLR0_XIP_MD_BIT_EN	BIT(7)
+/* Instruction length */
+#define SPI_CTRLR0_INST_L_MASK		GENMASK(9, 8)
+#define INST_L_0			0x0
+#define INST_L_4			0x1
+#define INST_L_8			0x2
+#define INST_L_16			0x3
+/* Number of "dummy" cycles */
+#define SPI_CTRLR0_WAIT_CYCLES_MASK	GENMASK(15, 11)
+/* Stretch the clock if the FIFO over/underflows */
+#define SPI_CTRLR0_CLK_STRETCH_EN	BIT(30)
+
 #define RX_TIMEOUT			1000		/* timeout in ms */
+
+/* DW SPI capabilities */
+#define DW_SPI_CAP_CS_OVERRIDE		BIT(0) /* Unimplemented */
+#define DW_SPI_CAP_KEEMBAY_MST		BIT(1) /* Unimplemented */
+#define DW_SPI_CAP_DWC_SSI		BIT(2)
+#define DW_SPI_CAP_DFS32		BIT(3)
+#define DW_SPI_CAP_ENHANCED		BIT(4)
+
+#define do_read(type) do { \
+	type *start = ((type *)rx) + idx; \
+	type *end = start + count; \
+	do { \
+		*start++ = __raw_readl(dr); \
+	} while (start < end); \
+} while (0)
+
+#define do_write(type) do { \
+	type *start = ((type *)tx) + idx; \
+	type *end = start + count; \
+	do { \
+		__raw_writel(*start++, dr); \
+	} while (start < end); \
+} while (0)
 
 struct dw_spi_plat {
 	s32 frequency;		/* Default clock frequency, -1 for none */
@@ -129,6 +203,7 @@ struct dw_spi_priv {
 	u32 (*update_cr0)(struct dw_spi_priv *priv);
 
 	void __iomem *regs;
+	unsigned long caps;
 	unsigned long bus_clk_rate;
 	unsigned int freq;		/* Default frequency */
 	unsigned int mode;
@@ -144,9 +219,11 @@ struct dw_spi_priv {
 
 	int bits_per_word;
 	int len;
+	int frames;			/* Number of frames in the transfer */
 	u8 cs;				/* chip select pin */
 	u8 tmode;			/* TR/TO/RO/EEPROM */
 	u8 type;			/* SPI/SSP/MicroWire */
+	u8 spi_frf;			/* BYTE/DUAL/QUAD/OCTAL */
 };
 
 static inline u32 dw_read(struct dw_spi_priv *priv, u32 offset)
@@ -157,6 +234,57 @@ static inline u32 dw_read(struct dw_spi_priv *priv, u32 offset)
 static inline void dw_write(struct dw_spi_priv *priv, u32 offset, u32 val)
 {
 	__raw_writel(val, priv->regs + offset);
+}
+
+static inline u32 dw_spi_update_cr0(struct dw_spi_priv *priv)
+{
+	u32 cr0;
+	if (priv->caps & DW_SPI_CAP_DWC_SSI) {
+		cr0 = FIELD_PREP(DWC_SSI_CTRLR0_DFS_MASK,
+				 priv->bits_per_word - 1)
+		    | FIELD_PREP(DWC_SSI_CTRLR0_FRF_MASK, priv->type)
+		    | FIELD_PREP(DWC_SSI_CTRLR0_MODE_MASK, priv->mode)
+		    | FIELD_PREP(DWC_SSI_CTRLR0_TMOD_MASK, priv->tmode)
+		    | FIELD_PREP(DWC_SSI_CTRLR0_SPI_FRF_MASK, priv->spi_frf);
+	} else {
+		if (priv->caps & DW_SPI_CAP_DFS32)
+			cr0 = FIELD_PREP(CTRLR0_DFS_32_MASK,
+					 priv->bits_per_word - 1);
+		else
+			cr0 = FIELD_PREP(CTRLR0_DFS_MASK,
+					 priv->bits_per_word - 1);
+
+ 		cr0 |= FIELD_PREP(CTRLR0_FRF_MASK, priv->type)
+ 		    |  FIELD_PREP(CTRLR0_MODE_MASK, priv->mode)
+		    |  FIELD_PREP(CTRLR0_TMOD_MASK, priv->tmode)
+		    |  FIELD_PREP(CTRLR0_SPI_FRF_MASK, priv->spi_frf);
+	}
+
+	return cr0;
+}
+
+static inline u32 dw_spi_update_spi_cr0(const struct spi_mem_op *op)
+{
+	uint trans_type, wait_cycles;
+
+	/* This assumes support_op has filtered invalid types */
+	if (op->addr.buswidth == 1)
+		trans_type = SPI_CTRLR0_TRANS_TYPE_0;
+	else if (op->cmd.buswidth == 1)
+		trans_type = SPI_CTRLR0_TRANS_TYPE_1;
+	else
+		trans_type = SPI_CTRLR0_TRANS_TYPE_2;
+
+	if (op->dummy.buswidth)
+		wait_cycles = op->dummy.nbytes * 8 / op->dummy.buswidth;
+	else
+		wait_cycles = 0;
+
+    return FIELD_PREP(SPI_CTRLR0_TRANS_TYPE_MASK, trans_type) |
+           FIELD_PREP(SPI_CTRLR0_ADDR_L_MASK, op->addr.nbytes * 2) |
+           FIELD_PREP(SPI_CTRLR0_INST_L_MASK, INST_L_8) |
+           FIELD_PREP(SPI_CTRLR0_WAIT_CYCLES_MASK, wait_cycles) |
+		   SPI_CTRLR0_CLK_STRETCH_EN;
 }
 
 static u32 dw_spi_dw16_update_cr0(struct dw_spi_priv *priv)
@@ -217,6 +345,38 @@ static int dw_spi_dwc_init(struct udevice *bus, struct dw_spi_priv *priv)
 {
 	priv->max_xfer = 32;
 	priv->update_cr0 = dw_spi_dwc_update_cr0;
+	return 0;
+}
+
+static int dw_ssi_init(struct udevice *bus, struct dw_spi_priv *priv)
+{
+	u32 cr0;
+
+	priv->max_xfer = 32;
+	priv->update_cr0 = dw_spi_update_cr0;
+
+	dw_write(priv, DW_SPI_SSIENR, 0);
+	dw_write(priv, DW_SPI_CTRLR0, 0xffffffff);
+	cr0 = dw_read(priv, DW_SPI_CTRLR0);
+
+	priv->caps = DW_SPI_CAP_DWC_SSI;
+
+	/*
+	 * DWC_SPI always has DFS_32. If we read zeros from DFS, then we need to
+	 * use DFS_32 instead
+	 */
+	if (!FIELD_GET(CTRLR0_DFS_MASK, cr0))
+		priv->caps |= DW_SPI_CAP_DFS32;
+
+	/*
+	 * If SPI_FRF exists that means we have DUAL, QUAD, or OCTAL. Since we
+	 * can't differentiate, just set a general ENHANCED cap and let the
+	 * slave decide what to use.
+	 */
+	if (FIELD_GET(DWC_SSI_CTRLR0_SPI_FRF_MASK, cr0))
+		priv->caps |= DW_SPI_CAP_ENHANCED;
+
+	dw_write(priv, DW_SPI_SSIENR, 1);
 	return 0;
 }
 
@@ -290,7 +450,7 @@ static void spi_hw_init(struct udevice *bus, struct dw_spi_priv *priv)
 		priv->fifo_len = (fifo == 1) ? 0 : fifo;
 		dw_write(priv, DW_SPI_TXFTLR, 0);
 	}
-	dev_dbg(bus, "fifo_len=%d\n", priv->fifo_len);
+	dw_write(priv, DW_SPI_RXFTLR, priv->fifo_len - 1);
 }
 
 /*
@@ -401,6 +561,142 @@ static int dw_spi_probe(struct udevice *bus)
 
 	return 0;
 }
+
+/**
+ * dw_writer_enh() - Write data frames to the tx fifo
+ * @priv: Driver private info
+ * @tx: The tx buffer
+ * @idx: The number of data frames already transmitted
+ * @tx_frames: The number of data frames left to transmit
+ * @rx_frames: The number of data frames left to receive (0 if only
+ *             transmitting)
+ * @frame_bytes: The number of bytes taken up by one data frame
+ *
+ * This function writes up to @tx_frames data frames using data from @tx[@idx].
+ *
+ * Return: The number of frames read
+ */
+static inline uint dw_writer_enh(struct dw_spi_priv *priv, const void *tx, uint idx,
+		      uint tx_frames, uint rx_frames, uint frame_bytes)
+{
+	u32 tx_room = priv->fifo_len - dw_read(priv, DW_SPI_TXFLR);
+
+	/*
+	 * Another concern is about the tx/rx mismatch, we
+	 * thought about using (priv->fifo_len - rxflr - txflr) as
+	 * one maximum value for tx, but it doesn't cover the
+	 * data which is out of tx/rx fifo and inside the
+	 * shift registers. So a control from sw point of
+	 * view is taken.
+	 */
+	u32 rxtx_gap = rx_frames - tx_frames;
+	u32 count = min3(tx_frames, tx_room, (u32)(priv->fifo_len - rxtx_gap));
+	u32 *dr = priv->regs + DW_SPI_DR;
+	if (!count)
+		return 0;
+
+	switch (frame_bytes) {
+	case 1:
+		do_write(u8);
+		break;
+	case 2:
+		do_write(u16);
+		break;
+	case 3:
+	case 4:
+	default:
+		do_write(u32);
+		break;
+	}
+	return count;
+}
+
+/**
+ * dw_reader_enh() - Read data frames from the rx fifo
+ * @priv: Driver private data
+ * @rx: The rx buffer
+ * @idx: The number of data frames already received
+ * @frames: The number of data frames left to receive
+ * @frame_bytes: The size of a data frame in bytes
+ *
+ * This function reads up to @frames data frames from @rx[@idx].
+ *
+ * Return: The number of frames read
+ */
+static inline uint dw_reader_enh(struct dw_spi_priv *priv, void *rx, uint idx, uint frames,
+		      uint frame_bytes)
+{
+	u32 rx_lvl = dw_read(priv, DW_SPI_RXFLR);
+	u32 count = min(frames, rx_lvl);
+	u32 *dr = priv->regs + DW_SPI_DR;
+
+	if (!count)
+		return 0;
+
+	switch (frame_bytes) {
+	case 1:
+		do_read(u8);
+		break;
+	case 2:
+		do_read(u16);
+		break;
+	case 3:
+	case 4:
+	default:
+		do_read(u32);
+		break;
+	}
+	return count;
+}
+
+/**
+ * poll_transfer_enh() - Transmit and receive data frames
+ * @priv: Driver private data
+ * @tx: The tx buffer. May be %NULL to only receive.
+ * @rx: The rx buffer. May be %NULL to discard read data.
+ * @frames: The number of data frames to transfer
+ *
+ * Transmit @tx, while recieving @rx.
+ *
+ * Return: The lesser of the number of frames transmitted or received.
+ */
+static uint poll_transfer_enh(struct dw_spi_priv *priv, const void *tx, void *rx,
+			  uint frames)
+{
+	uint frame_bytes = priv->bits_per_word >> 3;
+	uint tx_idx = 0;
+	uint rx_idx = 0;
+	uint tx_frames = tx ? frames : 0;
+	uint rx_frames = rx ? frames : 0;
+
+	while (tx_frames || rx_frames) {
+		if (tx_frames) {
+			uint tx_diff = dw_writer_enh(priv, tx, tx_idx, tx_frames,
+						 rx_frames, frame_bytes);
+
+			tx_idx += tx_diff;
+			tx_frames -= tx_diff;
+		}
+
+		if (rx_frames) {
+			uint rx_diff = dw_reader_enh(priv, rx, rx_idx, rx_frames,
+						 frame_bytes);
+
+			rx_idx += rx_diff;
+			rx_frames -= rx_diff;
+		}
+
+		/*
+		 * If we don't read/write fast enough, the transfer stops.
+		 * Don't bother reading out what's left in the FIFO; it's
+		 * garbage.
+		 */
+		if (dw_read(priv, DW_SPI_RISR) & (ISR_RXOI | ISR_TXUI))
+			break;
+	}
+	return min(tx ? tx_idx : rx_idx, rx ? rx_idx : tx_idx);
+}
+
 
 /* Return the max entries we can fill into tx fifo */
 static inline u32 tx_max(struct dw_spi_priv *priv)
@@ -594,25 +890,55 @@ static int dw_spi_exec_op(struct spi_slave *slave, const struct spi_mem_op *op)
 	int pos, i, ret = 0;
 	struct udevice *bus = slave->dev->parent;
 	struct dw_spi_priv *priv = dev_get_priv(bus);
+	struct spi_mem_op *mut_op = (struct spi_mem_op *)op;
 	u8 op_len = op->cmd.nbytes + op->addr.nbytes + op->dummy.nbytes;
 	u8 op_buf[op_len];
-	u32 cr0;
+	u32 cr0, spi_cr0, val;
 	u32 rx_sample_dly;
 	u32 rx_sample_dly_ns;
 
-	if (read)
-		priv->tmode = CTRLR0_TMOD_EPROMREAD;
-	else
-		priv->tmode = CTRLR0_TMOD_TR;
+	/* Only bytes are supported for spi-mem transfers */
+	if (priv->bits_per_word != 8)
+		return -EINVAL;
 
-	cr0 = priv->update_cr0(priv);
-	dev_dbg(bus, "cr0=%08x buf=%p len=%u [bytes]\n", cr0, op->data.buf.in,
-		op->data.nbytes);
+	switch (op->data.buswidth) {
+	case 0:
+	case 1:
+		priv->spi_frf = CTRLR0_SPI_FRF_BYTE;
+		break;
+	case 2:
+		priv->spi_frf = CTRLR0_SPI_FRF_DUAL;
+		break;
+	case 4:
+		priv->spi_frf = CTRLR0_SPI_FRF_QUAD;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (read)
+		if (priv->spi_frf == CTRLR0_SPI_FRF_BYTE)
+			priv->tmode = CTRLR0_TMOD_EPROMREAD;
+		else
+			priv->tmode = CTRLR0_TMOD_RO;
+	else
+		if (priv->spi_frf == CTRLR0_SPI_FRF_BYTE)
+			priv->tmode = CTRLR0_TMOD_TR;
+		else
+			priv->tmode = CTRLR0_TMOD_TO;
+
+	cr0 = dw_spi_update_cr0(priv);
+	spi_cr0 = dw_spi_update_spi_cr0(op);
+	dev_dbg(bus, "cr0=%08x spi_cr0=%08x buf=%p len=%u [bytes]\n", cr0,
+		spi_cr0, op->data.buf.in, op->data.nbytes);
 
 	dw_write(priv, DW_SPI_SSIENR, 0);
+	external_cs_manage(slave->dev, false);
+	dw_write(priv, DW_SPI_SER, 1 << spi_chip_select(slave->dev));
 	dw_write(priv, DW_SPI_CTRLR0, cr0);
-	if (read)
-		dw_write(priv, DW_SPI_CTRLR1, op->data.nbytes - 1);
+	dw_write(priv, DW_SPI_CTRLR1, op->data.nbytes - 1);
+	if (priv->spi_frf != CTRLR0_SPI_FRF_BYTE)
+		dw_write(priv, DW_SPI_ENHANCE_CTRLR0, spi_cr0);
 	/* Update RX sample delay if required */
 	if (dev_read_u32(slave->dev,"rx-sample-delay-ns", &rx_sample_dly_ns) != 0)
 			/* Use default controller value */
@@ -627,58 +953,46 @@ static int dw_spi_exec_op(struct spi_slave *slave, const struct spi_mem_op *op)
 	}
 	dw_write(priv, DW_SPI_SSIENR, 1);
 
-	/* From spi_mem_exec_op */
-	pos = 0;
-	op_buf[pos++] = op->cmd.opcode;
-	if (op->addr.nbytes) {
-		for (i = 0; i < op->addr.nbytes; i++)
-			op_buf[pos + i] = op->addr.val >>
-				(8 * (op->addr.nbytes - i - 1));
+	/* Write out the instruction */
+	if (priv->spi_frf == CTRLR0_SPI_FRF_BYTE) {
+		/* From spi_mem_exec_op */
+		pos = 0;
+		op_buf[pos++] = op->cmd.opcode;
+		if (op->addr.nbytes) {
+			for (i = 0; i < op->addr.nbytes; i++)
+				op_buf[pos + i] = op->addr.val >>
+					(8 * (op->addr.nbytes - i - 1));
 
-		pos += op->addr.nbytes;
-	}
-	if (op->dummy.nbytes)
+			pos += op->addr.nbytes;
+		}
 		memset(op_buf + pos, 0xff, op->dummy.nbytes);
-
-	external_cs_manage(slave->dev, false);
-
-	priv->tx = &op_buf;
-	priv->tx_end = priv->tx + op_len;
-	priv->rx = NULL;
-	priv->rx_end = NULL;
-	while (priv->tx != priv->tx_end)
-		dw_writer(priv);
+		dw_writer_enh(priv, &op_buf, 0, op_len, 0, sizeof(u8));
+	} else {
+		writel(op->cmd.opcode, priv->regs + DW_SPI_DR);
+		writel(op->addr.val, priv->regs + DW_SPI_DR);
+	}
 
 	/*
 	 * XXX: The following are tight loops! Enabling debug messages may cause
 	 * them to fail because we are not reading/writing the fifo fast enough.
 	 */
-	if (read) {
-		priv->rx = op->data.buf.in;
-		priv->rx_end = priv->rx + op->data.nbytes;
-
-		dw_write(priv, DW_SPI_SER, 1 << spi_chip_select(slave->dev));
-		while (priv->rx != priv->rx_end)
-			dw_reader(priv);
-	} else {
-		u32 val;
-
-		priv->tx = op->data.buf.out;
-		priv->tx_end = priv->tx + op->data.nbytes;
-
-		/* Fill up the write fifo before starting the transfer */
-		dw_writer(priv);
-		dw_write(priv, DW_SPI_SER, 1 << spi_chip_select(slave->dev));
-		while (priv->tx != priv->tx_end)
-			dw_writer(priv);
-
-		if (readl_poll_timeout(priv->regs + DW_SPI_SR, val,
-				       (val & SR_TF_EMPT) && !(val & SR_BUSY),
-				       RX_TIMEOUT * 1000)) {
-			ret = -ETIMEDOUT;
-		}
+	if (read)
+		mut_op->data.nbytes = poll_transfer_enh(priv, NULL, op->data.buf.in,
+						    op->data.nbytes);
+	else
+		mut_op->data.nbytes = poll_transfer_enh(priv, op->data.buf.out,
+						    NULL, op->data.nbytes);
+	/*
+	 * Ensure the data (or the instruction for zero-data instructions) has
+	 * been transmitted from the fifo/shift register before disabling the
+	 * device.
+	 */
+	if (readl_poll_timeout(priv->regs + DW_SPI_SR, val,
+			       (val & SR_TF_EMPT) && !(val & SR_BUSY),
+			       RX_TIMEOUT * 1000)) {
+		dev_dbg(bus, "timed out; sr=%x\n", dw_read(priv, DW_SPI_SR));
+		ret = -ETIMEDOUT;
 	}
-
 	dw_write(priv, DW_SPI_SER, 0);
 	external_cs_manage(slave->dev, true);
 
@@ -694,8 +1008,39 @@ static int dw_spi_adjust_op_size(struct spi_slave *slave, struct spi_mem_op *op)
 	return 0;
 }
 
+bool dw_spi_supports_op(struct spi_slave *slave, const struct spi_mem_op *op)
+{
+	struct dw_spi_priv *priv = dev_get_priv(slave->dev->parent);
+
+	if (!spi_mem_default_supports_op(slave, op))
+		return false;
+
+	/*
+	 * Everything before the data must fit in the fifo.
+	 * In EEPROM mode we also need to fit the dummy.
+	 */
+	if (1 + op->addr.nbytes +
+	    (op->data.buswidth == 1 ? op->dummy.nbytes : 0) > priv->fifo_len)
+		return false;
+
+	if (op->cmd.buswidth == 1 &&
+	    (!op->addr.nbytes || op->addr.buswidth == 1))
+		return true;
+
+	if (op->cmd.buswidth == 1 &&
+	    (!op->addr.nbytes || op->addr.buswidth == op->data.buswidth))
+		return true;
+
+	if (op->cmd.buswidth == op->data.buswidth &&
+	    (!op->addr.nbytes || op->addr.buswidth == op->data.buswidth))
+		return true;
+
+	return false;
+}
+
 static const struct spi_controller_mem_ops dw_spi_mem_ops = {
 	.exec_op = dw_spi_exec_op,
+	.supports_op = dw_spi_supports_op,
 	.adjust_op_size = dw_spi_adjust_op_size,
 };
 
@@ -728,6 +1073,12 @@ static int dw_spi_set_speed(struct udevice *bus, uint speed)
 static int dw_spi_set_mode(struct udevice *bus, uint mode)
 {
 	struct dw_spi_priv *priv = dev_get_priv(bus);
+
+	if (!(priv->caps & DW_SPI_CAP_ENHANCED) &&
+	    (mode & (SPI_RX_DUAL | SPI_TX_DUAL |
+		     SPI_RX_QUAD | SPI_TX_QUAD |
+		     SPI_RX_OCTAL | SPI_TX_OCTAL)))
+		return -EINVAL;
 
 	/*
 	 * Can't set mode yet. Since this depends on if rx, tx, or
@@ -784,6 +1135,7 @@ static const struct udevice_id dw_spi_ids[] = {
 	{ .compatible = "snps,dw-apb-ssi-4.00a", .data = (ulong)dw_spi_apb_init },
 	{ .compatible = "snps,dw-apb-ssi-4.01", .data = (ulong)dw_spi_apb_init },
 	{ .compatible = "snps,dwc-ssi-1.01a", .data = (ulong)dw_spi_dwc_init },
+	{ .compatible = "snps,dwc-ssi-2.00a", .data = (ulong)dw_ssi_init },
 
 	/* Compatible strings for specific SoCs */
 
