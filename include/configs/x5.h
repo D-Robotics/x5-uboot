@@ -47,6 +47,33 @@
 #define X5_USABLE_RAM_TOP     (CONFIG_SYS_SDRAM_BASE + X5_UBOOT_USE_RAM_SIZE)
 #define CONFIG_BOARD_EARLY_INIT_F
 
+/* Start of ion related macro */
+#define ION_CMA_NAME "ion_cma"
+#define ION_RESERVED_NAME "ion_reserved"
+#define ION_CARVEOUT_NAME "ion_carveout"
+
+/* ION_RESERVED_OFFSET must be in sync with x5-memory.dtsi */
+/* Macros for ion regions in DDR *L*ess than or *E*qual to 2G */
+#define DEFAULT_ION_REGION_START (0x94240000u - PHYS_SDRAM_1)
+
+#define DEFAULT_ION_TOTAL_SIZE_LE_2G (0x58000000u) /* 1408MiB */
+#define DEFAULT_ION_RESERVED_SIZE_LE_2G (0x20000000u) /* 512MiB */
+#define DEFAULT_ION_CARVEOUT_SIZE_LE_2G (0x20000000u) /* 512MiB */
+#define DEFAULT_ION_CMA_SIZE_LE_2G \
+	(DEFAULT_ION_TOTAL_SIZE_LE_2G - DEFAULT_ION_RESERVED_SIZE_LE_2G - \
+	DEFAULT_ION_CARVEOUT_SIZE_LE_2G) /* 384M */
+
+/* Macros for ion regions in DDR *G*reater *T*han 2G */
+
+#define DEFAULT_ION_TOTAL_SIZE_GT_2G (0xA0000000u) /* 2560GiB */
+
+#define DEFAULT_ION_RESERVED_SIZE_GT_2G (0x40000000u) /* 1GiB */
+#define DEFAULT_ION_CARVEOUT_SIZE_GT_2G (0x40000000u) /* 1GiB */
+#define DEFAULT_ION_CMA_SIZE_GT_2G \
+	(DEFAULT_ION_TOTAL_SIZE_GT_2G - DEFAULT_ION_RESERVED_SIZE_GT_2G - \
+	DEFAULT_ION_CARVEOUT_SIZE_GT_2G) /* 512MiB */
+/* End of ion related macro */
+
 #define CONFIG_SYS_MMC_MAX_BLK_COUNT 1024
 
 #define KERNEL_ADDR     __stringify(0x90000000)
