@@ -190,6 +190,19 @@
 	} while (start < end); \
 } while (0)
 
+#ifdef CONFIG_TARGET_X5
+/* Sunrise5 SoC reset registers */
+#define X5_QSPI_NOC_IDLE_CTRL (0x31032004)
+#define X5_QSPI_NOC_IDLE_CTRL_IDLE (BIT(6))
+#define X5_QSPI_NOC_IDLE_STAT (0x3103200C)
+#define X5_QSPI_NOC_IDLE_STAT_BIT (BIT(6))
+#define X5_QSPI_IDLE_TIMEOUT_MS (10)
+
+#define X5_QSPI_SW_RST_CTRL (0x342100A4)
+#define X5_QSPI_SW_RST_CTRL_ASSERT (BIT(0))
+#define X5_QSPI_SW_RST_DELAY_US (10)
+#endif
+
 struct dw_spi_plat {
 	s32 frequency;		/* Default clock frequency, -1 for none */
 	void __iomem *regs;
@@ -341,10 +354,73 @@ static int dw_spi_apb_k210_init(struct udevice *bus, struct dw_spi_priv *priv)
 	return dw_spi_apb_init(bus, priv);
 }
 
+#ifdef CONFIG_TARGET_X5
+static int dw_ssi_hw_reset_x5(struct udevice *bus)
+{
+	int ret = 0;
+	u32 reg_val;
+	s32 idle_timeout = X5_QSPI_IDLE_TIMEOUT_MS;
+
+	/* QSPI assert idle */
+	reg_val = (readl(X5_QSPI_NOC_IDLE_CTRL) | X5_QSPI_NOC_IDLE_CTRL_IDLE);
+	writel(reg_val, X5_QSPI_NOC_IDLE_CTRL);
+	while (idle_timeout) {
+		if (!(readl(X5_QSPI_NOC_IDLE_STAT) & X5_QSPI_NOC_IDLE_STAT_BIT)){
+			idle_timeout--;
+			mdelay(1);
+		} else {
+			break;
+		}
+	}
+
+	if (idle_timeout <= 0) {
+		dev_err(bus, "%s: QSPI request idle timeout!\n", __func__);
+		ret = -1;
+		goto exit;
+	}
+
+	/* Assert qspi sw rst, wait 10us and deassert */
+	reg_val = (readl(X5_QSPI_SW_RST_CTRL) | X5_QSPI_SW_RST_CTRL_ASSERT);
+	writel(reg_val, X5_QSPI_SW_RST_CTRL);
+	udelay(X5_QSPI_SW_RST_DELAY_US);
+	reg_val = (readl(X5_QSPI_SW_RST_CTRL) & ~X5_QSPI_SW_RST_CTRL_ASSERT);
+	writel(reg_val, X5_QSPI_SW_RST_CTRL);
+
+	/* QSPI deassert idle */
+	idle_timeout = X5_QSPI_IDLE_TIMEOUT_MS;
+	reg_val = (readl(X5_QSPI_NOC_IDLE_CTRL) & ~X5_QSPI_NOC_IDLE_CTRL_IDLE);
+	writel(reg_val, X5_QSPI_NOC_IDLE_CTRL);
+	while (idle_timeout) {
+		if ((readl(X5_QSPI_NOC_IDLE_STAT) & X5_QSPI_NOC_IDLE_STAT_BIT)){
+			idle_timeout--;
+			mdelay(1);
+		} else {
+			break;
+		}
+	}
+
+	if (idle_timeout <= 0) {
+		dev_err(bus, "%s: QSPI release idle timeout!\n", __func__);
+		ret = -1;
+		goto exit;
+	}
+
+exit:
+	return ret;
+}
+#endif
+
 static int dw_spi_dwc_init(struct udevice *bus, struct dw_spi_priv *priv)
 {
 	priv->max_xfer = 32;
 	priv->update_cr0 = dw_spi_dwc_update_cr0;
+	priv->caps = DW_SPI_CAP_DWC_SSI;
+#ifdef CONFIG_TARGET_X5
+	if (dw_ssi_hw_reset_x5(bus)) {
+		dev_err(bus, "QSPI hw reset failed!\n");
+		return -1;
+	}
+#endif
 	return 0;
 }
 
@@ -356,7 +432,14 @@ static int dw_ssi_init(struct udevice *bus, struct dw_spi_priv *priv)
 	priv->update_cr0 = dw_spi_update_cr0;
 
 	dw_write(priv, DW_SPI_SSIENR, 0);
+#ifdef CONFIG_TARGET_X5
+	if (dw_ssi_hw_reset_x5(bus)) {
+		dev_err(bus, "QSPI hw reset failed!\n");
+		return -1;
+	}
+#else
 	dw_write(priv, DW_SPI_CTRLR0, 0xffffffff);
+#endif
 	cr0 = dw_read(priv, DW_SPI_CTRLR0);
 
 	priv->caps = DW_SPI_CAP_DWC_SSI;
@@ -376,6 +459,7 @@ static int dw_ssi_init(struct udevice *bus, struct dw_spi_priv *priv)
 	if (FIELD_GET(DWC_SSI_CTRLR0_SPI_FRF_MASK, cr0))
 		priv->caps |= DW_SPI_CAP_ENHANCED;
 
+	dev_dbg(bus, "cr0:%#x, caps:%#lx\n", cr0, priv->caps);
 	dw_write(priv, DW_SPI_SSIENR, 1);
 	return 0;
 }
