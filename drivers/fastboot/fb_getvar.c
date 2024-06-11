@@ -9,6 +9,7 @@
 #include <fastboot-internal.h>
 #include <fb_mmc.h>
 #include <fb_nand.h>
+#include <fb_spinand.h>
 #include <fs.h>
 #include <part.h>
 #include <version.h>
@@ -101,25 +102,48 @@ static const struct {
 static int getvar_get_part_info(const char *part_name, char *response,
 				size_t *size)
 {
-	int r;
-# if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
-	struct blk_desc *dev_desc;
-	struct disk_partition part_info;
+	int r = -ENODEV;
 
-	r = fastboot_mmc_get_part_info(part_name, &dev_desc, &part_info,
-				       response);
-	if (r >= 0 && size)
-		*size = part_info.size * part_info.blksz;
-# elif CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
-	struct part_info *part_info;
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
+	if (fastboot_get_flash_type() == FLASH_TYPE_UNKNOWN ||
+			fastboot_get_flash_type() == FLASH_TYPE_EMMC) {
+		struct blk_desc *dev_desc;
+		struct disk_partition part_info;
 
-	r = fastboot_nand_get_part_info(part_name, &part_info, response);
-	if (r >= 0 && size)
-		*size = part_info->size;
-# else
-	fastboot_fail("this storage is not supported in bootloader", response);
-	r = -ENODEV;
-# endif
+		r = fastboot_mmc_get_part_info(part_name, &dev_desc, &part_info,
+					       response);
+		if (r >= 0 && size)
+			*size = part_info.size * part_info.blksz;
+	}
+#endif
+
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
+	if (fastboot_get_flash_type() == FLASH_TYPE_NAND) {
+		struct part_info *part_info;
+
+		r = fastboot_nand_get_part_info(part_name, &part_info, response);
+		if (r >= 0 && size)
+			*size = part_info->size;
+	}
+#endif
+
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_SPINAND)
+	if (fastboot_get_flash_type() == FLASH_TYPE_SPINAND) {
+		struct part_info *part_info;
+
+		r = fastboot_spinand_get_part_info(part_name, &part_info, response);
+		if (r >= 0 && size)
+			*size = part_info->size;
+	}
+#endif
+
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_RAM)
+	if (fastboot_get_flash_type() == FLASH_TYPE_RAM) {
+		// FIXME: Lack ram medium's get part info function
+		fastboot_fail("ram storage is not supported in bootloader", response);
+		r = -ENODEV;
+	}
+#endif
 
 	return r;
 }

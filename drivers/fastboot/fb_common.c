@@ -28,6 +28,11 @@ void *fastboot_buf_addr;
 u32 fastboot_buf_size;
 
 /**
+ * selected_flash_type - user selected flash type (emmc/nand/spinand)
+ */
+fb_flash_type selected_flash_type = FLASH_TYPE_UNKNOWN;
+
+/**
  * fastboot_medium_number - fastboot flash medium number info
  * >= 0: meaningful
  * < 0: no user input
@@ -130,6 +135,20 @@ int __weak fastboot_set_reboot_flag(enum fastboot_reboot_reason reason)
 }
 
 /**
+ * fastboot_get_flash_type() - get user selected flash type
+ *
+ * Fastboot could support many flash types, such as mmc, nand and spinand.
+ * This function is used to get user selected flash type.
+ *
+ * Which means fastboot could indicate flash to which kind of flash.
+ */
+int fastboot_get_flash_type(void)
+{
+	return selected_flash_type;
+}
+
+
+/**
  * fastboot_get_progress_callback() - Return progress callback
  *
  * Return: Pointer to function called during long operations
@@ -197,8 +216,11 @@ void fastboot_set_progress_callback(void (*progress)(const char *msg))
  *
  * @buf_addr: Pointer to download buffer, or NULL for default
  * @buf_size: Size of download buffer, or zero for default
+ * @medium_devnum: Medium device number(eg. mmc 0 or 1)
+ * @flash_type: User selected flash type, eg. mmc/nand/spinand/ram
  */
-void fastboot_init(void *buf_addr, u32 buf_size, s32 medium_devnum)
+void fastboot_init(void *buf_addr, u32 buf_size, fb_flash_type flash_type,
+		s32 medium_devnum)
 {
 	fastboot_buf_addr = buf_addr ? buf_addr :
 				       (void *)CONFIG_FASTBOOT_BUF_ADDR;
@@ -206,6 +228,7 @@ void fastboot_init(void *buf_addr, u32 buf_size, s32 medium_devnum)
 	fastboot_set_progress_callback(NULL);
 
 	fastboot_medium_number = medium_devnum;
+	selected_flash_type = flash_type;
 }
 
 /*

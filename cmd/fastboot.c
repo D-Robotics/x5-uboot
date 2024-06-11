@@ -98,12 +98,47 @@ exit:
 #endif
 }
 
-static int do_fastboot(struct cmd_tbl *cmdtp, int flag, int argc,
-		       char *const argv[])
+static fb_flash_type get_boot_flash_type(void)
+{
+	// TODO: boot mode not implemented, use MMC as default boot medium
+	fb_flash_type flash_type = FLASH_TYPE_EMMC;
+
+	return flash_type;
+}
+
+static const char *flash_type_to_string(fb_flash_type flash_type)
+{
+	const char *strings = NULL;
+
+	switch (flash_type) {
+	case FLASH_TYPE_UNKNOWN:
+		strings = "unknwon";
+		break;
+	case FLASH_TYPE_EMMC:
+		strings = "emmc";
+		break;
+	case FLASH_TYPE_NAND:
+		strings = "nand";
+		break;
+	case FLASH_TYPE_SPINAND:
+		strings = "spinand";
+		break;
+	default:
+		strings = "unknwon";
+		break;
+	}
+
+	return strings;
+}
+
+static int do_fastboot(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 {
 	uintptr_t buf_addr = (uintptr_t)NULL;
 	size_t buf_size = 0;
+	fb_flash_type flash_type;
 	s32 medium_devnum = -ENODEV;	/* means no user input. then will use system default medium number */
+
+	flash_type = get_boot_flash_type();	/* use boot flash type as default */
 
 	if (argc < 2)
 		return CMD_RET_USAGE;
@@ -131,6 +166,28 @@ static int do_fastboot(struct cmd_tbl *cmdtp, int flag, int argc,
 					return CMD_RET_USAGE;
 				medium_devnum = hextoul(*++argv, NULL);
 				goto NXTARG;
+			case 't':
+				if (--argc <= 0)
+					return CMD_RET_USAGE;
+				++argv;
+				if (!strcmp(argv[0], "emmc")) {
+					printf("fastboot user select emmc\n");
+					flash_type = FLASH_TYPE_EMMC;
+				} else if (!strcmp(argv[0], "nand")) {
+					printf("fastboot user select nand\n");
+					flash_type = FLASH_TYPE_NAND;
+				} else if (!strcmp(argv[0], "spinand")) {
+					printf("fastboot user select spinand\n");
+					flash_type = FLASH_TYPE_SPINAND;
+				} else if (!strcmp(argv[0], "ram")) {
+					printf("fastboot user select ram\n");
+					flash_type = FLASH_TYPE_RAM;
+				} else {
+					pr_err("Error: Incorrect flash type, "
+						"please choose emmc, nand, spinand or ram\n");
+					return CMD_RET_USAGE;
+				}
+				goto NXTARG;
 
 			default:
 				return CMD_RET_USAGE;
@@ -146,7 +203,8 @@ NXTARG:
 		return CMD_RET_USAGE;
 	}
 
-	fastboot_init((void *)buf_addr, buf_size, medium_devnum);
+	printf("select %s as flash type\n", flash_type_to_string(flash_type));
+	fastboot_init((void *)buf_addr, buf_size, flash_type, medium_devnum);
 
 	if (!strcmp(argv[1], "udp"))
 		return do_fastboot_udp(argc, argv, buf_addr, buf_size);
@@ -161,11 +219,12 @@ NXTARG:
 
 #ifdef CONFIG_SYS_LONGHELP
 static char fastboot_help_text[] =
-	"[-l addr] [-s size] [-m medium_devnum] usb <controller> | udp\n"
+	"[-l addr] [-s size] [-t flash_type] [-m medium_devnum] usb <controller> | udp\n"
 	"\taddr - address of buffer used during data transfers ("
 	__stringify(CONFIG_FASTBOOT_BUF_ADDR) ")\n"
 	"\tsize - size of buffer used during data transfers ("
-	__stringify(CONFIG_FASTBOOT_BUF_SIZE) ")"
+	__stringify(CONFIG_FASTBOOT_BUF_SIZE) ")\n"
+	"\tflash_type - choose target flash type (emmc/nand/spinand/ram)\n"
 	;
 #endif
 

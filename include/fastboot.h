@@ -56,6 +56,18 @@ enum {
 };
 
 /**
+ * flash type enums
+ */
+typedef enum {
+	FLASH_TYPE_UNKNOWN = -1,
+	FLASH_TYPE_EMMC,
+	FLASH_TYPE_NAND,
+	FLASH_TYPE_SPINAND,
+	FLASH_TYPE_RAM,
+	FLASH_TYPE_COUNT
+} fb_flash_type;
+
+/**
  * Reboot reasons
  */
 enum fastboot_reboot_reason {
@@ -110,6 +122,15 @@ void fastboot_none_resp(char *response);
  * requires in order to re-enter the bootloader.
  */
 int fastboot_set_reboot_flag(enum fastboot_reboot_reason reason);
+/**
+ * fastboot_get_flash_type() - get user selected flash type
+ *
+ * Fastboot could support many flash types, such as mmc, nand and spinand.
+ * This function is used to get user selected flash type.
+ *
+ * Which means fastboot could indicate flash to which kind of flash.
+ */
+int fastboot_get_flash_type(void);
 
 /**
  * fastboot_set_progress_callback() - set progress callback
@@ -129,8 +150,10 @@ void fastboot_set_progress_callback(void (*progress)(const char *msg));
  * @buf_addr: Pointer to download buffer, or NULL for default
  * @buf_size: Size of download buffer, or zero for default
  * @medium_devnum: Medium device number(eg. mmc 0 or 1)
+ * @flash_type: User selected flash type, eg. mmc/nand/spinand/ram
  */
-void fastboot_init(void *buf_addr, u32 buf_size, s32 medium_devnum);
+void fastboot_init(void *buf_addr, u32 buf_size, fb_flash_type flash_type,
+		s32 medium_devnum);
 
 /**
  * fastboot_boot() - Execute fastboot boot command
