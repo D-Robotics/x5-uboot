@@ -26,22 +26,35 @@
 
 		x5_svb_qspi1: spi@35000000 {
 			status = "okay";
-			compatible = "snps,dwc-ssi-1.01a";
+			compatible = "snps,dwc-ssi-2.00a";
 			reg = <0x35000000 0x1000>;
 			clocks = <&qspiclk>;
-			spi-max-frequency = <50000000>;
+			spi-max-frequency = <100000000>;
 			num-cs = <1>;
 			reg-io-width = <4>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_qspi>;
-			x5_svb_nand: spi-flash@0 {
-				compatible = "spi-nand";
-				rx-sample-delay-ns = <10>;
+#ifdef CONFIG_DM_SPI_FLASH
+			x5_svb_nor: spi-flash@0 {
+				compatible = "jedec,spi-nor";
+				spi-tx-bus-width = <4>;
+				spi-rx-bus-width = <4>;
 				spi-max-frequency = <100000000>;
+				rx-sample-delay-ns = <10>;
 				reg = <0>;
 			};
+#else
+			x5_svb_nand: spi-flash@0 {
+				compatible = "spi-nand";
+				spi-tx-bus-width = <4>;
+				spi-rx-bus-width = <4>;
+				spi-max-frequency = <100000000>;
+				rx-sample-delay-ns = <10>;
+				reg = <0>;
+			};
+#endif
 		};
 
 		x5_svb_emmc: sdio-host@35040000 {
