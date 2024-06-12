@@ -13,6 +13,7 @@
 			<
 			HOBOT_X5_SOC_ID
 			HOBOT_X5_EVB_ID
+			HOBOT_X5_EVB_V2_ID
 			>;
 
 		x5_soc_uart1: serial@34070000 {

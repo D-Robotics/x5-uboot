@@ -33,11 +33,12 @@
 				<0 50 0 40 HOBOT_X5_FPGA_ID 0 0 0 0 0>,
 				<1100 1300 800 1000 HOBOT_X5_SOC_ID 1 0 0 1 1>,
 				<0 40 40 80 HOBOT_X5_SVB_ID 2 0 0 2 0>,
-				<151 240 51 140 HOBOT_X5_EVB_ID 3 0 0 3 1>;
-		hardware_array = "x5-fpga", "x5-soc", "x5-svb", "x5-evb";
+				<151 240 51 140 HOBOT_X5_EVB_ID 3 0 0 3 1>,
+				<151 240 151 240 HOBOT_X5_EVB_V2_ID 4 0 0 4 1>;
+		hardware_array = "x5-fpga", "x5-soc", "x5-svb", "x5-evb", "x5-evb-v2";
 		ethact_array = "default";
 		net_eth0_ipaddr = "192.168.1.10";
-		board_name_array = "x5-fpga", "x5-soc", "x5-svb", "x5-evb";
+		board_name_array = "x5-fpga", "x5-soc", "x5-svb", "x5-evb", "x5-evb-v2";
 		pmic_type = "dual-pmic", "single-pmic";
 	};
 
