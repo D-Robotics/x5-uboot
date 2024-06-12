@@ -100,10 +100,41 @@ exit:
 
 static fb_flash_type get_boot_flash_type(void)
 {
-	// TODO: boot mode not implemented, use MMC as default boot medium
+	const char *boot_mode;
 	fb_flash_type flash_type = FLASH_TYPE_EMMC;
 
+	boot_mode = env_get("boot_device");
+	if (!boot_mode)
+		goto out;
+
+	/* FIXME: only handle emmc & nand boot mode currently */
+	if (strncmp(boot_mode, "emmc", 4) == 0)
+		flash_type = FLASH_TYPE_EMMC;
+	else if (strncmp(boot_mode, "nand", 4) == 0)
+		flash_type = FLASH_TYPE_SPINAND;
+	else
+		flash_type = FLASH_TYPE_EMMC;
+
+out:
 	return flash_type;
+}
+
+static s32 get_boot_device_index(void)
+{
+	const char *index_str;
+	s32 dev_index = 0;	/* use 0 as device index in default */
+
+	index_str = env_get("dev_index");
+	if (!index_str)
+		goto out;
+
+	if (strict_strtoul(index_str, 10, (unsigned long *)&dev_index) < 0) {
+		printf("%s strtoul failed. dev_index(%s)\n", __func__, index_str);
+		dev_index = 0;
+	}
+
+out:
+	return dev_index;
 }
 
 static const char *flash_type_to_string(fb_flash_type flash_type)
@@ -139,6 +170,7 @@ static int do_fastboot(struct cmd_tbl *cmdtp, int flag, int argc, char *const ar
 	s32 medium_devnum = -ENODEV;	/* means no user input. then will use system default medium number */
 
 	flash_type = get_boot_flash_type();	/* use boot flash type as default */
+	medium_devnum = get_boot_device_index();	/* use 0 as default boot device index */
 
 	if (argc < 2)
 		return CMD_RET_USAGE;
@@ -203,7 +235,7 @@ NXTARG:
 		return CMD_RET_USAGE;
 	}
 
-	printf("select %s as flash type\n", flash_type_to_string(flash_type));
+	printf("select %s(%d) as flash medium\n", flash_type_to_string(flash_type), medium_devnum);
 	fastboot_init((void *)buf_addr, buf_size, flash_type, medium_devnum);
 
 	if (!strcmp(argv[1], "udp"))
