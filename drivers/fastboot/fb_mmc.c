@@ -646,7 +646,9 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 
 		stringp = strdup(cmd);
 		s = stringp;
-		if (strncmp(stringp, "addr:", 5) == 0)
+		if ((strncmp(stringp, "addr:", 5) == 0) ||
+				(strncmp(stringp, "addr_a:", 7) == 0) ||
+				(strncmp(stringp, "addr_b:", 7) == 0))
 			strsep(&s, ":");
 
 		/* fallback on using the 'partition name' as a number */
