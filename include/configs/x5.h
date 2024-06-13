@@ -54,7 +54,7 @@
 
 /* ION_RESERVED_OFFSET must be in sync with x5-memory.dtsi */
 /* Macros for ion regions in DDR *L*ess than or *E*qual to 2G */
-#define DEFAULT_ION_REGION_START (0x94240000u - PHYS_SDRAM_1)
+#define DEFAULT_ION_REGION_START (0x940C0000u - PHYS_SDRAM_1)
 
 #define DEFAULT_ION_TOTAL_SIZE_LE_2G (0x58000000u) /* 1408MiB */
 #define DEFAULT_ION_RESERVED_SIZE_LE_2G (0x20000000u) /* 512MiB */
