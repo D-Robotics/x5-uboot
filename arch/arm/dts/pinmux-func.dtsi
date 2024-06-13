@@ -126,12 +126,12 @@
 		drive-strength = <3>;
 	};
 
-	pinctrl_uart0: uart0grp {
+	pinctrl_uart7: uart7grp {
 		horizon,pins = <
-			LSIO_UART0_RX	LSIO_PINMUX_3	BIT_OFFSET4		MUX_ALT0 &pconf_drv_pu_1v8_max
-			LSIO_UART0_TX	LSIO_PINMUX_3	BIT_OFFSET6		MUX_ALT0 &pconf_drv_pu_1v8_max
-			LSIO_UART0_CTS	LSIO_PINMUX_3	BIT_OFFSET8		MUX_ALT0 &pconf_drv_pu_1v8_max
-			LSIO_UART0_RTS	LSIO_PINMUX_3	BIT_OFFSET10	MUX_ALT0 &pconf_drv_pu_1v8_max
+			LSIO_UART7_RX	LSIO_PINMUX_3	BIT_OFFSET4		MUX_ALT0 &pconf_drv_pu_1v8_max
+			LSIO_UART7_TX	LSIO_PINMUX_3	BIT_OFFSET6		MUX_ALT0 &pconf_drv_pu_1v8_max
+			LSIO_UART7_CTS	LSIO_PINMUX_3	BIT_OFFSET8		MUX_ALT0 &pconf_drv_pu_1v8_max
+			LSIO_UART7_RTS	LSIO_PINMUX_3	BIT_OFFSET10	MUX_ALT0 &pconf_drv_pu_1v8_max
 		>;
 	};
 
@@ -309,8 +309,8 @@
 
 	pinctrl_uart6: uart6grp {
 		horizon,pins = <
-			LSIO_UART0_CTS  LSIO_PINMUX_3 BIT_OFFSET8	MUX_ALT1 &pconf_drv_pu_max
-			LSIO_UART0_RTS  LSIO_PINMUX_3 BIT_OFFSET10	MUX_ALT1 &pconf_drv_pu_max
+			LSIO_UART7_CTS  LSIO_PINMUX_3 BIT_OFFSET8	MUX_ALT1 &pconf_drv_pu_max
+			LSIO_UART7_RTS  LSIO_PINMUX_3 BIT_OFFSET10	MUX_ALT1 &pconf_drv_pu_max
 		>;
 	};
 
@@ -330,10 +330,10 @@
 
 	pinctrl_lsio_gpio0_0_3: lsiogpio0grp0 {
 		horizon,pins = <
-			LSIO_UART0_RX	LSIO_PINMUX_3 BIT_OFFSET4	MUX_ALT2	&pconf_input_en
-			LSIO_UART0_TX	LSIO_PINMUX_3 BIT_OFFSET6	MUX_ALT2	&pconf_input_en
-			LSIO_UART0_CTS	LSIO_PINMUX_3 BIT_OFFSET8	MUX_ALT2	&pconf_input_en
-			LSIO_UART0_RTS	LSIO_PINMUX_3 BIT_OFFSET10	MUX_ALT2	&pconf_input_en
+			LSIO_UART7_RX	LSIO_PINMUX_3 BIT_OFFSET4	MUX_ALT2	&pconf_input_en
+			LSIO_UART7_TX	LSIO_PINMUX_3 BIT_OFFSET6	MUX_ALT2	&pconf_input_en
+			LSIO_UART7_CTS	LSIO_PINMUX_3 BIT_OFFSET8	MUX_ALT2	&pconf_input_en
+			LSIO_UART7_RTS	LSIO_PINMUX_3 BIT_OFFSET10	MUX_ALT2	&pconf_input_en
 		>;
 	};
 
