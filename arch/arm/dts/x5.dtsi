@@ -22,7 +22,6 @@
 
 	config {
 		u-boot,mmc-env-partition = "ubootenv";
-		u-boot,mmc-env-offset = "0x887000";
 	};
 
 	board_type: board_type {
