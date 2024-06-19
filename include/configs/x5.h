@@ -31,6 +31,11 @@
 #define PHYS_SDRAM_2      0x100000000
 #define PHYS_SDRAM_2_SIZE 0x80000000
 
+/* Keep in sync with kernel/arch/arm64/boot/dts/hobot/x5-memory.dtsi
+ * adsp_ddr entry for adsp firmware ddr execution
+ */
+#define X5_ADSP_RESERVED_ADDR   (0x8FE80000)
+
 #define DROBOT_UBOOT_OUTPUT_LOG_ADDR 0x87FFC000
 #ifdef CONFIG_CONSOLE_RECORD_OUT_SIZE
 #define DROBOT_UBOOT_LOG_SIZE CONFIG_CONSOLE_RECORD_OUT_SIZE
