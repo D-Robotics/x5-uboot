@@ -253,7 +253,16 @@ static int btype_setup(ofnode node)
 		}
 	}
 #endif
-	ret = 0;
+	if (i == btype_array_len) {
+		pr_err("No matching btype found! Can NOT select proper dts!"\
+				" Continue booting risks hw damage! Abort!"\
+				" Please check board_type_array definition!\n");
+		pr_err("ADC ch[0]:%d, ch[1]:%d\n",
+				values[0], values[1]);
+		ret = -EINVAL;
+	} else {
+		ret = 0;
+	}
 free_btype_array:
 	free(btype_array);
 	return ret;
