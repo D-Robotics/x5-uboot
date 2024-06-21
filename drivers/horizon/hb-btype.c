@@ -257,8 +257,10 @@ static int btype_setup(ofnode node)
 		pr_err("No matching btype found! Can NOT select proper dts!"\
 				" Continue booting risks hw damage! Abort!"\
 				" Please check board_type_array definition!\n");
+#ifdef CONFIG_HOBOT_ADC_BTYPE
 		pr_err("ADC ch[0]:%d, ch[1]:%d\n",
 				values[0], values[1]);
+#endif
 		ret = -EINVAL;
 	} else {
 		ret = 0;
