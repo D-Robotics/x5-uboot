@@ -257,6 +257,7 @@ static char fastboot_help_text[] =
 	"\tsize - size of buffer used during data transfers ("
 	__stringify(CONFIG_FASTBOOT_BUF_SIZE) ")\n"
 	"\tflash_type - choose target flash type (emmc/nand/spinand/ram)\n"
+	"\tmedium_devnum - choose medium number (eg: emmc0, emmc1, spinand0 spinand1)\n"
 	;
 #endif
 
