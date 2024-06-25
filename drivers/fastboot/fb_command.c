@@ -65,6 +65,9 @@ static void oem_bootbus(char *, char *);
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_RAMDUMP)
 static void oem_ramdump(char *cmd_parameter, char *response);
 #endif
+#if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_SET_MEDIUM)
+static void oem_set_medium(char *cmd_parameter, char *response);
+#endif
 
 #if CONFIG_IS_ENABLED(FASTBOOT_UUU_SUPPORT)
 static void run_ucmd(char *, char *);
@@ -143,6 +146,12 @@ static const struct {
 	[FASTBOOT_COMMAND_OEM_RAMDUMP] = {
 		.command = "oem ramdump",
 		.dispatch = oem_ramdump,
+	},
+#endif
+#if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_SET_MEDIUM)
+	[FASTBOOT_COMMAND_OEM_SET_MEDIUM] = {
+		.command = "oem set_medium",
+		.dispatch = oem_set_medium,
 	},
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_UUU_SUPPORT)
@@ -670,4 +679,50 @@ static void oem_ramdump(char *cmd_parameter, char *response)
 
 	fastboot_none_resp(response);
 }
+#endif
+
+#if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_SET_MEDIUM)
+/**
+ * oem_set_medium() - Execute the OEM set_medium command
+ * indicate the flash medium type and number
+ *
+ * @cmd_parameter: Pointer to command parameter
+ * @response: Pointer to fastboot response buffer
+ */
+static void oem_set_medium(char *cmd_parameter, char *response)
+{
+	fb_flash_type flash_type;
+	unsigned long medium_num;
+
+	if (!cmd_parameter) {
+		fastboot_fail("Expected command parameter", response);
+		return;
+	}
+
+	if (strncmp(cmd_parameter, "mmc", 3) == 0) {
+		flash_type = FLASH_TYPE_EMMC;
+		if (strict_strtoul(cmd_parameter + 3, 10, &medium_num) < 0) {
+			pr_err("please indicate the detail mmc devnum(eg. mmc0, mmc1)\n");
+			fastboot_fail("please indicate the detail mmc devnum(eg. mmc0, mmc1)", response);
+			return;
+		}
+	} else if (strncmp(cmd_parameter, "spinand", 7) == 0) {
+		flash_type = FLASH_TYPE_SPINAND;
+		if (strict_strtoul(cmd_parameter + 7, 10, &medium_num) < 0) {
+			pr_err("please indicate the detail spinand devnum(eg. spinand0, spinand1)\n");
+			fastboot_fail("please indicate the detail spinand devnum(eg. spinand0, spinand1)", response);
+			return;
+		}
+	} else {
+		pr_err("only suport indicate mmc & spinand medium\n");
+		fastboot_fail("only suport indicate mmc & spinand medium", response);
+		return;
+	}
+
+	fastboot_set_medium(flash_type, medium_num);
+
+	printf("fastboot set medium to %s\n", cmd_parameter);
+	fastboot_okay(NULL, response);
+}
+
 #endif

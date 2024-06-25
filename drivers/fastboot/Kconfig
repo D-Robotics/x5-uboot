@@ -231,6 +231,16 @@ config FASTBOOT_CMD_OEM_RAMDUMP
 	  could help to dump indicated/whole dram data to host pc through
 	  fastboot oem command.
 
+config FASTBOOT_CMD_OEM_SET_MEDIUM
+	bool "Enable the 'oem set_medium' command"
+	help
+	  Add support for the "oem set_medium" command from a client. This
+	  could help to set the flash medium type and number. Then it is
+	  flexible to flash the indicated medium.
+	  eg. "fastboot oem set_medium emmc0"
+	      "fastboot oem set_medium emmc1"
+	      "fastboot oem set_medium spinand0"
+
 endif # FASTBOOT
 
 endmenu

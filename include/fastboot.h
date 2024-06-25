@@ -47,6 +47,9 @@ enum {
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_RAMDUMP)
 	FASTBOOT_COMMAND_OEM_RAMDUMP,
 #endif
+#if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_RAMDUMP)
+	FASTBOOT_COMMAND_OEM_SET_MEDIUM,
+#endif
 #if CONFIG_IS_ENABLED(FASTBOOT_UUU_SUPPORT)
 	FASTBOOT_COMMAND_ACMD,
 	FASTBOOT_COMMAND_UCMD,
@@ -270,6 +273,14 @@ void fastboot_upload_complete(char *response);
 #if CONFIG_IS_ENABLED(FASTBOOT_UUU_SUPPORT)
 void fastboot_acmd_complete(void);
 #endif
+
+/*
+ * fastboot_set_medium() - set fastboot flash type and devnum
+ *
+ * @flash_type - the medium type to be flash
+ * @medium_devnum - the medium number to be flash
+ */
+void fastboot_set_medium(fb_flash_type flash_type, unsigned long medium_devnum);
 
 /*
  * fastboot_medium_devnum() - get fastboot medium devnum

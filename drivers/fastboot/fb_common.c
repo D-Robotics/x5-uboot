@@ -243,3 +243,15 @@ s32 fastboot_medium_devnum(void)
 {
 	return fastboot_medium_number;
 }
+
+/*
+ * fastboot_set_medium() - set fastboot flash type and devnum
+ *
+ * @flash_type - the medium type to be flash
+ * @medium_devnum - the medium number to be flash
+ */
+void fastboot_set_medium(fb_flash_type flash_type, unsigned long medium_devnum)
+{
+	selected_flash_type = flash_type;
+	fastboot_medium_number = medium_devnum;
+}
