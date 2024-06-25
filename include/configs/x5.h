@@ -119,7 +119,7 @@
 
 #define DEFAULT_BOOTARGS "earlycon console=ttyS0,115200 rootwait rw ignore_loglevel panic=0"
 
-#define X5_DEFAULT_BOOTARGS "pd_ignore_unused "
+#define X5_DEFAULT_BOOTARGS " "
 
 #define X5_PREPARE_BOOT_DEV                \
     "prepare_bootdev="                     \
