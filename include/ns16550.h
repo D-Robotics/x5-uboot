@@ -112,6 +112,37 @@ struct ns16550 {
 	UART_REG(uasr);		/* F */
 	UART_REG(scr);		/* 10*/
 	UART_REG(ssr);		/* 11*/
+	UART_REG(reg12);        /* 12 */
+	UART_REG(reg13);        /* 13 */
+	UART_REG(reg14);        /* 14 */
+	UART_REG(reg15);        /* 15 */
+	UART_REG(reg16);        /* 16 */
+	UART_REG(reg17);        /* 17 */
+	UART_REG(reg18);        /* 18 */
+	UART_REG(reg19);        /* 19 */
+	UART_REG(reg1A);        /* 1A */
+	UART_REG(reg1B);    /* 1B */
+	UART_REG(reg1C);    /* 1C */
+	UART_REG(reg1D);    /* 1D */
+	UART_REG(reg1E);    /* 1E */
+	UART_REG(reg1F);    /* 1F */
+	UART_REG(reg20);    /* 20 */
+	UART_REG(reg21);    /* 21 */
+	UART_REG(reg22);    /* 22 */
+	UART_REG(reg23);    /* 23 */
+	UART_REG(reg24);    /* 24 */
+	UART_REG(reg25);    /* 25 */
+	UART_REG(reg26);    /* 26 */
+	UART_REG(reg27);    /* 27 */
+	UART_REG(reg28);    /* 28 */
+	UART_REG(reg29);    /* 29 */
+	UART_REG(reg2A);    /* 2A */
+	UART_REG(reg2B);    /* 2B */
+	UART_REG(reg2C);    /* 2C */
+	UART_REG(reg2D);    /* 2D */
+	UART_REG(reg2E);    /* 2E */
+	UART_REG(reg2F);    /* 2F */
+	UART_REG(dlf);      /* 30 */
 #endif
 #ifdef CONFIG_DM_SERIAL
 	struct ns16550_plat *plat;

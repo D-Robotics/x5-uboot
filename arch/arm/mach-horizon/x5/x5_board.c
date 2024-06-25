@@ -216,7 +216,7 @@ int board_early_init_r(void)
 uint32_t hb_get_uart_baud(void)
 {
 	int baud_stap = 0;
-	baud_stap = readl(BOOT_STRAP_PIN_REG) & BOOT_UART_BPS_MASK;
+	baud_stap = (readl(BOOT_STRAP_PIN_REG) & BOOT_UART_BPS_MASK) >> BOOT_UART_BPS_SHIFT;
 	if (baud_stap)
 		return 921600;
     return 115200;

@@ -18,6 +18,9 @@
 #include <linux/err.h>
 #include <linux/types.h>
 #include <asm/io.h>
+#if defined(CONFIG_TARGET_X5)
+#include <asm/arch-x5/hb_strappin.h>
+#endif
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -209,8 +212,9 @@ static u32 ns16550_getfcr(struct ns16550 *port)
 int ns16550_calc_divisor(struct ns16550 *port, int clock, int baudrate)
 {
 	const unsigned int mode_x_div = 16;
+	int divisor = clock / (mode_x_div * baudrate);
 
-	return DIV_ROUND_CLOSEST(clock, mode_x_div * baudrate);
+	return divisor;
 }
 
 static void ns16550_setbrg(struct ns16550 *com_port, int baud_divisor)
@@ -426,9 +430,22 @@ static int ns16550_serial_setbrg(struct udevice *dev, int baudrate)
 	struct ns16550_plat *plat = com_port->plat;
 	int clock_divisor;
 
+#if defined(CONFIG_TARGET_X5)
+	unsigned int ustrap_pin_info = 0;
+	unsigned int uart_bps;
+
+	ustrap_pin_info = readl(BOOT_STRAP_PIN_REG);
+	uart_bps        = (ustrap_pin_info & BOOT_UART_BPS_MASK) >> BOOT_UART_BPS_SHIFT;
+	if (uart_bps == 1)
+		baudrate = 921600;
+	else
+		baudrate = 115200;
+#endif
+
 	clock_divisor = ns16550_calc_divisor(com_port, plat->clock, baudrate);
 
 	ns16550_setbrg(com_port, clock_divisor);
+	serial_out(((plat->clock + (baudrate/2))/baudrate) & 0xf, &com_port->dlf);
 
 	return 0;
 }
