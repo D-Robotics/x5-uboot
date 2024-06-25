@@ -195,6 +195,9 @@
 #define IGAV04_ADC_EFUSE_TRIM_MASK    GENMASK(31, 28)
 #define IGAV04_ADC_EFUSE_TRIM_OFFSET  28
 
+#define IGAV04_ADC_EFUSE_NEG_FLAG  BIT(5)
+#define IGAV04_ADC_EFUSE_NEG_MASK  GENMASK(5, 0)
+
 struct guc_adc_data {
     int num_bits;
     int num_channels;
@@ -211,7 +214,7 @@ struct guc_adc {
     u32 efuse_offset;
     int vref_uv;
     int active_channel;
-    u32 calibration_offset;
+    int32_t calibration_offset;
     u32 trimming_value;
     u8 realbits;
     const struct guc_adc_data *data;
@@ -389,6 +392,10 @@ static int guc_adc_hw_init(struct udevice *dev, struct guc_adc *info)
         info->trimming_value =
             (val & IGAV04_ADC_EFUSE_TRIM_MASK) >> IGAV04_ADC_EFUSE_TRIM_OFFSET;
     }
+
+    if (info->calibration_offset & IGAV04_ADC_EFUSE_NEG_FLAG)
+        info->calibration_offset |= ~IGAV04_ADC_EFUSE_NEG_MASK;
+
     printf("ADC calibration: %d\n", info->calibration_offset);
     printf("ADC trimming: %d\n", info->trimming_value);
     writel_relaxed(info->trimming_value, info->base + GUC_CTRL_TOP_CTRL0);
