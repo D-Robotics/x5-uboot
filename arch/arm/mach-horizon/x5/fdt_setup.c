@@ -38,6 +38,7 @@
 #endif
 #include <linux/sizes.h>
 #include <log.h>
+#include <asm/arch/hb_strappin.h>
 
 #ifdef CONFIG_CONSOLE_RECORD
 static void membuff_setup(void *blob)
@@ -521,6 +522,34 @@ static int hb_setup_ion_size(void *blob)
 	return 0;
 }
 
+static unsigned int get_boot_src(void)
+{
+	unsigned int ustrap_pin_info = readl(BOOT_STRAP_PIN_REG);
+        return ((ustrap_pin_info & BOOT_MODE_MASK) >> BOOT_MODE_SHIFT);
+}
+
+static void update_boot_mode(void *fdt)
+{
+	int offs, ret;
+	unsigned int boot_src = get_boot_src();
+
+        if(boot_src == BOOT_SRC_QSPI_NOR ||
+		boot_src == BOOT_SRC_QSPI_NAND ) {
+		/* enable qspi boot in clock node */
+		offs = fdt_path_offset(fdt, "/soc/hps-clock-controller@34210000");
+		if (offs < 0) {
+			printf("failed to get hps clock node!");
+			return;
+		}
+		ret = fdt_setprop_u32(fdt, offs, "qspi-boot", 1);
+		if (ret < 0) {
+			printf("failed to update hps clock node status!");
+			return;
+		}
+		printf("enable qspi boot!\n");
+	}
+}
+
 int ft_board_setup(void *blob, struct bd_info *bd)
 {
 	/*
@@ -537,6 +566,7 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 #endif
 	fdt_set_status_by_env(blob);
 	hb_setup_ion_size(blob);
+	update_boot_mode(blob);
 	check_cpu_1_8g_support(blob);
 	return 0;
 }
