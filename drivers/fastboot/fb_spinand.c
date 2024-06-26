@@ -87,14 +87,14 @@ static int fb_spinand_lookup(const char *partname,
 	if (ret) {
 		pr_err("Cannot initialize MTD partitions\n");
 		fastboot_fail("cannot init mtdparts", response);
-		return ret;
+		return -EINVAL;
 	}
 
 	ret = find_dev_and_part(partname, &dev, &pnum, part);
 	if (ret) {
 		pr_err("cannot find partition: '%s'\n", partname);
 		fastboot_fail("cannot find partition", response);
-		return ret;
+		return -ENODEV;
 	}
 
 	if (dev->id->type != MTD_DEV_TYPE_SPINAND) {
