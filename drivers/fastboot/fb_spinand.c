@@ -87,14 +87,22 @@ static int fb_spinand_lookup(const char *partname,
 	if (ret) {
 		pr_err("Cannot initialize MTD partitions\n");
 		fastboot_fail("cannot init mtdparts", response);
+<<<<<<< HEAD
 		return -EINVAL;
+=======
+		return ret;
+>>>>>>> b920437a (feat(release): LNX6.1.83_PL5.1_V1.0.7_20240617-1058)
 	}
 
 	ret = find_dev_and_part(partname, &dev, &pnum, part);
 	if (ret) {
 		pr_err("cannot find partition: '%s'\n", partname);
 		fastboot_fail("cannot find partition", response);
+<<<<<<< HEAD
 		return -ENODEV;
+=======
+		return ret;
+>>>>>>> b920437a (feat(release): LNX6.1.83_PL5.1_V1.0.7_20240617-1058)
 	}
 
 	if (dev->id->type != MTD_DEV_TYPE_SPINAND) {

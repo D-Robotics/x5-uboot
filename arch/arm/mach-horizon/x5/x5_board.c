@@ -177,6 +177,12 @@ static char *hb_bootmedium_for_udev(void)
 	}
 }
 
+static char *hb_bootmode(void)
+{
+	/* tmp code */
+	return "normal";
+}
+
 static void board_env_setup(void)
 {
 	u32 board_id;
