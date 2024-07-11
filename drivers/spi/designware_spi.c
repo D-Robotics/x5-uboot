@@ -101,6 +101,8 @@
 #define DWC_SSI_CTRLR0_DFS_MASK		GENMASK(4, 0)
 #define DWC_SSI_CTRLR0_FRF_MASK		GENMASK(7, 6)
 #define DWC_SSI_CTRLR0_MODE_MASK	GENMASK(9, 8)
+#define DW_HSSI_CTRLR0_SCPHA		BIT(8)
+#define DW_HSSI_CTRLR0_SCPOL		BIT(9)
 #define DWC_SSI_CTRLR0_TMOD_MASK	GENMASK(11, 10)
 #define DWC_SSI_CTRLR0_SRL_OFFSET	13
 #define DWC_SSI_CTRLR0_SPI_FRF_MASK	GENMASK(23, 22)
@@ -252,11 +254,12 @@ static inline void dw_write(struct dw_spi_priv *priv, u32 offset, u32 val)
 static inline u32 dw_spi_update_cr0(struct dw_spi_priv *priv)
 {
 	u32 cr0;
+	u32 current_cr0;
+	u32 enabled;
 	if (priv->caps & DW_SPI_CAP_DWC_SSI) {
 		cr0 = FIELD_PREP(DWC_SSI_CTRLR0_DFS_MASK,
 				 priv->bits_per_word - 1)
 		    | FIELD_PREP(DWC_SSI_CTRLR0_FRF_MASK, priv->type)
-		    | FIELD_PREP(DWC_SSI_CTRLR0_MODE_MASK, priv->mode)
 		    | FIELD_PREP(DWC_SSI_CTRLR0_TMOD_MASK, priv->tmode)
 		    | FIELD_PREP(DWC_SSI_CTRLR0_SPI_FRF_MASK, priv->spi_frf);
 	} else {
@@ -268,9 +271,31 @@ static inline u32 dw_spi_update_cr0(struct dw_spi_priv *priv)
 					 priv->bits_per_word - 1);
 
  		cr0 |= FIELD_PREP(CTRLR0_FRF_MASK, priv->type)
- 		    |  FIELD_PREP(CTRLR0_MODE_MASK, priv->mode)
 		    |  FIELD_PREP(CTRLR0_TMOD_MASK, priv->tmode)
 		    |  FIELD_PREP(CTRLR0_SPI_FRF_MASK, priv->spi_frf);
+	}
+
+	if (priv->mode & SPI_CPOL)
+		cr0 |= DW_HSSI_CTRLR0_SCPOL;
+	if (priv->mode & SPI_CPHA)
+		cr0 |= DW_HSSI_CTRLR0_SCPHA;
+
+	current_cr0 = dw_read(priv, DW_SPI_CTRLR0);
+	enabled = dw_read(priv, DW_SPI_SSIENR);
+	enabled &= BIT(0);
+	if ((cr0 & DW_HSSI_CTRLR0_SCPOL) != (current_cr0 & DW_HSSI_CTRLR0_SCPOL)){
+		if (cr0 & DW_HSSI_CTRLR0_SCPOL)
+			current_cr0 |= DW_HSSI_CTRLR0_SCPOL;
+		else
+			current_cr0 &= ~DW_HSSI_CTRLR0_SCPOL;
+
+		if (enabled)
+			dw_write(priv, DW_SPI_SSIENR, 0);
+
+		dw_write(priv, DW_SPI_CTRLR0, current_cr0);
+
+		if (enabled)
+			dw_write(priv, DW_SPI_SSIENR, 1);
 	}
 
 	return cr0;
