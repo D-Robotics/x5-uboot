@@ -226,6 +226,7 @@ static int handle_getstate(struct usb_request *req)
 static inline void to_dfu_mode(struct f_dfu *f_dfu)
 {
 	f_dfu->usb_function.strings = dfu_strings;
+	f_dfu->usb_function.ss_descriptors = f_dfu->function;
 	f_dfu->usb_function.hs_descriptors = f_dfu->function;
 	f_dfu->usb_function.descriptors = f_dfu->function;
 	f_dfu->dfu_state = DFU_STATE_dfuIDLE;
@@ -234,6 +235,7 @@ static inline void to_dfu_mode(struct f_dfu *f_dfu)
 static inline void to_runtime_mode(struct f_dfu *f_dfu)
 {
 	f_dfu->usb_function.strings = NULL;
+	f_dfu->usb_function.ss_descriptors = dfu_runtime_descs;
 	f_dfu->usb_function.hs_descriptors = dfu_runtime_descs;
 	f_dfu->usb_function.descriptors = dfu_runtime_descs;
 }
@@ -809,6 +811,7 @@ static int dfu_bind_config(struct usb_configuration *c)
 	if (!f_dfu)
 		return -ENOMEM;
 	f_dfu->usb_function.name = "dfu";
+	f_dfu->usb_function.ss_descriptors = dfu_runtime_descs;
 	f_dfu->usb_function.hs_descriptors = dfu_runtime_descs;
 	f_dfu->usb_function.descriptors = dfu_runtime_descs;
 	f_dfu->usb_function.bind = dfu_bind;
