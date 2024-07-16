@@ -68,7 +68,7 @@
 			disable-wp;
 			// dwcmshc,no-cmd-conflict-check;
 			// dwcmshc,negative-edge-sample;
-			status = "disabled";
+			status = "okay";
 			max-frequency = <50000000>;
 			cap-mmc-highspeed;
 			emmc-socrst;
