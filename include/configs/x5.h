@@ -83,6 +83,29 @@
 
 #define CONFIG_SYS_MMC_MAX_BLK_COUNT 1024
 
+#ifdef CONFIG_DISTRO_DEFAULTS
+#define FDT_ADDR                0x84000000
+#define BOOTSCR_ADDR			0x84100000
+#define KERNEL_ADDR             0x85000000
+//#define RAMDISK_ADDR			0x91000000
+
+#define ENV_MEM_LAYOUT_SETTINGS \
+	"kernel_addr_r="__stringify(KERNEL_ADDR)"\0" \
+	"scriptaddr="__stringify(BOOTSCR_ADDR)"\0" \
+	"fdt_addr_r="__stringify(FDT_ADDR)"\0" \
+	//"ramdisk_addr_r="__stringify(RAMDISK_ADDR)"\0"
+
+#define BOOT_TARGET_DEVICES(func) \
+	func(MMC, mmc, 0) \
+	func(MMC, mmc, 1) \
+	func(MMC, mmc, 2)
+
+/*#define CONFIG_BOOTCOMMAND "if sd_detect; then run distro_bootcmd; " \
+	"else echo SD card not detected; fi; " \
+	"echo Boot from eMMC or SD Card failed"*/
+#define CONFIG_BOOTCOMMAND "run distro_bootcmd; "
+#else
+
 #define KERNEL_ADDR     __stringify(0x90000000)
 #define KERNEL_SIZE     __stringify(0x1000000)
 #define FDT_ADDR        __stringify(0x88000000)
@@ -91,6 +114,14 @@
 #define INITRD_HIGH_ADDR   __stringify(DROBOT_RAMDISK_ADDR)
 
 #define DFU_MMC_SIZE    __stringify(0x400000) // 2G/512 blks, enlarge it if not enough
+
+#define CONFIG_BOOTCOMMAND "run ab_select_cmd;" \
+	"run avb_boot_test;"
+
+#endif
+
+
+#include <config_distro_bootcmd.h>
 
 #if defined(CONFIG_CMD_AB_SELECT)
 /**
@@ -408,6 +439,11 @@
 		"setenv serverip 192.168.1.123; " \
 		"setenv ipaddr 192.168.1.100; \0"
 
+#ifdef CONFIG_DISTRO_DEFAULTS
+#define CONFIG_EXTRA_ENV_SETTINGS \
+    ENV_MEM_LAYOUT_SETTINGS \
+	BOOTENV
+#else
 #define CONFIG_EXTRA_ENV_SETTINGS                                                       \
     "bootdelay=3\0"                                                                     \
     "boot_fit=yes\0"                                                                    \
@@ -447,5 +483,5 @@
     X5_UPDATE_BOOTARGS                                                                  \
     X5_NOR_BOOT  X5_UPDATE_NORFS                                    \
     X5_NAND_BOOT X5_UPDATE_NANDFS
-
+#endif 
 #endif /* __X5_H__ */

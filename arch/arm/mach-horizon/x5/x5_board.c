@@ -177,22 +177,16 @@ static char *hb_bootmedium_for_udev(void)
 	}
 }
 
-static char *hb_bootmode(void)
-{
-	/* tmp code */
-	return "normal";
-}
-
 static void board_env_setup(void)
 {
 	u32 board_id;
 	char hex_board_id[9];
 	char *recovery_mode = env_get("recovery_mode");
 
-	env_set("bootcmd",
+	/*env_set("bootcmd",
 		"run ab_select_cmd;"
 		"run avb_boot;");
-	set_bootdev();
+	set_bootdev();*/
 
 	hb_board_id_get(&board_id);
 
