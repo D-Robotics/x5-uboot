@@ -58,6 +58,11 @@ config HOBOT_X5_EVB_LP4_V1P3
 	  Select this option for forcing Board Type X5 LP4 EVB V1P3.
 	  Select HOBOT_ADC_BTYPE when uncertain.
 
+config HOBOT_X5_RDK
+	bool "X5RDK"
+	help
+	  Select this option for Board Type X5 RDK.
+
 endchoice
 
 endmenu
