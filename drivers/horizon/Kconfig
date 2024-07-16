@@ -38,6 +38,11 @@ config HOBOT_X5_EVB
 	help
 	  Select this option for Board Type X5 EVB.
 
+config HOBOT_X5_RDK
+	bool "X5RDK"
+	help
+	  Select this option for Board Type X5 RDK.
+
 endchoice
 
 endmenu
