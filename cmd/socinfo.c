@@ -207,6 +207,40 @@ static int hb_set_ddr_property(int offset)
 }
 #endif
 
+static int hb_set_board_type(int offset)
+{
+	int  ret;
+	int  len = 0;
+	char *prop = "base_board_name";
+	static char node_data[SCRATCHPAD] __aligned(4);
+	const void *ptmp;
+	char *data = NULL;
+
+	memset(node_data, 0, sizeof(node_data));
+	ptmp = fdt_getprop(hb_dtb, offset, prop, &len);
+	if ((len > SCRATCHPAD) || ptmp == NULL) {
+		printf("prop (%d) doesn't fit in scratchpad!\n", len);
+		return 1;
+	}
+
+	memcpy(node_data, ptmp, len);
+
+	/* set base boardname */
+	len = strlen(node_data) + 1;
+	data = hb_board_name_get();
+	if (data == NULL) {
+		strncpy(node_data, "unkown", strlen("unkown") + 1);
+	} else {
+		strncpy(node_data, data, strlen(data) + 1);
+	}
+	ret = fdt_setprop(hb_dtb, offset, prop, node_data, len);
+	if (ret < 0) {
+		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
+		return 1;
+	}
+	return ret;
+}
+
 int hb_fdt_set_board_info(void *fdt_blob)
 {
 	char *pathp  = "/soc/socinfo";
@@ -244,6 +278,7 @@ int hb_fdt_set_board_info(void *fdt_blob)
 		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
 		return 1;
 	}
+#endif
 
 	/* set som type and base board type */
 	ret = hb_set_board_type(nodeoffset);
@@ -251,7 +286,6 @@ int hb_fdt_set_board_info(void *fdt_blob)
 		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
 		return 1;
 	}
-#endif
 	/* set board id and origin board id */
 	ret = hb_set_board_id(nodeoffset);
 	if (ret < 0) {
