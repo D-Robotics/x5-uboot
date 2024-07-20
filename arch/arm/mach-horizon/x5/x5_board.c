@@ -25,6 +25,8 @@
 
 #ifdef CONFIG_LAST_STAGE_INIT
 
+#define RECOVERY_MODE 0x010000
+
 enum dr_reset_reason {
 	COLD_BOOT = 0,
 	WATCHDOG,
@@ -80,6 +82,10 @@ int chip_last_stage_init(void)
 		case BOOT_DEVICE_USB2:
 			printf("boot action: FASTBOOT USB2.0\n");
 			env_set("preboot", "fastboot 0");
+		break;
+		case BOOT_RECOVERY:
+			printf("boot action: entry recovery mode\n");
+			env_set("recovery_mode", "yes");
 		break;
 	}
 	writel(clear_mode, AON_STATUS_REG1);
@@ -171,16 +177,11 @@ static char *hb_bootmedium_for_udev(void)
 	}
 }
 
-static char *hb_bootmode(void)
-{
-	/* tmp code */
-	return "normal";
-}
-
 static void board_env_setup(void)
 {
 	u32 board_id;
-	char hex_board_id[7];
+	char hex_board_id[9];
+	char *recovery_mode = env_get("recovery_mode");
 
 	env_set("bootcmd",
 		"run ab_select_cmd;"
@@ -189,7 +190,14 @@ static void board_env_setup(void)
 
 	hb_board_id_get(&board_id);
 
-	snprintf(hex_board_id, sizeof(hex_board_id), "0x%04X", board_id);
+	if ((recovery_mode == NULL) ||
+		(strncmp(recovery_mode, "yes", strlen(recovery_mode) + 1) != 0)) {
+		snprintf(hex_board_id, sizeof(hex_board_id), "0x%04X", board_id);
+	} else {
+		board_id |= RECOVERY_MODE;
+		snprintf(hex_board_id, sizeof(hex_board_id), "0x%06X", board_id);
+	}
+
 	env_set("hb_board_id", hex_board_id);
 }
 
@@ -212,6 +220,35 @@ int board_early_init_r(void)
 	return 0;
 }
 #endif
+
+static char *hb_bootmode(void)
+{
+	char *recovery_mode = env_get("recovery_mode");
+
+	if ((recovery_mode == NULL) ||
+		(strncmp(recovery_mode, "yes", strlen(recovery_mode) + 1) != 0)) {
+		return "normal";
+	} else {
+		return "recovery";
+	}
+}
+
+static void hb_get_rootfs(void)
+{
+	char rootfs_args[256] = {0};
+	char *recovery_mode = env_get("recovery_mode");
+
+	if ((recovery_mode == NULL) ||
+		(strncmp(recovery_mode, "yes", strlen(recovery_mode) + 1) != 0)) {
+		snprintf(rootfs_args, sizeof(rootfs_args), "root=%s ro rootwait",
+				 env_get("system_part"));
+	} else {
+		snprintf(rootfs_args, sizeof(rootfs_args),
+				"root=/dev/ram0 rdinit=/init rw rootwait");
+	}
+
+	env_set("rootfs_args", rootfs_args);
+}
 
 uint32_t hb_get_uart_baud(void)
 {
@@ -257,9 +294,10 @@ void board_bootargs_setup(void)
 				"%s,%dn8", console, uart_baud);
 		}
 	}
+	hb_get_rootfs();
 	snprintf(boot_args, sizeof(boot_args),
 		"console=%s "
-		"root=%s ro rootwait "
+		"%s "
 		"hobotboot.slot_suffix=%s "
 		"hobotboot.reason=%s "
 		"hobotboot.medium=%s "
@@ -268,7 +306,7 @@ void board_bootargs_setup(void)
 		" %s"
 		" %s",
 		console_args,
-		env_get("system_part"),
+		env_get("rootfs_args"),
 		slot_suffix,
 		env_get("reset_reason"),
 		hb_bootmedium_for_udev(),
