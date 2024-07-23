@@ -1045,9 +1045,16 @@ static int dw_spi_exec_op(struct spi_slave *slave, const struct spi_mem_op *op)
 	external_cs_manage(slave->dev, false);
 	dw_write(priv, DW_SPI_SER, 1 << spi_chip_select(slave->dev));
 	dw_write(priv, DW_SPI_CTRLR0, cr0);
-	dw_write(priv, DW_SPI_CTRLR1, op->data.nbytes - 1);
 	if (priv->spi_frf != CTRLR0_SPI_FRF_BYTE)
 		dw_write(priv, DW_SPI_ENHANCE_CTRLR0, spi_cr0);
+	dw_write(priv, DW_SPI_CTRLR1, op->data.nbytes - 1);
+	if (priv->spi_frf == CTRLR0_SPI_FRF_QUAD && priv->tmode == CTRLR0_TMOD_TO) {
+		val = dw_read(priv, DW_SPI_TXFTLR);
+		val &= (unsigned int)0xffff;
+		val |= 0x2 << 16;
+		dw_write(priv, DW_SPI_TXFTLR, val);
+	} else
+		dw_write(priv, DW_SPI_TXFTLR, 0);
 	/* Update RX sample delay if required */
 	if (dev_read_u32(slave->dev,"rx-sample-delay-ns", &rx_sample_dly_ns) != 0)
 			/* Use default controller value */
