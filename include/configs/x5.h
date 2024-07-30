@@ -71,7 +71,7 @@
 
 /* Macros for ion regions in DDR *G*reater *T*han 2G */
 
-#define DEFAULT_ION_TOTAL_SIZE_GT_2G (0xA0000000u) /* 2560GiB */
+#define DEFAULT_ION_TOTAL_SIZE_GT_2G (0xA0000000u) /* 2560MiB */
 
 #define DEFAULT_ION_RESERVED_SIZE_GT_2G (0x40000000u) /* 1GiB */
 #define DEFAULT_ION_CARVEOUT_SIZE_GT_2G (0x40000000u) /* 1GiB */
