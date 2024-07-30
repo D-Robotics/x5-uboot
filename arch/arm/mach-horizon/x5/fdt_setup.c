@@ -424,7 +424,7 @@ int hb_set_ion_carveout_size(void *blob, u64 size, const char *name, u64 start, 
 	return 0;
 }
 
-#define DDR_SIZE_2GB (2)
+#define DDR_SIZE_2GB ((uint64_t)2 * SZ_1G)
 #define ION_MIN_SIZE (0x4000000)  /* 64 MiB */
 
 static uint64_t hb_ion_size_validate(uint64_t val, uint64_t max)
@@ -443,8 +443,11 @@ static uint64_t hb_ion_size_validate(uint64_t val, uint64_t max)
 
 static inline void hb_ion_set_region_size(uint64_t *ion_reserved_size, uint64_t ion_reserved_default,
 							  uint64_t *ion_carveout_size, uint64_t ion_carveout_default,
-							  uint64_t *ion_cma_size, uint64_t ion_cma_default)
+							  uint64_t *ion_cma_size, uint64_t ion_cma_default, const uint64_t ddr_size)
 {
+	uint64_t ion_total = 0;
+	bool printed = false;
+
 	*ion_reserved_size = env_get_ulong("ion_reserved_size", 16, \
 		ion_reserved_default);
 	log_debug("Get ion reserved size, env:%#llx, default:%#llx\n",
@@ -466,12 +469,26 @@ static inline void hb_ion_set_region_size(uint64_t *ion_reserved_size, uint64_t 
 	*ion_cma_size = hb_ion_size_validate(*ion_cma_size, \
 		ion_cma_default);
 
+	do {
+		ion_total = (*ion_reserved_size) + (*ion_carveout_size) + (*ion_cma_size);
+		if ((ion_total + DEFAULT_ION_REGION_START + DEFAULT_KERNEL_MIN_HEAP) <= ((ddr_size))) {
+			break;
+		}
+		*ion_reserved_size -= (100 * SZ_1M);
+		*ion_carveout_size -= (100 * SZ_1M);
+		*ion_cma_size -= (100 * SZ_1M);
+		if (!printed) {
+			pr_err("ION Total size exceeds DDR total size, shrinking!\n");
+			printed = true;
+		}
+	} while (true);
+
 	return;
 }
 
 static int hb_setup_ion_size(void *blob)
 {
-	static uint32_t ddr_size = 4; // in GB
+	uint64_t ddr_size = ((uint64_t)4 * SZ_1G);
 	uint32_t num_banks = 0;
 	uint64_t cma_size, reserved_size, carveout_size, offset_size; // in byte
 
@@ -488,22 +505,22 @@ static int hb_setup_ion_size(void *blob)
 		}
 
 		/* X5 stores bi_dram[x].size with reserved_size removed */
-		ddr_size = (size + DDR_RESERVED_SIZE) / SZ_1G;
+		ddr_size = (size + DDR_RESERVED_SIZE);
 	}
 #endif
 	/* TODO: Handle the case where ECC is enabled
 	 * and ion regions must be shrinked.
 	 */
 
-	log_debug("%s: Get ddr_size:%d\n", __func__, ddr_size);
+	log_debug("%s: Get ddr_size:%lld\n", __func__, ddr_size);
 	if (ddr_size <= DDR_SIZE_2GB) {
 		hb_ion_set_region_size(&reserved_size, DEFAULT_ION_RESERVED_SIZE_LE_2G,
 							   &carveout_size, DEFAULT_ION_CARVEOUT_SIZE_LE_2G,
-							   &cma_size, DEFAULT_ION_CMA_SIZE_LE_2G);
+							   &cma_size, DEFAULT_ION_CMA_SIZE_LE_2G, ddr_size);
 	} else {
 		hb_ion_set_region_size(&reserved_size, DEFAULT_ION_RESERVED_SIZE_GT_2G,
 							   &carveout_size, DEFAULT_ION_CARVEOUT_SIZE_GT_2G,
-							   &cma_size, DEFAULT_ION_CMA_SIZE_GT_2G);
+							   &cma_size, DEFAULT_ION_CMA_SIZE_GT_2G, ddr_size);
 	}
 
 	offset_size = DEFAULT_ION_REGION_START;
