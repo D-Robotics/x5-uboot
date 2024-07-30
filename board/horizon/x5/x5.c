@@ -145,8 +145,8 @@ int board_init(void)
 #ifdef X5_USABLE_RAM_TOP
 ulong board_get_usable_ram_top(ulong total_size)
 {
-#ifdef X5_ADSP_RESERVED_ADDR
-	return (X5_USABLE_RAM_TOP < X5_ADSP_RESERVED_ADDR) ? X5_USABLE_RAM_TOP : X5_ADSP_RESERVED_ADDR;
+#ifdef X5_RESERVED_ADDR_LOWEST
+	return (X5_USABLE_RAM_TOP < X5_RESERVED_ADDR_LOWEST) ? X5_USABLE_RAM_TOP : X5_RESERVED_ADDR_LOWEST;
 #else
 	return X5_USABLE_RAM_TOP;
 #endif
