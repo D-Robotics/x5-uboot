@@ -240,9 +240,11 @@ static int32_t hb_avb_verify_boot(char *bootintf, char *bootdev, char *slot_suff
 	}
 
 	dr_get_partition_dev("system", slot_suffix, system_part, sizeof(system_part));
-	ret = replace_dm_part(system_part);
-	if (ret && (!out_is_unlocked)) {
-		do_reset(NULL, 0, 0, NULL);
+	if (strncmp(bootintf, "mmc", strlen("mmc") + 1) == 0) {
+		ret = replace_dm_part(system_part);
+		if (ret && (!out_is_unlocked)) {
+			do_reset(NULL, 0, 0, NULL);
+		}
 	}
 
 	board_bootargs_setup();
