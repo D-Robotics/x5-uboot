@@ -37,6 +37,7 @@
 #define X5_RESERVED_ADDR_LOWEST   (0x9FE70000)
 
 #define DROBOT_UBOOT_OUTPUT_LOG_ADDR 0x87FFC000
+#define DROBOT_RAMDISK_ADDR          0x87D00000
 #ifdef CONFIG_CONSOLE_RECORD_OUT_SIZE
 #define DROBOT_UBOOT_LOG_SIZE CONFIG_CONSOLE_RECORD_OUT_SIZE
 #else
@@ -44,7 +45,7 @@
 #endif
 #define DROBOT_UBOOT_INPUT_LOG_ADDR (DROBOT_UBOOT_OUTPUT_LOG_ADDR + DROBOT_UBOOT_LOG_SIZE)
 #define X5_DTB_LMB_START   (DROBOT_UBOOT_OUTPUT_LOG_ADDR - X5_DTB_LMB_SIZE)
-#define X5_DTB_LMB_SIZE    0x200000
+#define X5_DTB_LMB_SIZE    0x1000000
 #define KERNEL_SPACE_SIZE     (64 * 1024 * 1024)
 #define CONFIG_SYS_SDRAM_BASE (PHYS_SDRAM_1 + KERNEL_SPACE_SIZE)
 
@@ -87,6 +88,7 @@
 #define FDT_ADDR        __stringify(0x88000000)
 #define FDT_SIZE        __stringify(0x100000)
 #define FDT_HIGH_ADDR   __stringify(DROBOT_UBOOT_OUTPUT_LOG_ADDR)
+#define INITRD_HIGH_ADDR   __stringify(DROBOT_RAMDISK_ADDR)
 
 #define DFU_MMC_SIZE    __stringify(0x400000) // 2G/512 blks, enlarge it if not enough
 
@@ -431,6 +433,7 @@
     "cdc_connect_timeout=360\0"                                                         \
     "serial#=sunrise5_0000\0"                                                           \
     "fdt_high=" FDT_HIGH_ADDR "\0"                                                      \
+    "initrd_high=" INITRD_HIGH_ADDR "\0"                                                      \
 	"enable_cpu_18g=yes\0 "                                                             \
     X5_PREPARE_BOOT_DEV  X5_NET_ARGS X5_DHCPBOOT X5_UPDATE_MMCDEV                       \
     X5_UPDATE_EMMCBOOT X5_UPDATE_SDBOOT X5_UPDATE_NORBOOT X5_UPDATE_NANDBOOT            \
