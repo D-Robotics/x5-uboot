@@ -438,8 +438,8 @@ static uint64_t hb_ion_size_validate(uint64_t val, uint64_t max)
 	 */
 	val = (val > 0) ? roundup(val, ION_MIN_SIZE) : ION_MIN_SIZE;
 
-	if (val > max)
-		pr_alert("CAUTION: Expanding ION region to larger than default!\n");
+	//if (val > max)
+		//pr_alert("CAUTION: Expanding ION region to larger than default!\n");
 
 	return val;
 }

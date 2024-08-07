@@ -86,7 +86,7 @@
 #ifdef CONFIG_DISTRO_DEFAULTS
 #define FDT_ADDR                0x84000000
 #define BOOTSCR_ADDR			0x84100000
-#define KERNEL_ADDR             0x85000000
+#define KERNEL_ADDR             0x85800000
 //#define RAMDISK_ADDR			0x91000000
 
 #define ENV_MEM_LAYOUT_SETTINGS \
