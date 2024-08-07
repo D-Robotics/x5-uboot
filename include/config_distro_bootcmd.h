@@ -27,8 +27,11 @@
 
 #define BOOTENV_SHARED_BLKDEV_BODY(devtypel) \
 		"if " #devtypel " dev ${devnum}; then " \
-			"devtype=" #devtypel "; " \
+			"setenv devtype " #devtypel "; " \
+			"echo eMMC or SD Card detected on mmchost ${devnum};" \
 			"run scan_dev_for_boot_part; " \
+			"else " \
+			"echo eMMC or SD Card not detected on mmchost ${devnum}; " \
 		"fi\0"
 
 #define BOOTENV_SHARED_BLKDEV(devtypel) \
@@ -37,7 +40,7 @@
 
 #define BOOTENV_DEV_BLKDEV(devtypeu, devtypel, instance) \
 	"bootcmd_" #devtypel #instance "=" \
-		"devnum=" #instance "; " \
+		"setenv devnum " #instance "; " \
 		"run " #devtypel "_boot\0"
 
 #define BOOTENV_DEV_NAME_BLKDEV(devtypeu, devtypel, instance) \
@@ -490,10 +493,13 @@
 			"if fstype ${devtype} "                           \
 					"${devnum}:${distro_bootpart} "   \
 					"bootfstype; then "               \
-				"run scan_dev_for_boot; "                 \
+				"if test ${bootfstype} = \"ext4\"; then " \
+					"run scan_dev_for_boot; "         \
+					"else echo The file system "      \
+					"format is not ext4; "            \
+				"fi; "                                    \
 			"fi; "                                            \
-		"done; "                                                  \
-		"setenv devplist\0"					  \
+		"done\0"                                                  \
 	\
 	BOOT_TARGET_DEVICES(BOOTENV_DEV)                                  \
 	\
