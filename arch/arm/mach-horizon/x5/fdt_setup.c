@@ -39,6 +39,9 @@
 #include <linux/sizes.h>
 #include <log.h>
 #include <asm/arch/hb_strappin.h>
+#ifdef CONFIG_OF_LIBFDT_OVERLAY
+#include <fs.h>
+#endif
 
 #ifdef CONFIG_CONSOLE_RECORD
 static void membuff_setup(void *blob)
@@ -539,6 +542,57 @@ static int hb_setup_ion_size(void *blob)
 	return 0;
 }
 
+#ifdef CONFIG_OF_LIBFDT_OVERLAY
+static void hb_do_fdt_overlay(void *blob)
+{
+	char *dtbo_fs;
+	char *dtbo_dev;
+	char *dtbo_part;
+	char *dtbo_file_path;
+	ulong dtbo_load_addr;
+	loff_t loaded_file_size = 0;
+
+	dtbo_file_path = env_get("dtbo_file_path");
+	if (dtbo_file_path == NULL)
+		return;
+
+	dtbo_fs = env_get("dtbo_fs");
+	if (dtbo_fs == NULL) {
+		dtbo_fs = "ext4";
+	}
+
+	dtbo_dev = env_get("dtbo_dev");
+	if (dtbo_dev == NULL) {
+		dtbo_dev = "mmc";
+	}
+
+	dtbo_part = env_get("dtbo_part");
+	if (dtbo_part == NULL) {
+		dtbo_part = "0:c";
+	}
+
+	dtbo_load_addr = env_get_hex("dtbo_load_addr", 0x90000000);
+
+	if (!strncmp("ext", dtbo_fs, strlen("ext"))) {
+		fs_set_blk_dev(dtbo_dev, dtbo_part, FS_TYPE_EXT);
+		fs_read(dtbo_file_path, dtbo_load_addr, 0x0, 0x0, &loaded_file_size);
+		log_info("Applying %s from %s %s in fs %s\n", dtbo_file_path, dtbo_dev, dtbo_part, dtbo_fs);
+	} else {
+		log_info("Filesystem %s not supported!\n", dtbo_fs);
+		return;
+	}
+
+	fdt_shrink_to_minimum(working_fdt, loaded_file_size);
+
+	if (fdt_overlay_apply_verbose(blob, (void *)dtbo_load_addr)) {
+		log_err("ERROR: FDT overlay apply failed!\n");
+		return;
+	}
+
+	return;
+}
+#endif
+
 static unsigned int get_boot_src(void)
 {
 	unsigned int ustrap_pin_info = readl(BOOT_STRAP_PIN_REG);
@@ -585,6 +639,7 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 	hb_setup_ion_size(blob);
 	update_boot_mode(blob);
 	check_cpu_1_8g_support(blob);
+	hb_do_fdt_overlay(blob);
 	return 0;
 }
 #endif
