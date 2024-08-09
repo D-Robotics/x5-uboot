@@ -319,8 +319,16 @@ static int is_valid_write_efuse_condition(struct efuse_info *efuse)
 	if (ret) {
 		return 0;
 	}
-	if ((tmp.value != 0) || (tmp.lock != 0)) {
-		printf("type:%s bank:%d has been locked or burned\n", tmp.type == EFUSE_NONSECURE ? "NON-SECURE": "SECURE", tmp.bank);
+	if (tmp.lock != 0) {
+		printf("type:%s bank:%d has been locked\n", tmp.type == EFUSE_NONSECURE ? "NON-SECURE": "SECURE", tmp.bank);
+		return 0;
+	}
+	/* customer bank---non secure bank11/12/13 can be burned when it is not locked */
+	if ((tmp.type == EFUSE_NONSECURE) && (tmp.bank > 10) && (tmp.bank < 14)) {
+		return 1;
+	}
+	if (tmp.value != 0) {
+		printf("type:%s bank:%d has been burned\n", tmp.type == EFUSE_NONSECURE ? "NON-SECURE": "SECURE", tmp.bank);
 		return 0;
 	}
 	return 1;
