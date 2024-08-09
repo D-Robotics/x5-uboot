@@ -66,6 +66,12 @@ static int dwc3_generic_probe(struct udevice *dev,
 	dwc3->dev = dev;
 	dwc3->maximum_speed = plat->maximum_speed;
 	dwc3->dr_mode = plat->dr_mode;
+
+	/* if drd mode, overlay dr_mode according to uclass id */
+	if (dwc3->dr_mode == USB_DR_MODE_DRD)
+		dwc3->dr_mode = (dev->driver->id == UCLASS_USB) ?
+			USB_DR_MODE_HOST : USB_DR_MODE_PERIPHERAL;
+
 #if CONFIG_IS_ENABLED(OF_CONTROL)
 	dwc3_of_parse(dwc3);
 #endif
@@ -447,6 +453,7 @@ static int dwc3_glue_bind(struct udevice *parent)
 		const char *name = ofnode_get_name(node);
 		struct udevice *dev;
 		const char *driver = NULL;
+		const char *driver2 = NULL;
 
 		debug("%s: subnode name: %s\n", __func__, name);
 
@@ -468,6 +475,15 @@ static int dwc3_glue_bind(struct udevice *parent)
 			driver = "dwc3-generic-host";
 			break;
 #endif
+
+		case USB_DR_MODE_DRD:
+#if CONFIG_IS_ENABLED(DM_USB_GADGET)
+			debug("%s: dr_mode: DRD(static)\n", __func__);
+			driver = "dwc3-generic-host";
+			driver2 = "dwc3-generic-peripheral";
+#endif
+			break;
+
 		default:
 			debug("%s: unsupported dr_mode\n", __func__);
 			return -ENODEV;
@@ -478,6 +494,12 @@ static int dwc3_glue_bind(struct udevice *parent)
 
 		ret = device_bind_driver_to_node(parent, driver, name,
 						 node, &dev);
+
+		/* some dwc3 ip is static drd, not standard otg. use below code */
+		if (!ret && driver2)
+			ret = device_bind_driver_to_node(parent, driver2, name,
+						node, &dev);
+
 		if (ret) {
 			debug("%s: not able to bind usb device mode\n",
 			      __func__);
