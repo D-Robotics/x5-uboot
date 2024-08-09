@@ -135,38 +135,6 @@
 			};
 		};
 
-		x5_svb_dwc3_usb3_host: usb_host@35100000 {
-			compatible = "snps,dwc3";
-			status = "disabled";
-			reg = <0x35100000 0x10000>;
-			dr_mode = "host"; // peripheral/host
-			phy_type = "utmi";
-			phy-names = "usb3-phy";
-			snps,dis_enblslpm_quirk;
-			snps,dis_u2_susphy_quirk;
-			snps,dis_u3_susphy_quirk;
-			snps,rx_detect_poll_quirk;
-			snps,del_phy_power_chg_quirk;
-			snps,quirk-frame-length-adjustment = <0x20>;
-			clocks = <&refclk &refclk &refclk>;
-			clock-names = "ref", "bus_early", "suspend";
-		};
-
-		x5_svb_dwc3_usb2_host: usb_host@35300000 {
-			compatible = "snps,dwc3";
-			status = "disabled";
-			reg = <0x35300000 0x10000>;
-			dr_mode = "host"; // peripheral/host
-			phy_type = "utmi";
-			phy-names = "usb2-phy";
-			maximum-speed = "high-speed";
-			snps,dis_enblslpm_quirk;
-			snps,dis_u2_susphy_quirk;
-			snps,quirk-frame-length-adjustment = <0x20>;
-			clocks = <&refclk &refclk &refclk>;
-			clock-names = "ref", "bus_early", "suspend";
-		};
-
 		x5_svb_usb2_0: usb@35300000 {
 			compatible = "horizon,sunrise5-dwc3";
 			reg = <0x35410000 0x2000>;
@@ -176,12 +144,12 @@
 			#size-cells = <2>;
 			status = "okay";
 
-			x5_svb_dwc3_usb2_dev: usb_otg@35300000 {
+			x5_svb_dwc3_usb2: usb_otg@35300000 {
 				compatible = "snps,dwc3";
 				status = "okay";
 				reg = <0x0 0x35300000 0x0 0x10000>;
 				reg-names = "dwc3-base";
-				dr_mode = "otg"; // peripheral/host
+				dr_mode = "otg"; // peripheral/host/otg/drd
 				phy_type = "utmi";
 				phy-names = "usb2-phy";
 				maximum-speed = "high-speed";
@@ -202,12 +170,11 @@
 			#size-cells = <2>;
 			status = "okay";
 
-			x5_svb_dwc3_usb3_dev: usb_otg@35100000 {
+			x5_svb_dwc3_usb3: usb_otg@35100000 {
 				compatible = "snps,dwc3";
 				status = "okay";
 				reg = <0x0 0x35100000 0x0 0x10000>;
-				dr_mode = "otg"; // peripheral/host
-				phy_type = "utmi";
+				dr_mode = "drd"; // peripheral/host/otg/drd
 				phy-names = "usb3-phy";
 				snps,dis_enblslpm_quirk;
 				snps,dis_u2_susphy_quirk;
