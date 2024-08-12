@@ -264,7 +264,7 @@ void board_bootargs_setup(void)
 	int ret;
 	char boot_args[2048] = { 0 }, slot_suffix[3] = { '_', 'a', '\0'};
 	char console_args[64] = { 0 };
-	char mtd_args[256] = {0};
+	char mtd_args[512] = {0};
 	char *cmdline = env_get("bootargs");
 	uint32_t uart_baud = hb_get_uart_baud();
 	uint32_t len;

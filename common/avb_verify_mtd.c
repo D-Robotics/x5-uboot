@@ -107,7 +107,7 @@ static uint64_t ubi_read_and_flush(struct ubi_volume *part,
 	lbaint_t total_len = len;
 	uint64_t ret = 0;
 
-	ret = ubi_volume_read(part->name, buffer, 0);
+	ret = ubi_volume_read(part->name, buffer, len);
 	if (ret) {
 		pr_err("UBI read %s failed!", part->name);
 		return ret;
@@ -132,7 +132,7 @@ static uint64_t ubi_write(struct ubi_volume *part, lbaint_t start,
 				part->used_bytes * sizeof(char));
 		return -1;
 	}
-	ret = ubi_volume_read(part->name, tmp_buf, 0);
+	ret = ubi_volume_read(part->name, tmp_buf, len);
 	if (ret) {
 		pr_err("UBI Volume %s access failed!\n", part->name);
 		return -1;
@@ -151,9 +151,20 @@ static uint64_t ubi_write(struct ubi_volume *part, lbaint_t start,
 
 static struct ubi_volume *ubi_get_partition(const char *partition)
 {
-	if (ubi_part("boot", NULL))
-		return NULL;
-	return ubi_find_volume((char *)partition);
+	char *p;
+	char vol_name[64] = {0};
+
+	if (!strstr(partition, "vbmeta")) {
+		if (ubi_part((char *)partition, NULL))
+			return NULL;
+	}
+	snprintf(vol_name, sizeof(vol_name), "%s", partition);
+	if ((p = strstr(vol_name, "_a")) != NULL ||
+		(p = strstr(vol_name, "_b")) != NULL) {
+		*p = '\0';
+	}
+
+	return ubi_find_volume(vol_name);
 }
 
 static AvbIOResult ubi_byte_io(AvbOps *ops,
