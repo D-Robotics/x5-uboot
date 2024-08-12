@@ -38,7 +38,7 @@ int do_thor_down(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 		goto exit;
 	}
 
-	ret = g_dnl_register("usb_dnl_thor");
+	ret = g_dnl_register("usb_dnl_thor", controller_index);
 	if (ret) {
 		pr_err("g_dnl_register failed %d\n", ret);
 		ret = CMD_RET_FAILURE;

@@ -22,7 +22,7 @@ static int spl_sdp_load_image(struct spl_image_info *spl_image,
 	board_usb_init(controller_index, USB_INIT_DEVICE);
 
 	g_dnl_clear_detach();
-	ret = g_dnl_register("usb_dnl_sdp");
+	ret = g_dnl_register("usb_dnl_sdp", controller_index);
 	if (ret) {
 		pr_err("SDP dnl register failed: %d\n", ret);
 		return ret;

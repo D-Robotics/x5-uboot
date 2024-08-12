@@ -64,7 +64,7 @@ static int do_fastboot_usb(int argc, char *const argv[],
 	}
 
 	g_dnl_clear_detach();
-	ret = g_dnl_register("usb_dnl_fastboot");
+	ret = g_dnl_register("usb_dnl_fastboot", controller_index);
 	if (ret)
 		return ret;
 

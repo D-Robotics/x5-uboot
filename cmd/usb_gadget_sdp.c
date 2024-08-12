@@ -24,7 +24,7 @@ static int do_sdp(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 	usb_gadget_initialize(controller_index);
 
 	g_dnl_clear_detach();
-	ret = g_dnl_register("usb_dnl_sdp");
+	ret = g_dnl_register("usb_dnl_sdp", controller_index);
 	if (ret) {
 		pr_err("SDP dnl register failed: %d\n", ret);
 		goto exit_register;

@@ -31,7 +31,7 @@ int run_usb_dnl_gadget(int usbctrl_index, char *usb_dnl_gadget)
 		return CMD_RET_FAILURE;
 	}
 	g_dnl_clear_detach();
-	ret = g_dnl_register(usb_dnl_gadget);
+	ret = g_dnl_register(usb_dnl_gadget, usbctrl_index);
 	if (ret) {
 		pr_err("g_dnl_register failed");
 		return CMD_RET_FAILURE;

@@ -41,7 +41,7 @@ static int do_rockusb(struct cmd_tbl *cmdtp, int flag, int argc,
 	}
 
 	g_dnl_clear_detach();
-	ret = g_dnl_register("usb_dnl_rockusb");
+	ret = g_dnl_register("usb_dnl_rockusb", controller_index);
 	if (ret)
 		return CMD_RET_FAILURE;
 

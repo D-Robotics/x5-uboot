@@ -35,7 +35,7 @@ struct g_dnl_bind_callback {
 int g_dnl_bind_fixup(struct usb_device_descriptor *, const char *);
 int g_dnl_get_board_bcd_device_number(int gcnum);
 int g_dnl_board_usb_cable_connected(void);
-int g_dnl_register(const char *s);
+int g_dnl_register(const char *s, int controller_index);
 void g_dnl_unregister(void);
 void g_dnl_set_serialnumber(char *);
 void g_dnl_set_product(const char *s);

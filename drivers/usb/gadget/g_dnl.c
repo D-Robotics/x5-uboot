@@ -51,6 +51,26 @@
 #define	GOOGLE_VENDOR_NUM	0x18d1	/* Google Inc. */
 #define	ANDROID_PRODUCT_NUM	0xd00d	/* Android device */
 
+/*
+ * Horizon Robotics Vendor ID
+ */
+#define HORIZON_VENDOR_NUM	0x3652
+/*
+ * dfu gadget product id
+ * Sunrise-5 has 2 usb controller, so we assign 2 product number
+ * for usb2.0-only port and usb3.0 port.
+ */
+#define DFU_USB2_PRODUCT_NUM	0x0530
+#define DFU_USB3_PRODUCT_NUM	0x1530
+
+/*
+ * ums gadget product id
+ * Sunrise-5 has 2 usb controller, so we assign 2 product number
+ * for usb2.0-only port and usb3.0 port.
+ */
+#define UMS_USB2_PRODUCT_NUM	0x0533
+#define UMS_USB3_PRODUCT_NUM	0x1533
+
 #define DRIVER_VERSION		"usb_dnl 2.0"
 
 static const char product[] = "USB download gadget";
@@ -306,7 +326,7 @@ static struct usb_composite_driver g_dnl_driver = {
  * Registering via USB function name won't be necessary after rewriting
  * g_dnl to support multiple USB functions.
  */
-int g_dnl_register(const char *name)
+int g_dnl_register(const char *name, int controller_index)
 {
 	int ret;
 
@@ -330,6 +350,42 @@ int g_dnl_register(const char *name)
 			__constant_cpu_to_le16(ANDROID_PRODUCT_NUM);
 	}
 #endif
+
+	if (!strncmp(name, "usb_dnl_dfu", 11)) {
+		switch (controller_index) {
+		case 1:
+			device_desc.idVendor =
+				__constant_cpu_to_le16(HORIZON_VENDOR_NUM);
+			device_desc.idProduct =
+				__constant_cpu_to_le16(DFU_USB3_PRODUCT_NUM);
+			break;
+		case 0:
+		default:
+			device_desc.idVendor =
+				__constant_cpu_to_le16(HORIZON_VENDOR_NUM);
+			device_desc.idProduct =
+				__constant_cpu_to_le16(DFU_USB2_PRODUCT_NUM);
+			break;
+		}
+	}
+
+	if (!strncmp(name, "usb_dnl_ums", 11)) {
+		switch (controller_index) {
+		case 1:
+			device_desc.idVendor =
+				__constant_cpu_to_le16(HORIZON_VENDOR_NUM);
+			device_desc.idProduct =
+				__constant_cpu_to_le16(UMS_USB3_PRODUCT_NUM);
+			break;
+		case 0:
+		default:
+			device_desc.idVendor =
+				__constant_cpu_to_le16(HORIZON_VENDOR_NUM);
+			device_desc.idProduct =
+				__constant_cpu_to_le16(UMS_USB2_PRODUCT_NUM);
+			break;
+		}
+	}
 
 	ret = usb_composite_register(&g_dnl_driver);
 	if (ret) {
