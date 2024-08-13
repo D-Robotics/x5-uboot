@@ -34,7 +34,7 @@
 /* Keep in sync with kernel/arch/arm64/boot/dts/hobot/x5-memory.dtsi
  * the lowest entry with "no-map" bindings.
  */
-#define X5_RESERVED_ADDR_LOWEST   (0x8FE70000)
+#define X5_RESERVED_ADDR_LOWEST   (0x9FE70000)
 
 #define DROBOT_UBOOT_OUTPUT_LOG_ADDR 0x87FFC000
 #ifdef CONFIG_CONSOLE_RECORD_OUT_SIZE
@@ -60,7 +60,7 @@
 /* ION_RESERVED_OFFSET must be in sync with x5-memory.dtsi */
 /* Macros for ion regions in DDR *L*ess than or *E*qual to 2G */
 #define DEFAULT_KERNEL_MIN_HEAP (0xC800000u)
-#define DEFAULT_ION_REGION_START (0xA1800000u - PHYS_SDRAM_1)
+#define DEFAULT_ION_REGION_START (0xA4100000u - PHYS_SDRAM_1)
 
 #define DEFAULT_ION_TOTAL_SIZE_LE_2G (0x4B800000u) /* 1208MiB */
 #define DEFAULT_ION_RESERVED_SIZE_LE_2G (0x20000000u) /* 512MiB */
