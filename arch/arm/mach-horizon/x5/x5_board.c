@@ -212,7 +212,7 @@ void if_fastboot(void)
 	{
 		printf("button Long press, need into fastboot mode\n");
 		udelay(100*1000);
-		run_command("fastboot 0",0);
+		run_command("ums 0 mmc 1",0);
 	}
 }
 
