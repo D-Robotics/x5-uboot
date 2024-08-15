@@ -201,7 +201,7 @@ static int32_t hb_avb_verify_boot(char *bootintf, char *bootdev, char *slot_suff
 	bool ab_exist = true;
 
 	snprintf(ab_corrupt_cmd, sizeof(ab_corrupt_cmd),
-			"ab_corrupt $bootslot mmc %s#misc", bootdev);
+			"ab_corrupt $bootslot %s %s#misc", bootintf, bootdev);
 	snprintf(buffer, sizeof(buffer), "avb init %s %s", bootintf, bootdev);
 	ret = run_command(buffer, 0);
 	if (ret) {
@@ -234,8 +234,7 @@ static int32_t hb_avb_verify_boot(char *bootintf, char *bootdev, char *slot_suff
 	ret = run_command(buffer, 0);
 	if (ret && (!out_is_unlocked)) {
 		printf("avb verify failed with status %d\n", ret);
-		if (strncmp(bootintf, "mmc", strlen("mmc") + 1) == 0)
-			ret = run_command(ab_corrupt_cmd, 0);
+		run_command(ab_corrupt_cmd, 0);
 		do_reset(NULL, 0, 0, NULL);
 	}
 

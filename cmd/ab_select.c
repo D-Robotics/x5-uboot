@@ -284,6 +284,7 @@ static int do_ab_corrupt_mtd(struct cmd_tbl *cmdtp, int flag, int argc,
 	ret = CMD_RET_SUCCESS;
 
 free_mtd:
+	free(bm_ab);
 	put_mtd_device(mtd);
 
 	return ret;
