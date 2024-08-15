@@ -76,6 +76,11 @@ static int env_ubi_save(void)
 {
 	ALLOC_CACHE_ALIGN_BUFFER(env_t, env_new, 1);
 	int ret;
+#ifdef CONFIG_TARGET_X5
+	struct ubi_volume *env_volume;
+	size_t env_volume_size;
+	u8 *env_tmp;
+#endif
 
 	ret = env_export(env_new);
 	if (ret)
@@ -87,8 +92,23 @@ static int env_ubi_save(void)
 		return 1;
 	}
 
+#ifdef CONFIG_TARGET_X5
+	env_volume = ubi_find_volume(CONFIG_ENV_UBI_VOLUME);
+	env_volume_size = env_volume->reserved_pebs * (env_volume->ubi->leb_size - env_volume->data_pad);
+	env_tmp = (u8 *)malloc_cache_aligned(env_volume_size);
+	if (env_tmp == NULL) {
+		printf("ERROR: %s malloc for %lu failed!\n", __func__, env_volume_size);
+		return -ENOMEM;
+	}
+	ubi_volume_read(CONFIG_ENV_UBI_VOLUME, env_tmp, 0);
+	memcpy(env_tmp, env_new, CONFIG_ENV_SIZE);
+
+	if (ubi_volume_write(CONFIG_ENV_UBI_VOLUME, (void *)env_tmp,
+			     env_volume_size)) {
+#else
 	if (ubi_volume_write(CONFIG_ENV_UBI_VOLUME, (void *)env_new,
 			     CONFIG_ENV_SIZE)) {
+#endif
 		printf("\n** Unable to write env to %s:%s **\n",
 		       CONFIG_ENV_UBI_PART, CONFIG_ENV_UBI_VOLUME);
 		return 1;
