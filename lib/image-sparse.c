@@ -45,10 +45,16 @@
 #include <sparse_format.h>
 #include <asm/cache.h>
 
+#include <mmc.h>
+#include <fastboot.h>
 #include <linux/math64.h>
 #include <linux/err.h>
 
 static void default_log(const char *ignored, char *response) {}
+
+struct fb_mmc_sparse {
+	struct blk_desc	*dev_desc;
+};
 
 static lbaint_t write_sparse_chunk_raw(struct sparse_storage *info,
 				       lbaint_t blk, lbaint_t blkcnt,
@@ -111,14 +117,20 @@ int write_sparse_image(struct sparse_storage *info,
 {
 	lbaint_t blk;
 	lbaint_t blkcnt;
+	lbaint_t blkend;
 	lbaint_t blks;
 	lbaint_t bad_blkcnt = 0;
+	uint64_t chunk_data_sz;
 	uint64_t bytes_written = 0;
 	unsigned int chunk;
 	unsigned int offset;
-	uint64_t chunk_data_sz;
+	unsigned int mmc_erase_sz = 0;
+	unsigned int last_erased_blk = 0;
+	unsigned int start_blk = 0;
+	unsigned int erase_cnt = 0;
 	uint32_t *fill_buf = NULL;
-	uint32_t fill_val;
+	uint32_t fill_val, new_wbbuf_sz, old_wbbuf_sz;
+	bool first_erase = true;
 	sparse_header_t *sparse_header;
 	chunk_header_t *chunk_header;
 	uint32_t total_blocks = 0;
@@ -126,8 +138,16 @@ int write_sparse_image(struct sparse_storage *info,
 	int i;
 	int j;
 
-	fill_buf_num_blks = CONFIG_IMAGE_SPARSE_FILLBUF_SIZE / info->blksz;
+	void *write_back_buf = NULL;
+	lbaint_t blks_read_f = 0;
+	lbaint_t blks_write_f;
+	int write_back_flag = 0;
+	struct fb_mmc_sparse *sparse = info->priv;
+	struct blk_desc *dev_desc = sparse->dev_desc;
+	int dev_num = sparse->dev_desc->devnum;
+	struct mmc *mmc = NULL;
 
+	fill_buf_num_blks = CONFIG_IMAGE_SPARSE_FILLBUF_SIZE / info->blksz;
 	/* Read and skip over sparse image header */
 	sparse_header = (sparse_header_t *)data;
 
@@ -192,6 +212,7 @@ int write_sparse_image(struct sparse_storage *info,
 
 		chunk_data_sz = ((u64)sparse_header->blk_sz) * chunk_header->chunk_sz;
 		blkcnt = DIV_ROUND_UP_ULL(chunk_data_sz, info->blksz);
+		blkend = blk + blkcnt;
 		switch (chunk_header->chunk_type) {
 		case CHUNK_TYPE_RAW:
 			if (chunk_header->total_sz !=
@@ -201,7 +222,7 @@ int write_sparse_image(struct sparse_storage *info,
 				return -1;
 			}
 
-			if (blk + blkcnt > info->start + info->size + bad_blkcnt) {
+			if (blkend > info->start + info->size + bad_blkcnt) {
 				printf(
 				    "%s: Request would exceed partition size!\n",
 				    __func__);
@@ -249,39 +270,125 @@ int write_sparse_image(struct sparse_storage *info,
 			     i++)
 				fill_buf[i] = fill_val;
 
-			if (blk + blkcnt > info->start + info->size + bad_blkcnt) {
+			if (blkend > info->start + info->size + bad_blkcnt) {
 				printf(
 				    "%s: Request would exceed partition size!\n",
 				    __func__);
 				info->mssg("Request would exceed partition size!",
 					   response);
 				free(fill_buf);
+				fill_buf = NULL;
 				return -1;
 			}
+
+			mmc = find_mmc_device(dev_num);
+			if (!mmc)
+				return -1;
+			mmc_erase_sz = mmc->erase_grp_size;
+			old_wbbuf_sz = 0;
 
 			for (i = 0; i < blkcnt;) {
 				j = blkcnt - i;
 				if (j > fill_buf_num_blks)
 					j = fill_buf_num_blks;
-				blks = info->write(info, blk, j, fill_buf);
-				/* blks might be > j (eg. NAND bad-blocks) */
-				if (blks < j) {
-					printf("%s: %s " LBAFU " [%d]\n",
-					       __func__,
-					       "Write failed, block #",
-					       blk, j);
-					info->mssg("flash write failure",
-						   response);
-					free(fill_buf);
-					return -1;
+
+				/* Handle eMMC writes with empty chunks */
+				if ((fill_val == 0) &&
+					(fastboot_get_flash_type() == FLASH_TYPE_EMMC)) {
+					if (blkend > last_erased_blk) {
+						new_wbbuf_sz = ROUNDUP(
+							info->blksz * fill_buf_num_blks * 2,
+							ARCH_DMA_MINALIGN);
+
+						if (!write_back_buf || new_wbbuf_sz > old_wbbuf_sz) {
+							if (write_back_buf != NULL)
+								free(write_back_buf);
+							write_back_buf = memalign(ARCH_DMA_MINALIGN, new_wbbuf_sz);
+							old_wbbuf_sz = new_wbbuf_sz;
+						}
+
+						if (!write_back_buf) {
+							info->mssg("Malloc write back failed for: CHUNK_TYPE_FILL",
+							response);
+							free(fill_buf);
+							fill_buf = NULL;
+							return -1;
+						}
+						/* Write start blk not aligned with mmc erase group */
+						if (blk % mmc_erase_sz && blk > last_erased_blk) {
+							/* front part read */
+							blks_read_f = blk_dread(dev_desc,
+								blk - (blk % mmc_erase_sz),
+								blk % mmc_erase_sz,
+								write_back_buf);
+							write_back_flag |= BIT(1);
+						}
+
+						/* End of erase will be handled by next write */
+						/* Start erase empty chunk to ensure emmc is cleared */
+						start_blk = first_erase ? blk :
+							((blk < last_erased_blk) ? last_erased_blk : blk);
+						erase_cnt = first_erase ? blkcnt : ((blk < last_erased_blk) ?
+							(blkend - last_erased_blk) : blkcnt);
+						first_erase = false;
+						start_blk = (start_blk / mmc_erase_sz) * mmc_erase_sz;
+						erase_cnt = ((erase_cnt + mmc_erase_sz - 1) / mmc_erase_sz) *
+							mmc_erase_sz;
+						/*
+						 * After alignment, total erase count might be less than required
+						 * so extra check here
+						 */
+						if (start_blk + erase_cnt < blkend)
+							erase_cnt += (((blkend - start_blk - erase_cnt) / mmc_erase_sz + 1)
+							* mmc_erase_sz);
+
+						blks = info->write(info, start_blk, erase_cnt, NULL);
+						last_erased_blk = ((blkend + mmc_erase_sz - 1) / mmc_erase_sz) *
+						mmc_erase_sz;
+						/* Start write back erased contents */
+						if (write_back_flag & BIT(1)) {
+							blks_write_f = info->write(info,
+								blk - (blk % mmc_erase_sz),
+								blk % mmc_erase_sz,
+								write_back_buf);
+							if (blks_write_f != blks_read_f)
+								goto failed;
+						}
+					}
+
+					write_back_flag = 0;
+					/* Since the actual processed blks is blkcnt,
+					use blkcnt for offset increment */
+					blk += blkcnt;
+					i += blkcnt;
+					if (write_back_buf != NULL)
+						memset(write_back_buf, 0x0, old_wbbuf_sz);
+				} else {
+					blks = info->write(info, blk, j, fill_buf);
+					/* blks might be > j (eg. NAND bad-blocks) */
+					if (blks < j) {
+						printf("%s: %s " LBAFU " [%d]\n",
+						       __func__,
+					           "Write failed, block #",
+					           blk, j);
+						info->mssg("flash write failure",
+							   response);
+						free(fill_buf);
+						return -1;
+					}
+					blk += blks;
+					bad_blkcnt += blks - j;
+					i += j;
 				}
-				blk += blks;
-				bad_blkcnt += blks - j;
-				i += j;
 			}
+
 			bytes_written += ((u64)blkcnt) * info->blksz;
 			total_blocks += DIV_ROUND_UP_ULL(chunk_data_sz,
 							 sparse_header->blk_sz);
+			if (write_back_buf != NULL) {
+				free(write_back_buf);
+				write_back_buf = NULL;
+			}
 			free(fill_buf);
 			break;
 
@@ -319,4 +426,14 @@ int write_sparse_image(struct sparse_storage *info,
 	}
 
 	return 0;
+failed:
+	printf("%s:Write back empty chunk:%d size not equal to read", __func__, chunk);
+	info->mssg("Write size for empty chunk not equal to read ",
+		response);
+	if (write_back_buf != NULL) {
+		free(write_back_buf);
+		write_back_buf = NULL;
+	}
+	free(fill_buf);
+	return -1;
 }
