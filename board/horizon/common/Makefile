@@ -5,4 +5,5 @@
 
 ifeq ($(CONFIG_ARCH_HORIZON),y)
 obj-$(CONFIG_SET_DFU_ALT_INFO) += horizon_dfu.o
+obj-y += hb_sdhc_boot.o
 endif
