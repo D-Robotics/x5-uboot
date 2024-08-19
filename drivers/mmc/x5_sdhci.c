@@ -22,6 +22,17 @@
 #define NOC_IDLE_REQ_REG0 0x31032000
 #define HSIO_SW_RST 0x342100A4
 #define NOC_IDLE_STATUS_REG0 0x31032008
+/* DWC IP vendor area 1 pointer */
+#define DWCMSHC_P_VENDOR_AREA1		0xe8
+#define DWCMSHC_AREA1_MASK		GENMASK(11, 0)
+/* Offset inside the  vendor area 1 */
+#define DWCMSHC_HOST_CTRL3		0x8
+
+#define SD_CLOCK_GATE	BIT(16)
+#define SDIO_CLOCK_GATE	BIT(21)
+#define EMMC_CLOCK_GATE	BIT(11)
+
+#define HSIO_CLK_EN_REG	0x342100A0
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -38,6 +49,8 @@ struct x5_sdhci_priv {
 	uint has_pad_init;
 	u32 mshc_ctrl_addr;
 	u8 mshc_ctrl_val;
+	u32 clock_gate;
+	void *subaddr;
 };
 
 /*
@@ -122,75 +135,244 @@ static int x5_update_phy(struct sdhci_host *host)
 	return 0;
 }
 
-#define SDHCI_TUNING_LOOP_COUNT	200
+int x5_sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
+{
+	struct x5_sdhci_priv *priv = dev_get_priv(host->mmc->dev);
+	unsigned int div, clk = 0, timeout;
+	u32 reg;
+
+	/* Wait max 20 ms */
+	timeout = 200;
+	while (sdhci_readl(host, SDHCI_PRESENT_STATE) &
+			   (SDHCI_CMD_INHIBIT | SDHCI_DATA_INHIBIT)) {
+		if (timeout == 0) {
+			printf("%s: Timeout to wait cmd & data inhibit\n",
+			       __func__);
+			return -EBUSY;
+		}
+
+		timeout--;
+		udelay(100);
+	}
+
+	reg = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+	reg &= ~SDHCI_CLOCK_CARD_EN;
+	reg &= ~SDHCI_CLOCK_INT_EN;
+	sdhci_writew(host, reg, SDHCI_CLOCK_CONTROL);
+
+	if (clock == 0)
+		return 0;
+
+	if (SDHCI_GET_VERSION(host) >= SDHCI_SPEC_300) {
+		/*
+		 * Check if the Host Controller supports Programmable Clock
+		 * Mode.
+		 */
+		if (host->clk_mul) {
+			for (div = 1; div <= 1024; div++) {
+				if ((host->max_clk / div) <= clock)
+					break;
+			}
+
+			/*
+			 * Set Programmable Clock Mode in the Clock
+			 * Control register.
+			 */
+			clk = SDHCI_PROG_CLOCK_MODE;
+			div--;
+		} else {
+			/* Version 3.00 divisors must be a multiple of 2. */
+			if (host->max_clk <= clock) {
+				div = 1;
+			} else {
+				for (div = 2;
+				     div < SDHCI_MAX_DIV_SPEC_300;
+				     div += 2) {
+					if ((host->max_clk / div) <= clock)
+						break;
+				}
+			}
+			div >>= 1;
+		}
+	} else {
+		/* Version 2.00 divisors must be a power of 2. */
+		for (div = 1; div < SDHCI_MAX_DIV_SPEC_200; div *= 2) {
+			if ((host->max_clk / div) <= clock)
+				break;
+		}
+		div >>= 1;
+	}
+	reg = readl(HSIO_CLK_EN_REG);
+	writel(reg & (~priv->clock_gate), HSIO_CLK_EN_REG);
+	clk |= (div & SDHCI_DIV_MASK) << SDHCI_DIVIDER_SHIFT;
+	clk |= ((div & SDHCI_DIV_HI_MASK) >> SDHCI_DIV_MASK_LEN)
+		<< SDHCI_DIVIDER_HI_SHIFT;
+	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+	writel(reg | priv->clock_gate, HSIO_CLK_EN_REG);
+	clk |= SDHCI_CLOCK_INT_EN;
+	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+	/* Wait max 20 ms */
+	timeout = 20;
+	while (!((clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL))
+		& SDHCI_CLOCK_INT_STABLE)) {
+		if (timeout == 0) {
+			printf("%s: Internal clock never stabilised.\n",
+			       __func__);
+			return -EBUSY;
+		}
+		timeout--;
+		udelay(1000);
+	}
+
+	clk |= SDHCI_CLOCK_CARD_EN;
+	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+	return 0;
+}
+
+static int x5_sdhci_set_dll(struct sdhci_host *host, int degrees)
+{
+	u32 val;
+	u16 clk;
+    unsigned int timeout;
+	struct x5_sdhci_priv *priv = dev_get_priv(host->mmc->dev);
+
+	clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+	clk &= ~SDHCI_CLOCK_CARD_EN;
+	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+	val = readl(priv->subaddr + 0x4);
+	val &= 0xFFFF80FF;
+	val |= (degrees << 8);
+	writel(val, priv->subaddr + 0x4);
+
+	/* Wait max 20 ms */
+	timeout = 20;
+
+    while (1) {
+            val = readl(priv->subaddr + 0xC);
+            if (((val & 0x7F00) >> 8) == degrees)
+                    break;
+            if (timeout == 0) {
+                    printf("execute tuning dll never stabilised.\n");
+                    clk |= SDHCI_CLOCK_CARD_EN;
+	                sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+                    return -1;
+            }
+            timeout--;
+            udelay(1000);
+    }
+
+	clk |= SDHCI_CLOCK_CARD_EN;
+	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+	return degrees;
+}
+
+#define X5_TUNING_MAX 128
 
 static int x5_sdhci_execute_tuning(struct mmc *mmc, u8 opcode)
 {
-	struct mmc_cmd cmd;
-	struct mmc_data data;
-	u32 ctrl;
-	struct sdhci_host *host;
-	struct x5_sdhci_priv *priv = dev_get_priv(mmc->dev);
-	char tuning_loop_counter = SDHCI_TUNING_LOOP_COUNT;
+	struct sdhci_host *host = mmc->priv;
+	int ret = 0;
+	int i;
+	bool v, prev_v = 0, first_v;
+	struct range_t {
+		int start;
+		int end;	/* inclusive */
+	};
+	struct range_t *ranges;
+	unsigned int range_count = 0;
+	int longest_range_len = -1;
+	int longest_range = -1;
+	int middle_phase;
+    int current_dll;
 
-	host = priv->host;
+	ranges = valloc((X5_TUNING_MAX / 2 + 1) *sizeof(*ranges));
+	if (!ranges)
+		return -ENOMEM;
 
-	ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
-	ctrl |= SDHCI_CTRL_EXEC_TUNING;
-	sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
+	/* Try each phase and extract good ranges */
+	for (i = 0; i < X5_TUNING_MAX; i++) {
+		current_dll = x5_sdhci_set_dll(host, i);
+        v = !mmc_send_tuning(mmc, opcode, NULL);
+        if (!v) {
+            debug("tuning failed in degree:%d\n", i);
+        }
 
-	sdhci_writel(host, SDHCI_INT_DATA_AVAIL, SDHCI_INT_ENABLE);
-	sdhci_writel(host, SDHCI_INT_DATA_AVAIL, SDHCI_SIGNAL_ENABLE);
+		if (i == 0)
+			first_v = v;
 
-	do {
-		cmd.cmdidx = opcode;
-		cmd.resp_type = MMC_RSP_R1;
-		cmd.cmdarg = 0;
+		if ((!prev_v) && v) {
+			range_count++;
+			ranges[range_count - 1].start = i;
+		}
 
-		data.blocksize = 64;
-		data.blocks = 1;
-		data.flags = MMC_DATA_READ;
+		if (v) {
+			ranges[range_count - 1].end = i;
+		}
+        else if (i < X5_TUNING_MAX - 2) {
+			/*
+			 * No need to check too close to an invalid
+			 * one since testing bad phases is slow. Skip
+			 * the adjacent phase but always test the last phase.
+			 */
+			i++;
+		}
 
-		if (tuning_loop_counter-- == 0)
-			break;
-
-		if (cmd.cmdidx == MMC_CMD_SEND_TUNING_BLOCK_HS200 &&
-		    mmc->bus_width == 8)
-			data.blocksize = 128;
-
-		sdhci_writew(host, SDHCI_MAKE_BLKSZ(SDHCI_DEFAULT_BOUNDARY_ARG,
-						    data.blocksize),
-			     SDHCI_BLOCK_SIZE);
-		sdhci_writew(host, data.blocks, SDHCI_BLOCK_COUNT);
-		sdhci_writew(host, SDHCI_TRNS_READ, SDHCI_TRANSFER_MODE);
-
-		mmc_send_cmd(mmc, &cmd, NULL);
-		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
-
-		if (cmd.cmdidx == MMC_CMD_SEND_TUNING_BLOCK)
-			udelay(1);
-
-	} while (ctrl & SDHCI_CTRL_EXEC_TUNING);
-
-	if (tuning_loop_counter < 0) {
-		ctrl &= ~SDHCI_CTRL_TUNED_CLK;
-		sdhci_writel(host, ctrl, SDHCI_HOST_CONTROL2);
+		prev_v = v;
 	}
 
-	if (!(ctrl & SDHCI_CTRL_TUNED_CLK)) {
-		printf("Tuning failed\n");
-		return -1;
+	if (range_count == 0) {
+		printf("All sample phases bad!");
+		ret = -EIO;
+		goto free;
 	}
-	printf("Tuning OK\n");
 
-	/* Enable only interrupts served by the SD controller */
-	sdhci_writel(host, SDHCI_INT_DATA_MASK | SDHCI_INT_CMD_MASK,
-		     SDHCI_INT_ENABLE);
+	/* wrap around case, merge the end points */
+	if ((range_count > 1) && first_v && v) {
+		ranges[0].start = ranges[range_count - 1].start;
+		range_count--;
+	}
 
-	/* Mask all sdhci interrupt sources */
-	sdhci_writel(host, 0x0, SDHCI_SIGNAL_ENABLE);
+	/* Find the longest range */
+	for (i = 0; i < range_count; i++) {
+		int len = (ranges[i].end - ranges[i].start + 1);
 
-	return 0;
+		if (len < 0)
+			len += X5_TUNING_MAX;
+
+		if (longest_range_len < len) {
+			longest_range_len = len;
+			longest_range = i;
+		}
+
+		debug("current_dll=%d,Good sample phase range %d-%d (%d len)\n",
+			current_dll,
+			ranges[i].start,
+			ranges[i].end, len);
+	}
+
+	debug("current_dll=%d, Best sample phase range %d-%d (%d len)\n",
+		current_dll,
+		ranges[longest_range].start,
+		ranges[longest_range].end,
+		longest_range_len);
+
+	middle_phase = ranges[longest_range].start + longest_range_len / 2;
+	middle_phase %= X5_TUNING_MAX;
+	debug("current_dll=%d,Successfully tuned sample phase to %d\n",
+		current_dll,
+		middle_phase);
+
+	x5_sdhci_set_dll(host, middle_phase);
+	printf("(Tuning Ok!) ");
+
+free:
+	free(ranges);
+	/* set retuning period to enable retuning*/
+	return ret;
 }
 
 static void x5_sdhci_set_control_reg(struct sdhci_host *host)
@@ -217,6 +399,7 @@ const struct sdhci_ops x5_sdhci_ops = {
 	.set_ios_post = &x5_sdhci_set_ios_post,
 	.platform_execute_tuning	= &x5_sdhci_execute_tuning,
 	.set_control_reg = &x5_sdhci_set_control_reg,
+	.platform_set_clock = &x5_sdhci_set_clock,
 };
 
 static int x5_soc_reset(struct udevice *dev)
@@ -339,6 +522,13 @@ static int x5_sdhci_probe(struct udevice *dev)
 	/* Set the IP input clock */
 	host->max_clk = bus_clk;
 
+	/* Parse MSHC_CTRL values */
+	priv->mshc_ctrl_addr = sdhci_readl(host, DWCMSHC_P_VENDOR_AREA1) & DWCMSHC_AREA1_MASK;
+	priv->mshc_ctrl_val = sdhci_readb(host, priv->mshc_ctrl_addr + DWCMSHC_HOST_CTRL3);
+	priv->mshc_ctrl_val &= ~(BIT(0));
+	priv->mshc_ctrl_val |= BIT(6);
+	priv->mshc_ctrl_val &= ~BIT(7);
+
 	return sdhci_probe(dev);
 }
 
@@ -351,7 +541,7 @@ static int x5_sdhci_ofdata_to_plat(struct udevice *dev)
 		return -1;
 
 	priv->host->ops = &x5_sdhci_ops;
-	priv->host->ioaddr = (void *)dev_read_addr(dev);
+	priv->host->ioaddr = (void *)dev_read_addr_index(dev, 0);
 	priv->has_pad_init = 1;
 
 	if (IS_ERR(priv->host->ioaddr))
@@ -359,6 +549,16 @@ static int x5_sdhci_ofdata_to_plat(struct udevice *dev)
 
 	if (fdt_get_property(gd->fdt_blob, dev_of_offset(dev), "phy-pads", NULL))
 		priv->has_pad_init = 0;
+
+	if (dev_read_bool(dev, "emmc-socrst")) {
+		priv->clock_gate = EMMC_CLOCK_GATE;
+	} else if (dev_read_bool(dev, "sd-socrst")) {
+		priv->clock_gate = SD_CLOCK_GATE;
+	} else if (dev_read_bool(dev, "sdio-socrst")) {
+		priv->clock_gate = SDIO_CLOCK_GATE;
+	}
+
+	priv->subaddr = (void *)dev_read_addr_index(dev, 1);
 
 	return 0;
 }

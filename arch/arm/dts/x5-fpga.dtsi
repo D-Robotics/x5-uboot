@@ -45,7 +45,8 @@
 
 		x5_fpga_sdio_0: sdio-host@35020000 {
 			compatible = "horizon,x5-sdhci";
-			reg = <0x35020000 0x10000>;
+			reg = <0x35020000 0x10000>,
+			<0x35050078 0x10>;
 			clocks = <&sdclk>;
 			max-frequency = <5000000>;
 			no-1-8-v;
@@ -57,7 +58,8 @@
 
 		x5_fpga_sdio_1: sdio-host@35030000 {
 			compatible = "horizon,x5-sdhci";
-			reg = <0x35030000 0x10000>;
+			reg = <0x35030000 0x10000>,
+			<0x3505008C 0x10>;
 			clocks = <&sdclk>;
 			max-frequency = <5000000>;
 			no-1-8-v;
@@ -67,7 +69,8 @@
 
 		x5_fpga_emmc: sdio-host@35040000 {
 			compatible = "horizon,x5-sdhci";
-			reg = <0x35040000 0x10000>;
+			reg = <0x35040000 0x10000>,
+			<0x35050064 0x10>;
 			clocks = <&sdclk>;
 			//max-frequency = <200000000>;
 			bus-width = <8>;

@@ -368,6 +368,9 @@ int sdhci_set_clock(struct mmc *mmc, unsigned int clock)
 	int ret;
 	u32 reg;
 
+	if (host->ops && host->ops->platform_set_clock)
+		return host->ops->platform_set_clock(host, clock);
+
 	/* Wait max 20 ms */
 	timeout = 200;
 	while (sdhci_readl(host, SDHCI_PRESENT_STATE) &
