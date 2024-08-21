@@ -291,6 +291,36 @@ uint32_t hb_get_uart_baud(void)
     return 115200;
 }
 
+static char *hb_get_ab_switch_reason(void)
+{
+	int32_t value = 0;
+	int32_t reason = 0;
+
+	value = readl(AON_STATUS_REG1);
+	reason = value;
+	value &= ~(AON_AB_SWITCH_REASON_MASK << AON_AB_SWITCH_REASON_OFFSET);
+	writel(value, AON_STATUS_REG1);
+	reason = AON_AB_SWITCH_REASON_VALUE(reason);
+	switch (reason) {
+	case AB_NORMAL:
+		return "normal";
+	case AB_MISC_BROKEN:
+		return "misc-broken";
+	case AB_BOOT_CORRUTED:
+		return "boot-corruted";
+	case AB_DM_VERITY_CORRUTED:
+		return "dm-verity-corruted";
+	case AB_UBOOT_CORRUTED:
+		return "uboot-corruted";
+	case BAK_MINIBOOT_CORRUTED:
+		return "miniboot-bl3x-corruted";
+	case AB_MISC_INFO_ERR:
+		return "ab-misc-info-err";
+	default:
+		return "abnormal-state";
+	}
+}
+
 void board_bootargs_setup(void)
 {
 	int ret;
@@ -334,6 +364,7 @@ void board_bootargs_setup(void)
 		"hobotboot.reason=%s "
 		"hobotboot.medium=%s "
 		"hobotboot.mode=%s "
+		"hobotboot.ab_switch_reason=%s "
 		"pmic_type=%s "
 		" %s"
 		" %s",
@@ -343,6 +374,7 @@ void board_bootargs_setup(void)
 		env_get("reset_reason"),
 		hb_bootmedium_for_udev(),
 		hb_bootmode(),
+		hb_get_ab_switch_reason(),
 		hb_pmic_type_get(),
 		X5_DEFAULT_BOOTARGS,
 		cmdline ? cmdline : "");

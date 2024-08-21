@@ -20,6 +20,8 @@ bit4~bit7: reset reason 0(cold boot) 1 (watchdog) 2(reboot command) 3(panic in k
 bit8~bit11: 0(NORMAL) 1(usb3) 2(usb2) 3(uart) 4(RECOERY)
 bit12~bit15: 0(NORMAL) 1(ubootonce) 2(udumpfastboot)
 bit16~bit19: 0(dual pmic) 1(single pmic)
+bit20~bit23: ab switch reason: 0(normal) 1(misc broken) 2(boot corruted) 3(dm-verity corruped)
+             4(uboot corruped) 5(miniboot corruped) 6(misc info err)
 */
 #define AON_STATUS_REG1         (AON_STATUS_REG_BASE + 0x04)
 #define AON_AB_SLOT_OFFSET  (0)
@@ -44,6 +46,19 @@ bit16~bit19: 0(dual pmic) 1(single pmic)
 #define AON_PMIC_TYPE_MASK    (0x0FL)
 #define AON_PMIC_TYPE_VALUE(x)    ((x >> AON_PANIC_ACTION_OFFSET) & AON_PANIC_ACTION_MASK)
 
+#define AON_AB_SWITCH_REASON_OFFSET  (20)
+#define AON_AB_SWITCH_REASON_MASK    (0x0FL)
+#define AON_AB_SWITCH_REASON_VALUE(x)    ((x >> AON_AB_SWITCH_REASON_OFFSET) & AON_AB_SWITCH_REASON_MASK)
+
+enum ab_switch_reason {
+    AB_NORMAL = 0,
+    AB_MISC_BROKEN,
+    AB_BOOT_CORRUTED,
+    AB_DM_VERITY_CORRUTED,
+    AB_UBOOT_CORRUTED,
+    BAK_MINIBOOT_CORRUTED,
+    AB_MISC_INFO_ERR,
+};
 
 /*
 AON_STATUS_REG3 use for ddr informaion

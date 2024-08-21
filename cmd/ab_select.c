@@ -10,6 +10,8 @@
 #include <part.h>
 #include <mtd.h>
 #include <linux/mtd/mtd.h>
+#include <asm/io.h>
+#include <asm/arch/hb_aon.h>
 //#include <hb_info.h>
 
 static int do_ab_select_mtd(struct cmd_tbl *cmdtp, int flag, int argc,
@@ -293,16 +295,18 @@ free_mtd:
 static int do_ab_corrupt(struct cmd_tbl *cmdtp, int flag, int argc,
 			char * const argv[])
 {
-    int ret;
-    struct blk_desc *dev_desc;
-    struct disk_partition part_info;
-    int slot;
+	int ret;
+	struct blk_desc *dev_desc;
+	struct disk_partition part_info;
+	int slot;
+	int value = 0;
 
 	if (argc != 4)
 		return CMD_RET_USAGE;
 
 	if (!strncmp(argv[2], "mtd", 3)) {
-		return do_ab_corrupt_mtd(cmdtp, flag, argc, argv);
+		ret = do_ab_corrupt_mtd(cmdtp, flag, argc, argv);
+		goto exit;
 	}
         /* Lookup the "misc" partition from argv[2] and argv[3] */
 	if (part_get_info_by_dev_and_name_or_num(argv[2], argv[3],
@@ -322,7 +326,12 @@ static int do_ab_corrupt(struct cmd_tbl *cmdtp, int flag, int argc,
 		return CMD_RET_FAILURE;
 	}
 
-	return CMD_RET_FAILURE;
+exit:
+	value = readl(AON_STATUS_REG1);
+	value &= ~(AON_AB_SWITCH_REASON_MASK << AON_AB_SWITCH_REASON_OFFSET);
+	value |= AB_BOOT_CORRUTED << AON_AB_SWITCH_REASON_OFFSET;
+	writel(value, AON_STATUS_REG1);
+	return ret;
 }
 
 U_BOOT_CMD(ab_corrupt, 4, 0, do_ab_corrupt,
