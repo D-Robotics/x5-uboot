@@ -10,6 +10,12 @@ config DROBOT_DISABLE_WDT
 	depends on WDT
 	help
 	  Support disable watchdog in drobotic X5 SOC.
+
+config DROBOT_OPTEE_RPMB_DEBUG_CMD
+	bool "enable x5  rpmb optee cmd 'x5_rpmb'"
+	help
+	  Support debug optee rpmb witch cmd x5_rpmb.
+
 source "arch/arm/mach-horizon/x5/Kconfig"
 
 endif
