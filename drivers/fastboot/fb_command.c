@@ -343,7 +343,7 @@ void fastboot_upload_complete(char *response)
 {
 	/* Upload complete. Respond with "OKAY" */
 	fastboot_okay(NULL, response);
-	printf("\nuploading of %d bytes finished\n", fastboot_bytes_send);
+	printf("\nuploading of %u bytes finished\n", fastboot_bytes_send);
 	fastboot_bytes_expected = 0;
 	fastboot_bytes_send = 0;
 }
