@@ -1545,7 +1545,15 @@ struct cipher_algo {
 	int (*decrypt)(struct image_cipher_info *info,
 		       const void *cipher, size_t cipher_len,
 		       void **data, size_t *data_len);
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+	int (*get_key_rpmb)(char *key_name, char **key, uint32_t *key_len);
+	int (*get_iv_rpmb)(char *iv_name, char **iv, uint32_t *iv_len);
+#endif
 };
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+typedef int (*get_key_rpmb)(char *key_name, char **key, uint32_t *key_len);
+typedef int (*get_iv_rpmb)(char *iv_name, char **iv, uint32_t *iv_len);
+#endif
 
 int fit_image_cipher_get_algo(const void *fit, int noffset, char **algo);
 
@@ -1567,7 +1575,10 @@ ulong android_image_get_kload(const struct andr_img_hdr *hdr);
 ulong android_image_get_kcomp(const struct andr_img_hdr *hdr);
 void android_print_contents(const struct andr_img_hdr *hdr);
 bool android_image_print_dtb_contents(ulong hdr_addr);
-
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+void platform_get_image_cipher_key(get_key_rpmb get_key);
+void platform_get_image_cipher_iv(get_iv_rpmb get_iv);
+#endif
 /**
  * board_fit_config_name_match() - Check for a matching board name
  *

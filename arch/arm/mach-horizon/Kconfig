@@ -16,6 +16,11 @@ config DROBOT_OPTEE_RPMB_DEBUG_CMD
 	help
 	  Support debug optee rpmb witch cmd x5_rpmb.
 
+config DROBOT_BOOT_KEY_IN_RPMB
+	bool "boot key is in rpmb"
+	help
+	  Support save boot key in rpmb in drobotic X5 SOC.
+
 source "arch/arm/mach-horizon/x5/Kconfig"
 
 endif

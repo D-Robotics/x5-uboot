@@ -22,8 +22,24 @@
 #include <asm/arch/hb_aon.h>
 #include <hb_info.h>
 #include <wdt.h>
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+#include <asm/arch/hb_rpmb.h>
+#include <image.h>
+#endif
 
 #ifdef CONFIG_LAST_STAGE_INIT
+
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+int x5_get_key_rpmb(char *key_name, char **key, uint32_t *key_len)
+{
+        return drobot_st_file_load(key_name, key, key_len, 0);
+}
+
+int x5_get_iv_rpmb(char *iv_name, char **iv, uint32_t *iv_len)
+{
+        return drobot_st_file_load(iv_name, iv, iv_len, 0);
+}
+#endif
 
 #define RECOVERY_MODE 0x010000
 
@@ -89,6 +105,10 @@ int chip_last_stage_init(void)
 		break;
 	}
 	writel(clear_mode, AON_STATUS_REG1);
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+	platform_get_image_cipher_key(x5_get_key_rpmb);
+	platform_get_image_cipher_iv(x5_get_iv_rpmb);
+#endif
 	return 0;
 }
 

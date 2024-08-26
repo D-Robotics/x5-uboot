@@ -24,6 +24,13 @@
 		u-boot,mmc-env-partition = "ubootenv";
 	};
 
+	cipher {
+		key-aes128-fit_enc_key-fit_enc_iv {
+			key = "2222222222222222";
+			iv =  "1111111111111111";
+		};
+	};
+
 	board_type: board_type {
 		compatible = "hobot,btype";
 		adc_dev = &adc, &adc;

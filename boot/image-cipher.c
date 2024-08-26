@@ -52,6 +52,24 @@ struct cipher_algo cipher_algos[] = {
 	}
 };
 
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+void platform_get_image_cipher_key(get_key_rpmb get_key)
+{
+	int i = 0;
+	for (i = 0; i < sizeof(cipher_algos) / sizeof(cipher_algos[0]); i++) {
+		cipher_algos[i].get_key_rpmb = get_key;
+	}
+}
+
+void platform_get_image_cipher_iv(get_iv_rpmb get_iv)
+{
+	int i = 0;
+	for (i = 0; i < sizeof(cipher_algos) / sizeof(cipher_algos[0]); i++) {
+		cipher_algos[i].get_iv_rpmb = get_iv;
+	}
+}
+#endif
+
 struct cipher_algo *image_get_cipher_algo(const char *full_name)
 {
 	int i;
@@ -76,6 +94,9 @@ static int fit_image_setup_decrypt(struct image_cipher_info *info,
 	int noffset;
 	char *algo_name;
 	int ret;
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+	uint32_t len = 0;
+#endif
 
 	node_name = fit_get_name(fit, image_noffset, NULL);
 	if (!node_name) {
@@ -102,7 +123,6 @@ static int fit_image_setup_decrypt(struct image_cipher_info *info,
 		printf("Can't get IV or IV name\n");
 		return -1;
 	}
-
 	info->fit = fit;
 	info->node_noffset = image_noffset;
 	info->name = algo_name;
@@ -135,23 +155,42 @@ static int fit_image_setup_decrypt(struct image_cipher_info *info,
 		printf("Can't found cipher node offset\n");
 		return -1;
 	}
-
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+	if (info->cipher->get_key_rpmb) {
+		ret = info->cipher->get_key_rpmb((char *)info->keyname, (char **)&info->key, &len);
+		if (ret) {
+			printf("read key from rpmb failed\n");
+			return -1;
+		}
+	}
+#else
 	/* read key */
 	info->key = fdt_getprop(fdt, noffset, "key", NULL);
 	if (!info->key) {
 		printf("Can't get key in cipher node '%s'\n", node_path);
 		return -1;
 	}
+#endif
 
 	/* read iv */
 	if (!info->iv) {
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+		if (info->cipher->get_iv_rpmb) {
+			ret = info->cipher->get_iv_rpmb((char *)info->ivname, (char **)&info->iv, &len);
+			if (ret) {
+				printf("read iv from rpmb failed\n");
+				free((void *)info->key);
+				return -1;
+			}
+		}
+#else
 		info->iv = fdt_getprop(fdt, noffset, "iv", NULL);
 		if (!info->iv) {
 			printf("Can't get IV in cipher node '%s'\n", node_path);
 			return -1;
 		}
+#endif
 	}
-
 	return 0;
 }
 
@@ -170,7 +209,10 @@ int fit_image_decrypt_data(const void *fit,
 
 	ret = info.cipher->decrypt(&info, data_ciphered, size_ciphered,
 				   data_unciphered, size_unciphered);
-
+#ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
+	free((void *)info.key);
+	free((void *)info.iv);
+#endif
  out:
 	return ret;
 }
