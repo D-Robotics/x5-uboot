@@ -387,16 +387,7 @@ static void x5_sdhci_set_control_reg(struct sdhci_host *host)
 	priv->has_pad_init = 1;
 }
 
-int x5_sdhci_set_ios_post(struct sdhci_host *host)
-{
-	struct x5_sdhci_priv *priv = dev_get_priv(host->mmc->dev);
-	sdhci_writeb(host, priv->mshc_ctrl_val,
-				 priv->mshc_ctrl_addr + DWCMSHC_HOST_CTRL3);
-	return 0;
-}
-
 const struct sdhci_ops x5_sdhci_ops = {
-	.set_ios_post = &x5_sdhci_set_ios_post,
 	.platform_execute_tuning	= &x5_sdhci_execute_tuning,
 	.set_control_reg = &x5_sdhci_set_control_reg,
 	.platform_set_clock = &x5_sdhci_set_clock,
@@ -509,6 +500,8 @@ static int x5_sdhci_probe(struct udevice *dev)
 	if (dev_read_bool(dev, "dwcmshc,negative-edge-sample")) {
 		priv->mshc_ctrl_val |= BIT(7);
 	}
+	sdhci_writeb(host, priv->mshc_ctrl_val,
+				 priv->mshc_ctrl_addr + DWCMSHC_HOST_CTRL3);
 
 	ret = mmc_of_parse(dev, &plat->cfg);
 	if (ret)
@@ -521,13 +514,6 @@ static int x5_sdhci_probe(struct udevice *dev)
 
 	/* Set the IP input clock */
 	host->max_clk = bus_clk;
-
-	/* Parse MSHC_CTRL values */
-	priv->mshc_ctrl_addr = sdhci_readl(host, DWCMSHC_P_VENDOR_AREA1) & DWCMSHC_AREA1_MASK;
-	priv->mshc_ctrl_val = sdhci_readb(host, priv->mshc_ctrl_addr + DWCMSHC_HOST_CTRL3);
-	priv->mshc_ctrl_val &= ~(BIT(0));
-	priv->mshc_ctrl_val |= BIT(6);
-	priv->mshc_ctrl_val &= ~BIT(7);
 
 	return sdhci_probe(dev);
 }
