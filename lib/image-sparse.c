@@ -139,8 +139,12 @@ int write_sparse_image(struct sparse_storage *info,
 	int j;
 
 	void *write_back_buf = NULL;
+	void *write_back_buf2 = NULL;
+	lbaint_t write_back_buf2_sectors = 0;
+	lbaint_t blks_read_a = 0;
 	lbaint_t blks_read_f = 0;
 	lbaint_t blks_write_f;
+	lbaint_t blks_write_a;
 	int write_back_flag = 0;
 	struct fb_mmc_sparse *sparse = info->priv;
 	struct blk_desc *dev_desc = sparse->dev_desc;
@@ -283,7 +287,7 @@ int write_sparse_image(struct sparse_storage *info,
 
 			mmc = find_mmc_device(dev_num);
 			if (!mmc)
-				return -1;
+				goto failed_fill_buf;
 			mmc_erase_sz = mmc->erase_grp_size;
 			old_wbbuf_sz = 0;
 
@@ -342,6 +346,31 @@ int write_sparse_image(struct sparse_storage *info,
 							erase_cnt += (((blkend - start_blk - erase_cnt) / mmc_erase_sz + 1)
 							* mmc_erase_sz);
 
+						/* Erase end blk exceeds partition size */
+						if (start_blk + erase_cnt > (info->start + info->size)) {
+							write_back_buf2_sectors = ((start_blk + erase_cnt) -
+													(info->start + info->size));
+							debug("Erasing beyond partition, %#x(%#x)!\n",
+									start_blk, erase_cnt);
+							debug("\tPartEnd:%#lx(%#lx)=%#lx!\n",
+										info->start, info->size,
+										info->start + info->size);
+							if (!write_back_buf2)
+								write_back_buf2 = memalign(ARCH_DMA_MINALIGN, write_back_buf2_sectors * 512);
+
+							if (!write_back_buf2) {
+								printf("Allocate memory for write_back_buf2:%#lx sectors failed!\n", write_back_buf2_sectors);
+								goto failed;
+							}
+							debug("Reading %#lx(%#lx)\n",
+									(info->start + info->size), write_back_buf2_sectors);
+							blks_read_a = blk_dread(dev_desc,
+										   (info->start + info->size),
+											write_back_buf2_sectors,
+											write_back_buf2);
+							write_back_flag |= BIT(2);
+						}
+
 						blks = info->write(info, start_blk, erase_cnt, NULL);
 						last_erased_blk = ((blkend + mmc_erase_sz - 1) / mmc_erase_sz) *
 						mmc_erase_sz;
@@ -354,6 +383,14 @@ int write_sparse_image(struct sparse_storage *info,
 							if (blks_write_f != blks_read_f)
 								goto failed;
 						}
+						if (write_back_flag & BIT(2)) {
+							blks_write_a = info->write(info,
+								(info->start + info->size),
+								write_back_buf2_sectors,
+								write_back_buf2);
+							if (blks_write_a != blks_read_a)
+								goto failed;
+						}
 					}
 
 					write_back_flag = 0;
@@ -363,6 +400,8 @@ int write_sparse_image(struct sparse_storage *info,
 					i += blkcnt;
 					if (write_back_buf != NULL)
 						memset(write_back_buf, 0x0, old_wbbuf_sz);
+					if (write_back_buf2 != NULL)
+						memset(write_back_buf2, 0x0, write_back_buf2_sectors);
 				} else {
 					blks = info->write(info, blk, j, fill_buf);
 					/* blks might be > j (eg. NAND bad-blocks) */
@@ -373,8 +412,7 @@ int write_sparse_image(struct sparse_storage *info,
 					           blk, j);
 						info->mssg("flash write failure",
 							   response);
-						free(fill_buf);
-						return -1;
+						goto failed;
 					}
 					blk += blks;
 					bad_blkcnt += blks - j;
@@ -388,6 +426,10 @@ int write_sparse_image(struct sparse_storage *info,
 			if (write_back_buf != NULL) {
 				free(write_back_buf);
 				write_back_buf = NULL;
+			}
+			if (write_back_buf2 != NULL) {
+				free(write_back_buf2);
+				write_back_buf2 = NULL;
 			}
 			free(fill_buf);
 			break;
@@ -434,6 +476,11 @@ failed:
 		free(write_back_buf);
 		write_back_buf = NULL;
 	}
+	if (write_back_buf2 != NULL) {
+		free(write_back_buf2);
+		write_back_buf2 = NULL;
+	}
+failed_fill_buf:
 	free(fill_buf);
 	return -1;
 }
