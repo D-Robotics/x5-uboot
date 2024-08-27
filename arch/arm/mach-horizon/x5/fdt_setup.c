@@ -515,10 +515,10 @@ static int hb_setup_ion_size(void *blob)
 	 * and ion regions must be shrinked.
 	 */
 
-	log_debug("%s: Get ddr_size:%d\n", __func__, ddr_size);
+	log_debug("%s: Get ddr_size:%lld\n", __func__, ddr_size);
 	hb_ion_set_region_size(&reserved_size, RDK_DEFAULT_ION_RESERVED_SIZE,
 						&carveout_size, RDK_DEFAULT_ION_CARVEOUT_SIZE,
-						&cma_size, RDK_DEFAULT_ION_CMA_SIZE);
+						&cma_size, RDK_DEFAULT_ION_CMA_SIZE, ddr_size);
 
 	offset_size = DEFAULT_ION_REGION_START;
 	(void) hb_set_ion_reserved_size(blob, reserved_size, ION_RESERVED_NAME,
