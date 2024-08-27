@@ -250,8 +250,8 @@ static void board_env_setup(void)
 		"usbupdate;"
 #endif
 		"run ab_select_cmd;"
-		"run avb_boot;");
-	set_bootdev();*/
+		"run avb_boot;");*/
+	set_bootdev();
 
 	hb_board_id_get(&board_id);
 
