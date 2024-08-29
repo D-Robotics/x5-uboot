@@ -182,29 +182,6 @@ static char *hb_bootmedium_for_udev(void)
 #define AON_GPIO0_PIN02_IO 0x31040000
 #define AON_GPIO0_PIN02_EXT 0x31000050
 
-#define LSIO_GPIO0_PIN06_DIR 0x34120004 
-#define LSIO_GPIO0_PIN06_DR 0x34120000 
-#define LSIO_GPIO0_MUX 0x34180084
-
-void gpio_init(void)
-{
-	unsigned int value=0;
-
-	//wifi power on
-	value = readl((void *)LSIO_GPIO0_MUX);
-	value = value | 0x20000000;
-	value = value & (~0x10000000);
-	writel(value, (void *)LSIO_GPIO0_MUX);
-
-	value = readl((void *)LSIO_GPIO0_PIN06_DIR);
-	value = value | 0x40;
-	writel(value, (void *)LSIO_GPIO0_PIN06_DIR);
-
-	value = readl((void *)LSIO_GPIO0_PIN06_DR);
-	value = value | 0x40;
-	writel(value, (void *)LSIO_GPIO0_PIN06_DR);
-}
-
 void if_fastboot(void)
 {
 	int i=4;
@@ -262,7 +239,6 @@ static void board_env_setup(void)
 	env_set("hb_board_id", hex_board_id);
 
 	if_fastboot();
-	gpio_init();
 }
 
 int last_stage_init(void)
