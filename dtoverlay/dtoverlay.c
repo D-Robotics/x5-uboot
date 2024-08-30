@@ -2043,7 +2043,7 @@ void do_dtparam(ulong fdt, char* dt_file, DTPARAM_T *param, int num)
    int override_len;
    int err;
    int i;
-   overlay_dtb = dtoverlay_load_dtb(fdt, dt_file, 0x1A000);
+   overlay_dtb = dtoverlay_load_dtb(fdt, dt_file, 0x50000);
 
    if (!overlay_dtb)
    {
