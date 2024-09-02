@@ -204,6 +204,9 @@ static void board_env_setup(void)
 	char *recovery_mode = env_get("recovery_mode");
 
 	env_set("bootcmd",
+#ifdef CONFIG_USB_UPDATE
+		"usbupdate;"
+#endif
 		"run ab_select_cmd;"
 		"run avb_boot;");
 	set_bootdev();

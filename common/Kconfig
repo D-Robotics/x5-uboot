@@ -856,6 +856,12 @@ config MEMDUMP
 	help
 	  If enabled, adds support for the memdump support.
 
+config USB_UPDATE
+	bool "Auto update by USB storage devices"
+	default n
+	help
+	  Inserting USB storage can auto upgrade
+
 endmenu
 
 menu "Blob list"
