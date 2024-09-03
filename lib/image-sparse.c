@@ -285,11 +285,13 @@ int write_sparse_image(struct sparse_storage *info,
 				return -1;
 			}
 
-			mmc = find_mmc_device(dev_num);
-			if (!mmc)
-				goto failed_fill_buf;
-			mmc_erase_sz = mmc->erase_grp_size;
-			old_wbbuf_sz = 0;
+			if (fastboot_get_flash_type() == FLASH_TYPE_EMMC) {
+				mmc = find_mmc_device(dev_num);
+				if (!mmc)
+					goto failed_fill_buf;
+				mmc_erase_sz = mmc->erase_grp_size;
+				old_wbbuf_sz = 0;
+			}
 
 			for (i = 0; i < blkcnt;) {
 				j = blkcnt - i;
