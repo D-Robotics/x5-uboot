@@ -217,6 +217,16 @@ struct AvbOps {
    */
   AvbIOResult (*read_is_device_unlocked)(AvbOps* ops, bool* out_is_unlocked);
 
+  /* set lock state. The value is returned in
+   * |out_is_unlocked| (true if unlocked, false otherwise). Returns
+   * AVB_IO_RESULT_OK if the state was retrieved, otherwise an error
+   * code.
+   */
+  AvbIOResult (*set_device_unlock)(AvbOps* ops, bool lock_state);
+
+  /* delete_avb_rpmb. delete avb rpmb file to debug original status
+   */
+  AvbIOResult (*delete_avb_rpmb)(AvbOps* ops);
   /* Gets the unique partition GUID for a partition with name in
    * |partition| (NUL-terminated UTF-8 string). The GUID is copied as
    * a string into |guid_buf| of size |guid_buf_size| and will be NUL

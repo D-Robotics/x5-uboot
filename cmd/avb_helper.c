@@ -199,6 +199,8 @@ static int32_t hb_avb_verify_boot(char *bootintf, char *bootdev, char *slot_suff
 	void *kernel_addr = NULL;
 	void *board_id = NULL;
 	bool ab_exist = true;
+	char *new_ret = NULL;
+	char *cmdline = NULL;
 
 	snprintf(ab_corrupt_cmd, sizeof(ab_corrupt_cmd),
 			"ab_corrupt $bootslot %s %s#misc", bootintf, bootdev);
@@ -212,8 +214,6 @@ static int32_t hb_avb_verify_boot(char *bootintf, char *bootdev, char *slot_suff
 	if (ret != AVB_IO_RESULT_OK) {
 		panic("get device status failed\n");
 	}
-	/* TODO: get unlocked status from optee */
-	out_is_unlocked = 0;
 	snprintf(partition, sizeof(partition), "boot%s", slot_suffix);
 	ret = avb_ops->get_size_of_partition(avb_ops, partition, &part_size);
 	if (ret == AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION) {
@@ -237,12 +237,21 @@ static int32_t hb_avb_verify_boot(char *bootintf, char *bootdev, char *slot_suff
 		run_command(ab_corrupt_cmd, 0);
 		do_reset(NULL, 0, 0, NULL);
 	}
-
 	dr_get_partition_dev("system", slot_suffix, system_part, sizeof(system_part));
-	if (strncmp(bootintf, "mmc", strlen("mmc") + 1) == 0) {
+	if ((strncmp(bootintf, "mmc", strlen("mmc") + 1) == 0) && ret == 0) {
 		ret = replace_dm_part(system_part);
 		if (ret && (!out_is_unlocked)) {
 			do_reset(NULL, 0, 0, NULL);
+		}
+		/* unlock state, change restart_on_corruption to ignore_corruption */
+		if (out_is_unlocked == true) {
+			cmdline = env_get("bootargs");
+			new_ret = avb_replace(cmdline, "restart_on_corruption", "ignore_corruption");
+			if (new_ret == NULL) {
+				printf("ERROR: replace restart_on_corruption to ignore_corruption failed\n");
+			} else {
+				env_set("bootargs", new_ret);
+			}
 		}
 	}
 

@@ -368,6 +368,47 @@ int do_avb_is_unlocked(struct cmd_tbl *cmdtp, int flag,
 	return CMD_RET_FAILURE;
 }
 
+int do_avb_set_unlock(struct cmd_tbl *cmdtp, int flag,
+		       int argc, char *const argv[])
+{
+	bool unlock;
+        char *endp;
+
+	if (!avb_ops) {
+		printf("AVB not initialized, run 'avb init' first\n");
+		return CMD_RET_FAILURE;
+	}
+
+	if (argc != 2) {
+		printf("--%s(-1)\n", __func__);
+		return CMD_RET_USAGE;
+	}
+        unlock = dectoul(argv[1], &endp);
+	if (*endp && *endp != '\n')
+		return CMD_RET_USAGE;
+	if (avb_ops->set_device_unlock(avb_ops, unlock) ==
+	    AVB_IO_RESULT_OK) {
+		printf("Unlocked = %d\n", unlock);
+		return CMD_RET_SUCCESS;
+	}
+	printf("Can't determine device lock state.\n");
+
+	return CMD_RET_FAILURE;
+}
+
+int do_avb_delete_rpmb(struct cmd_tbl *cmdtp, int flag,
+		       int argc, char *const argv[])
+{
+	if (avb_ops->delete_avb_rpmb(avb_ops) ==
+	    AVB_IO_RESULT_OK) {
+		printf("delete avb rpmb\n");
+		return CMD_RET_SUCCESS;
+	}
+	printf("Can't delete avb rpmb state.\n");
+
+	return CMD_RET_FAILURE;
+}
+
 int do_avb_read_pvalue(struct cmd_tbl *cmdtp, int flag, int argc,
 		       char *const argv[])
 {
@@ -443,6 +484,8 @@ static struct cmd_tbl cmd_avb[] = {
 	U_BOOT_CMD_MKENT(read_rb, 2, 0, do_avb_read_rb, "", ""),
 	U_BOOT_CMD_MKENT(write_rb, 3, 0, do_avb_write_rb, "", ""),
 	U_BOOT_CMD_MKENT(is_unlocked, 1, 0, do_avb_is_unlocked, "", ""),
+	U_BOOT_CMD_MKENT(del_rpmb, 1, 0, do_avb_delete_rpmb, "", ""),
+	U_BOOT_CMD_MKENT(set_unlock, 2, 0, do_avb_set_unlock, "", ""),
 	U_BOOT_CMD_MKENT(get_uuid, 2, 0, do_avb_get_uuid, "", ""),
 	U_BOOT_CMD_MKENT(read_part, 5, 0, do_avb_read_part, "", ""),
 	U_BOOT_CMD_MKENT(read_part_hex, 4, 0, do_avb_read_part_hex, "", ""),
@@ -479,6 +522,8 @@ U_BOOT_CMD(
 	"avb read_rb <num> - read rollback index at location <num>\n"
 	"avb write_rb <num> <rb> - write rollback index <rb> to <num>\n"
 	"avb is_unlocked - returns unlock status of the device\n"
+	"avb set_unlock <value> - set lock status, 1--->unlock, 0---->lock\n"
+	"avb del_rpmb  - delete avb rpmb file to debug defualt status\n"
 	"avb get_uuid <partname> - read and print uuid of partition <part>\n"
 	"avb read_part <partname> <offset> <num> <addr> - read <num> bytes from\n"
 	"    partition <partname> to buffer <addr>\n"
@@ -494,3 +539,39 @@ U_BOOT_CMD(
 	"    from vbmeta structure\n"
 	"    [slot_suffix] - _a, _b, etc (if vbmeta partition is slotted)\n"
 	);
+
+static inline struct AvbOps *drobot_init_avb(void)
+{
+	const char *interface;
+	uint64_t dev;
+
+	interface = env_get("dev_name");
+
+	dev = hextoul(env_get("dev_index"), NULL);
+	if (avb_ops) {
+		avb_ops_free(avb_ops);
+	}
+	return avb_ops_alloc(interface, dev);
+}
+
+int drobot_set_device_unlock(bool unlock)
+{
+	avb_ops = drobot_init_avb();
+	if (avb_ops == NULL) {
+		printf("malloc avb_ops failed\n");
+		return -1;
+	}
+
+	return avb_ops->set_device_unlock(avb_ops, unlock);
+}
+
+int drobot_get_device_unlock(bool *unlock)
+{
+	avb_ops = drobot_init_avb();
+	if (avb_ops == NULL) {
+		printf("malloc avb_ops failed\n");
+		return -1;
+	}
+
+	return avb_ops->read_is_device_unlocked(avb_ops, unlock);
+}

@@ -688,6 +688,7 @@ static AvbIOResult read_rollback_index(AvbOps *ops,
 
 	return AVB_IO_RESULT_OK;
 #else
+#ifdef CONFIG_X5_SUPPORT_CHECK_ROLLBACK
 	AvbIOResult rc;
 	struct tee_param param[2];
 
@@ -707,6 +708,10 @@ static AvbIOResult read_rollback_index(AvbOps *ops,
 	*out_rollback_index = (u64)param[1].u.value.a << 32 |
 			      (u32)param[1].u.value.b;
 	return AVB_IO_RESULT_OK;
+#else
+	*out_rollback_index = 0;
+	return AVB_IO_RESULT_OK;
+#endif
 #endif
 }
 
@@ -731,6 +736,7 @@ static AvbIOResult write_rollback_index(AvbOps *ops,
 
 	return AVB_IO_RESULT_OK;
 #else
+#ifdef CONFIG_X5_SUPPORT_CHECK_ROLLBACK
 	struct tee_param param[2];
 
 	if (rollback_index_slot >= TA_AVB_MAX_ROLLBACK_LOCATIONS)
@@ -745,6 +751,9 @@ static AvbIOResult write_rollback_index(AvbOps *ops,
 
 	return invoke_func(ops->user_data, TA_AVB_CMD_WRITE_ROLLBACK_INDEX,
 			   ARRAY_SIZE(param), param);
+#else
+	return AVB_IO_RESULT_OK;
+#endif
 #endif
 }
 
@@ -766,7 +775,7 @@ static AvbIOResult read_is_device_unlocked(AvbOps *ops, bool *out_is_unlocked)
 
 	printf("%s not supported yet\n", __func__);
 
-	*out_is_unlocked = true;
+	*out_is_unlocked = false;
 
 	return AVB_IO_RESULT_OK;
 #else
@@ -774,9 +783,73 @@ static AvbIOResult read_is_device_unlocked(AvbOps *ops, bool *out_is_unlocked)
 	struct tee_param param = { .attr = TEE_PARAM_ATTR_TYPE_VALUE_OUTPUT };
 
 	rc = invoke_func(ops->user_data, TA_AVB_CMD_READ_LOCK_STATE, 1, &param);
+	if (rc) {
+		printf("get lock status failed, force setting locked\n");
+		out_is_unlocked = 0;
+		return AVB_IO_RESULT_OK;
+	}
+	*out_is_unlocked = !param.u.value.a;
+	return AVB_IO_RESULT_OK;
+#endif
+}
+
+/**
+ * set_device_unlock() - set unlock state, 0---lock, 1---unlock
+ *
+ * @ops: contains AVB ops handlers
+ * @out_is_unlocked: device unlock state is stored here, true if unlocked,
+ *       false otherwise
+ *
+ * @return:
+ *       AVB_IO_RESULT_OK: state is retrieved successfully
+ *       AVB_IO_RESULT_ERROR_IO: an error occurred
+ */
+static AvbIOResult set_device_unlock(AvbOps *ops, bool lock_state)
+{
+#ifndef CONFIG_OPTEE_TA_AVB
+	/* For now we always return that the device is unlocked. */
+
+	printf("%s not supported yet\n", __func__);
+
+	return AVB_IO_RESULT_OK;
+#else
+	AvbIOResult rc;
+	struct tee_param param = {
+                .attr = TEE_PARAM_ATTR_TYPE_VALUE_INPUT,
+                .u.value.a = ! lock_state,
+        };
+	rc = invoke_func(ops->user_data, TA_AVB_CMD_WRITE_LOCK_STATE, 1, &param);
 	if (rc)
 		return rc;
-	*out_is_unlocked = !param.u.value.a;
+	return AVB_IO_RESULT_OK;
+#endif
+}
+
+/**
+ * delete_avb_rpmb()--delete avb rpmb file to revert orginal status
+ *
+ * @ops: contains AVB ops handlers
+ *
+ * @return:
+ *       AVB_IO_RESULT_OK: state is retrieved successfully
+ *       AVB_IO_RESULT_ERROR_IO: an error occurred
+ */
+static AvbIOResult delete_avb_rpmb(AvbOps *ops)
+{
+#ifndef CONFIG_OPTEE_TA_AVB
+	/* For now we always return that the device is unlocked. */
+
+	printf("%s not supported yet\n", __func__);
+
+	return AVB_IO_RESULT_OK;
+#else
+	AvbIOResult rc;
+	struct tee_param param = {
+                .attr = TEE_PARAM_ATTR_TYPE_NONE,
+        };
+	rc = invoke_func(ops->user_data, TA_AVB_CMD_DELETE_RPMB, 1, &param);
+	if (rc)
+		return rc;
 	return AVB_IO_RESULT_OK;
 #endif
 }
@@ -1031,6 +1104,8 @@ setup_public_ops:
 	ops_data->ops.read_rollback_index = read_rollback_index;
 	ops_data->ops.write_rollback_index = write_rollback_index;
 	ops_data->ops.read_is_device_unlocked = read_is_device_unlocked;
+	ops_data->ops.set_device_unlock = set_device_unlock;
+	ops_data->ops.delete_avb_rpmb = delete_avb_rpmb;
 	ops_data->ops.get_preloaded_partition = get_preloaded_partition;
 
 #ifdef CONFIG_OPTEE_TA_AVB

@@ -61,4 +61,10 @@
  */
 #define TA_AVB_CMD_WRITE_PERSIST_VALUE	5
 
+/*
+ * delete avb rpmb to debug origin status
+ *
+ */
+#define TA_AVB_CMD_DELETE_RPMB 6
+
 #endif /* __TA_AVB_H */

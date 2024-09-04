@@ -55,6 +55,8 @@ char *avb_set_enforce_verity(const char *cmdline);
 char *avb_set_ignore_corruption(const char *cmdline);
 
 char *append_cmd_line(char *cmdline_orig, char *cmdline_new);
+int drobot_set_device_unlock(bool unlock);
+int drobot_get_device_unlock(bool *unlock);
 
 /**
  * ============================================================================
