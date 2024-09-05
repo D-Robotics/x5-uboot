@@ -241,6 +241,15 @@ config FASTBOOT_CMD_OEM_SET_MEDIUM
 	      "fastboot oem set_medium emmc1"
 	      "fastboot oem set_medium spinand0"
 
+config FASTBOOT_CMD_FLASHING_LOCK
+	bool "Enable the 'flashing lock/unlock' command"
+	help
+	  Add support for the "flashing lock/unlock" command from a client. This
+	  could help to set lock/unlock device. Then it is flexible to flash the
+	  indicated medium.
+	  eg. "fastboot flashing unlock"
+	      "fastboot flashing lock"
+
 endif # FASTBOOT
 
 endmenu

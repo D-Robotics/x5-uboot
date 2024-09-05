@@ -18,6 +18,10 @@
 
 #include <asm/global_data.h>
 
+#if CONFIG_IS_ENABLED(FASTBOOT_CMD_FLASHING_LOCK)
+#include <avb_verify.h>
+#endif
+
 DECLARE_GLOBAL_DATA_PTR;
 
 #define EP_BUFFER_SIZE			4096
@@ -72,6 +76,10 @@ static void oem_set_medium(char *cmd_parameter, char *response);
 #if CONFIG_IS_ENABLED(FASTBOOT_UUU_SUPPORT)
 static void run_ucmd(char *, char *);
 static void run_acmd(char *, char *);
+#endif
+#if CONFIG_IS_ENABLED(FASTBOOT_CMD_FLASHING_LOCK)
+static void run_flashing_lock(char *, char *);
+static void run_flashing_unlock(char *, char *);
 #endif
 
 static const struct {
@@ -162,6 +170,16 @@ static const struct {
 	[FASTBOOT_COMMAND_ACMD] = {
 		.command = "ACmd",
 		.dispatch = run_acmd,
+	},
+#endif
+#if CONFIG_IS_ENABLED(FASTBOOT_CMD_FLASHING_LOCK)
+	[FASTBOOT_COMMAND_FLASHING_LOCK] = {
+		.command = "flashing lock",
+		.dispatch = run_flashing_lock,
+	},
+	[FASTBOOT_COMMAND_FLASHING_UNLOCK] = {
+		.command = "flashing unlock",
+		.dispatch = run_flashing_unlock,
 	},
 #endif
 };
@@ -725,4 +743,40 @@ static void oem_set_medium(char *cmd_parameter, char *response)
 	fastboot_okay(NULL, response);
 }
 
+#endif
+
+#if CONFIG_IS_ENABLED(FASTBOOT_CMD_FLASHING_LOCK)
+static void set_device_unlock(bool status, char *response)
+{
+	bool is_unlocked = false;
+	int ret = 0;
+
+	ret = drobot_get_device_unlock(&is_unlocked);
+	if (ret < 0) {
+		fastboot_fail("get unlock status failed", response);
+		return;
+	}
+	if (is_unlocked == status) {
+		printf("Device already : %s\n", (status ? "unlocked!" : "locked!"));
+		fastboot_okay("", response);
+		return;
+	}
+	printf("Set Device : %s\n", (status ? "unlocked!" : "locked!"));
+	ret = drobot_set_device_unlock(status);
+	if (ret < 0) {
+		fastboot_fail("set unlock status failed", response);
+		return;
+	}
+	fastboot_okay("", response);
+}
+
+static void run_flashing_unlock(char *cmd_parameter, char *response)
+{
+	set_device_unlock(true, response);
+}
+
+static void run_flashing_lock(char *cmd_parameter, char *response)
+{
+	set_device_unlock(false, response);
+}
 #endif
