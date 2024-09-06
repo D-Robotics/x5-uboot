@@ -215,6 +215,38 @@ void if_fastboot(void)
 	}
 }
 
+//HSIO_SDIO_CDN HSIO_GPIO_26 TF VDD
+#define HSIO_GPIO_26_IOMUX  0x35050058 //27:26
+#define HSIO_GPIO_26_DIR 0x35060004
+#define HSIO_GPIO_26_IO 0x35060000
+#define HSIO_GPIO_26 26
+
+void tf_power(void)
+{
+	unsigned int value=0;
+
+	value = readl((void *)HSIO_GPIO_26_IOMUX);
+	value = value & (~(0x03 << HSIO_GPIO_26));
+	value = value | (0x02 << HSIO_GPIO_26);
+	writel(value, (void *)HSIO_GPIO_26_IOMUX);
+
+	value = readl((void *)HSIO_GPIO_26_DIR);
+	value = value | (0x01 << HSIO_GPIO_26);
+	writel(value, (void *)HSIO_GPIO_26_DIR);
+
+	value = readl((void *)HSIO_GPIO_26_IO);
+	value = value & (~(0x01 << HSIO_GPIO_26));
+	writel(value, (void *)HSIO_GPIO_26_IO);
+
+	udelay(50*1000);
+
+	value = readl((void *)HSIO_GPIO_26_IO);
+	value = value | (0x01 << HSIO_GPIO_26);
+	writel(value, (void *)HSIO_GPIO_26_IO);
+
+	udelay(100*1000);
+}
+
 static void board_env_setup(void)
 {
 	u32 board_id;
@@ -237,7 +269,7 @@ static void board_env_setup(void)
 	}
 
 	env_set("hb_board_id", hex_board_id);
-
+	tf_power();
 	if_fastboot();
 }
 
