@@ -13,6 +13,7 @@
 #define HOBOT_X5_EVB_ID    0x0201
 #define HOBOT_X5_EVB_V2_ID 0x0202
 #define HOBOT_X5_RDK_ID    0x0301
+#define HOBOT_X5_RDK_V1P0_ID    0x0302
 
 #if defined(CONFIG_HOBOT_X5_FPGA)
     #define HOBOT_X5_BOARD_ID HOBOT_X5_FPGA_ID
@@ -26,6 +27,8 @@
     #define HOBOT_X5_BOARD_ID HOBOT_X5_EVB_V2_ID
 #elif defined(CONFIG_HOBOT_X5_RDK)
     #define HOBOT_X5_BOARD_ID HOBOT_X5_RDK_ID
+#elif defined(CONFIG_HOBOT_X5_RDK_V1P0)
+    #define HOBOT_X5_BOARD_ID HOBOT_X5_RDK_V1P0_ID
 #elif !defined(CONFIG_HOBOT_ADC_BTYPE)
     #define CONFIG_HOBOT_ADC_BTYPE
 #endif
