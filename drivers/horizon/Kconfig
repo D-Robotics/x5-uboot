@@ -42,6 +42,11 @@ config HOBOT_X5_RDK
 	bool "X5RDK"
 	help
 	  Select this option for Board Type X5 RDK.
+	  
+config HOBOT_X5_RDK_V1P0
+	bool "X5RDK_V1P0"
+	help
+	  Select this option for Board Type X5 RDK V1P0.
 
 endchoice
 
