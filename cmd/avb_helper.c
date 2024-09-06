@@ -222,6 +222,7 @@ static int32_t hb_avb_verify_boot(char *bootintf, char *bootdev, char *slot_suff
 		snprintf(partition, sizeof(partition), "boot");
 		ret = avb_ops->get_size_of_partition(avb_ops, partition, &part_size);
 		if (ret) {
+			run_command(ab_corrupt_cmd, 0);
 			/* shouldn't going to here. */
 			panic("Can't find boot partition\n");
 		}
