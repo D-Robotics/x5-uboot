@@ -18,6 +18,7 @@
 #include <dm/ofnode.h>
 #include <rand.h>
 #include <asm/io.h>
+#include <asm/arch/hb_efuse.h>
 #include <asm/arch/hb_strappin.h>
 #include <asm/arch/hb_aon.h>
 #include <hb_info.h>
@@ -200,8 +201,10 @@ static char *hb_bootmedium_for_udev(void)
 static void board_env_setup(void)
 {
 	u32 board_id;
+	u32 efuse_buf[4] = {0};
 	char hex_board_id[9];
 	char *recovery_mode = env_get("recovery_mode");
+	char hex_socuid[32];
 
 	env_set("bootcmd",
 #ifdef CONFIG_USB_UPDATE
@@ -222,6 +225,12 @@ static void board_env_setup(void)
 	}
 
 	env_set("hb_board_id", hex_board_id);
+
+	if (hb_get_socuid(efuse_buf) == 0) {
+		snprintf(hex_socuid, sizeof(hex_socuid), "%08x%08x%08x%08x", efuse_buf[3], efuse_buf[2], efuse_buf[1], efuse_buf[0]);
+		hex_socuid[31] = '\0';
+		env_set("serial#", hex_socuid);
+	}
 }
 
 int last_stage_init(void)
