@@ -93,6 +93,11 @@
 			#clock-cells = <0>;
 			clock-frequency = <ADC_CLK_FREQ>;
 		};
+		i2cclk: i2cclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <I2C_CLK_FREQ>;
+		};
 		wdtclk: wdtclk {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
@@ -148,6 +153,18 @@
 		efuse-offset = <0x74>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+	};
+
+	i2c2: i2c@340d0000 {
+		compatible = "snps,designware-i2c";
+		status = "okay";
+		reg = <0x340d0000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&i2cclk>;
+		#clock-names = "i2c-clk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_i2c2>;
 	};
 
 	board_dts: board_dts {
