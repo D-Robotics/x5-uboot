@@ -35,6 +35,7 @@ enum dm_i2c_chip_flags {
 /** enum i2c_speed_mode - standard I2C speed modes */
 enum i2c_speed_mode {
 	IC_SPEED_MODE_STANDARD,
+	IC_SPEED_MODE_200K_FAST,
 	IC_SPEED_MODE_FAST,
 	IC_SPEED_MODE_FAST_PLUS,
 	IC_SPEED_MODE_HIGH,
@@ -46,6 +47,7 @@ enum i2c_speed_mode {
 /** enum i2c_speed_rate - standard I2C speeds in Hz */
 enum i2c_speed_rate {
 	I2C_SPEED_STANDARD_RATE		= 100000,
+	I2C_SPEED_200K_RATE 	= 200000,
 	I2C_SPEED_FAST_RATE		= 400000,
 	I2C_SPEED_FAST_PLUS_RATE	= 1000000,
 	I2C_SPEED_HIGH_RATE		= 3400000,
