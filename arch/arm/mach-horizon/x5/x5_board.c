@@ -365,7 +365,7 @@ void board_bootargs_setup(void)
 		"hobotboot.medium=%s "
 		"hobotboot.mode=%s "
 		"hobotboot.ab_switch_reason=%s "
-		"pmic_type=%s "
+		"hobotboot.pmic_type=%s "
 		" %s"
 		" %s",
 		console_args,
