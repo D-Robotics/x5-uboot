@@ -266,7 +266,10 @@ void env_set_default(const char *s, int flags)
 		debug("Using default environment\n");
 	}
 
-	flags |= H_DEFAULT;
+	if((flags & H_EXTERNAL) != 0){
+		flags |= H_DEFAULT;
+	}
+
 	if (himport_r(&env_htab, default_environment,
 			sizeof(default_environment), '\0', flags, 0,
 			0, NULL) == 0) {
@@ -276,7 +279,9 @@ void env_set_default(const char *s, int flags)
 	}
 
 	gd->flags |= GD_FLG_ENV_READY;
-	gd->flags |= GD_FLG_ENV_DEFAULT;
+	if((flags & H_EXTERNAL) != 0){
+		gd->flags |= GD_FLG_ENV_DEFAULT;
+	}
 }
 
 
