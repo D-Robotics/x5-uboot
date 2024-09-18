@@ -114,6 +114,59 @@ static void fdt_set_status_by_env(void *fdt_blob)
 	}
 }
 
+static void fdt_rm_by_env(void *fdt_blob)
+{
+	int nodeoffset, err;
+	char *rm_list = env_get("fdt_remove");
+	char *node_item_full, *node_item, *prop_item;
+	if (rm_list == NULL) {
+		return;
+	}
+
+	node_item_full = rm_list;
+	while (rm_list != NULL) {
+		debug("%s\n", rm_list);
+		node_item_full = strsep(&rm_list, ";");
+		do {
+			/* Handle multiple spaces */
+			node_item = strsep(&node_item_full, " ");
+		} while (*node_item == '\0');
+
+		debug("%s, %s\n", node_item_full, node_item);
+		nodeoffset = fdt_path_offset(fdt_blob, node_item);
+		if (nodeoffset < 0) {
+			/*
+			* Not found or something else bad happened.
+			*/
+			printf("libfdt fdt_path_offset() returned %s searching for %s\n",
+				fdt_strerror(nodeoffset), node_item);
+			continue;
+		}
+		if (node_item_full == NULL) {
+			/* no space found, deleting node */
+			err = fdt_del_node(working_fdt, nodeoffset);
+			if (err < 0) {
+				printf("libfdt fdt_del_node(%s): %s\n", node_item,
+					fdt_strerror(err));
+				continue;
+			}
+			printf("fdt node:%s removed\n", node_item);
+		} else {
+			/* space found, deleting prop */
+			prop_item = node_item_full;
+			err = fdt_delprop(working_fdt, nodeoffset, prop_item);
+			if (err < 0) {
+				printf("libfdt fdt_delprop(%s): %s\n", prop_item,
+					fdt_strerror(err));
+				continue;
+			}
+			printf("fdt prop:%s %s removed\n", node_item, prop_item);
+		}
+	}
+
+	return;
+}
+
 static void check_cpu_1_8g_support(void *fdt)
 {
         int offs, ret;
@@ -640,6 +693,7 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 	update_boot_mode(blob);
 	check_cpu_1_8g_support(blob);
 	hb_do_fdt_overlay(blob);
+	fdt_rm_by_env(blob);
 	return 0;
 }
 #endif
