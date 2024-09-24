@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright 2019 Horizon Robotics, Inc.
+ * Copyright 2024 D-Robotics, Inc.
  * All rights reserved.
  *
  * Author:
- *	Peng01 Liu<peng01.liu@horizon.ai>
+ *	jinbao.he <jinbao.he@d-robotics.cc>
  */
 
 #ifndef __UBOOT__
