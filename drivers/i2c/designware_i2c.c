@@ -110,8 +110,8 @@ static const struct i2c_mode_info info_for_mode[] = {
 		I2C_SPEED_FAST_PLUS_RATE,
 		MIN_FP_SCL_HIGHTIME,
 		MIN_FP_SCL_LOWTIME,
-		260,
-		500,
+		120,
+		100,
 	},
 	[IC_SPEED_MODE_HIGH] = {
 		I2C_SPEED_HIGH_RATE,
