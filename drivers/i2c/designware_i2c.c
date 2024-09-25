@@ -737,8 +737,10 @@ static int designware_i2c_probe_chip(struct udevice *bus, uint chip_addr,
 
 	/* Try to read the first location of the chip */
 	ret = __dw_i2c_read(i2c_base, chip_addr, 0, 1, (uchar *)&tmp, 1);
+#if !CONFIG_IS_ENABLED(TARGET_X5)
 	if (ret)
 		__dw_i2c_init(i2c_base, 0, 0);
+#endif
 
 	return ret;
 }
