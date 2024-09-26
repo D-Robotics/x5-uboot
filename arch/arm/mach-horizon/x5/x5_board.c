@@ -183,9 +183,15 @@ static char *hb_bootmedium_for_udev(void)
 #define HSIO_GPIO_26_IO 0x35060000
 #define HSIO_GPIO_26 26
 
+#define HSIO_SD_CMD_Pinctrl 0x35050034
+#define HSIO_SD_DATA_Pinctrl 0x35050030
+
 void tf_power(void)
 {
 	unsigned int value=0;
+
+	writel(0x46484646, (void *)HSIO_SD_CMD_Pinctrl);
+	writel(0x46464646, (void *)HSIO_SD_DATA_Pinctrl);
 
 	value = readl((void *)HSIO_GPIO_26_IOMUX);
 	value = value & (~(0x03 << HSIO_GPIO_26));
