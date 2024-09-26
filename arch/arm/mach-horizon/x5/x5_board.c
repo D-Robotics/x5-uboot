@@ -177,44 +177,6 @@ static char *hb_bootmedium_for_udev(void)
 	}
 }
 
-//AON_GPIO0_PIN02
-#define AON_GPIO0_PIN02_DIR 0x31000004
-#define AON_GPIO0_PIN02_IO 0x31040000
-#define AON_GPIO0_PIN02_EXT 0x31000050
-
-void if_fastboot(void)
-{
-	int i=4;
-	unsigned int value=0;
-
-	value = readl((void *)AON_GPIO0_PIN02_IO);
-	value = value & (~0x00600000);
-	writel(value, (void *)AON_GPIO0_PIN02_IO);
-
-	value = readl((void *)AON_GPIO0_PIN02_DIR);
-	value = value & (~0x04);
-	writel(value, (void *)AON_GPIO0_PIN02_DIR);
-
-	while(i>0)
-	{
-		value = readl((void *)AON_GPIO0_PIN02_EXT);
-		value = ((value & 0x04)>>2);
-
-		if(value == 1)
-			break;
-		
-		udelay(500*1000);
-		i--;
-	}
-
-	if(i==0)
-	{
-		printf("button Long press, need into fastboot mode\n");
-		udelay(100*1000);
-		run_command("ums 0 mmc 1",0);
-	}
-}
-
 //HSIO_SDIO_CDN HSIO_GPIO_26 TF VDD
 #define HSIO_GPIO_26_IOMUX  0x35050058 //27:26
 #define HSIO_GPIO_26_DIR 0x35060004
@@ -270,7 +232,6 @@ static void board_env_setup(void)
 
 	env_set("hb_board_id", hex_board_id);
 	tf_power();
-	if_fastboot();
 }
 
 int last_stage_init(void)

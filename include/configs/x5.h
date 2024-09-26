@@ -110,7 +110,16 @@
 /*#define CONFIG_BOOTCOMMAND "if sd_detect; then run distro_bootcmd; " \
 	"else echo SD card not detected; fi; " \
 	"echo Boot from eMMC or SD Card failed"*/
-#define CONFIG_BOOTCOMMAND "run distro_bootcmd; "
+#define CONFIG_BOOTCOMMAND "run img_update; run distro_bootcmd; "
+
+#define RDK_UPDATE \
+	"img_update=" \
+		"if mmc dev 1; then " \
+			"echo SD Card detected,into ums update system; imgupdate 0; " \
+			"else " \
+			"echo SD Card not detected into fastboot update miniboot; imgupdate 1; " \
+		"fi\0"
+
 #else
 
 #define KERNEL_ADDR     __stringify(0x90000000)
@@ -449,6 +458,7 @@
 #ifdef CONFIG_DISTRO_DEFAULTS
 #define CONFIG_EXTRA_ENV_SETTINGS \
     ENV_MEM_LAYOUT_SETTINGS \
+    RDK_UPDATE \
 	BOOTENV
 #else
 #define CONFIG_EXTRA_ENV_SETTINGS                                                       \
