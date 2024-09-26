@@ -51,7 +51,7 @@ struct block_drvr {
 
 #define PART_NAME_LEN 32
 #define PART_TYPE_LEN 32
-#define MAX_SEARCH_PARTITIONS 128
+#define MAX_SEARCH_PARTITIONS 32 // max partition number: 32
 
 #define PART_BOOTABLE			((int)BIT(0))
 #define PART_EFI_SYSTEM_PARTITION	((int)BIT(1))
