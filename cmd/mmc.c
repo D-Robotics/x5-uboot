@@ -14,6 +14,8 @@
 #include <part.h>
 #include <sparse_format.h>
 #include <image-sparse.h>
+#include <asm/io.h>
+#include <linux/delay.h>
 
 static int curr_device = -1;
 
@@ -1132,6 +1134,54 @@ static int do_mmcops(struct cmd_tbl *cmdtp, int flag, int argc,
 	return cp->cmd(cmdtp, flag, argc, argv);
 }
 
+//AON_GPIO0_PIN02
+#define AON_GPIO0_PIN02_DIR 0x31000004
+#define AON_GPIO0_PIN02_IO 0x31040000
+#define AON_GPIO0_PIN02_EXT 0x31000050
+
+static int do_imgupdate(struct cmd_tbl *cmdtp, int flag,
+			  int argc, char * const argv[])
+{
+	int i=4;
+	unsigned int value=0;
+
+	printf("argv[1] %s\n",argv[1]);
+
+	value = readl((void *)AON_GPIO0_PIN02_IO);
+	value = value & (~0x00600000);
+	writel(value, (void *)AON_GPIO0_PIN02_IO);
+
+	value = readl((void *)AON_GPIO0_PIN02_DIR);
+	value = value & (~0x04);
+	writel(value, (void *)AON_GPIO0_PIN02_DIR);
+
+	while(i>0)
+	{
+		value = readl((void *)AON_GPIO0_PIN02_EXT);
+		value = ((value & 0x04)>>2);
+
+		if(value == 1)
+			break;
+		
+		udelay(500*1000);
+		i--;
+	}
+
+	if(i==0)
+	{
+		printf("button Long press, need into fastboot mode\n");
+		udelay(100*1000);
+		if (strcmp(argv[1], "0") == 0)
+			run_command("ums 0 mmc 1",0);
+		else
+			run_command("fastboot 0",0);
+	}
+	else
+		printf("button no press,pass\n");
+
+	return 0;
+}
+
 U_BOOT_CMD(
 	mmc, 29, 1, do_mmcops,
 	"MMC sub system",
@@ -1196,4 +1246,11 @@ U_BOOT_CMD(
 	mmcinfo, 1, 0, do_mmcinfo,
 	"display MMC info",
 	"- display info of the current MMC device"
+);
+
+/*  */
+U_BOOT_CMD(
+	imgupdate, 2, 1, do_imgupdate,
+	"Update img",
+	"- have sd card into ums,no sd card into fastboot"
 );
