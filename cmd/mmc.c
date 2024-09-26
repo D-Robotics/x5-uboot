@@ -1169,7 +1169,7 @@ static int do_imgupdate(struct cmd_tbl *cmdtp, int flag,
 
 	if(i==0)
 	{
-		printf("button Long press, need into fastboot mode\n");
+		printf("button Long press, need into update mode\n");
 		udelay(100*1000);
 		if (strcmp(argv[1], "0") == 0)
 			run_command("ums 0 mmc 1",0);
