@@ -20,12 +20,13 @@ int hb_board_id_set(uint32_t board_id);
 char *hb_eth0_ip_get(void);
 int hb_eth0_ip_set(const char *eth0_ip);
 char *hb_board_name_get(void);
-int hb_board_name_set(const char *name);
 int hb_device_init(void);
 char *hb_bootargs_console(void);
 int32_t hb_get_socid(char *socid);
 int32_t hb_pmic_type_set(const char *name);
 char *hb_pmic_type_get(void);
+int32_t hb_board_version_set(const char *name);
+char *hb_board_version_get(void);
 
 static inline uint32_t hb_csum_calculate(void *buffer, size_t size)
 {

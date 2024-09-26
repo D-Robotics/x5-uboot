@@ -13,8 +13,9 @@
 static char hardware_name[64] = {0};
 static char ethact_name[64] = {0};
 static char net_eth0_ip[64] = {0};
-static char board_name[64] = {0};
+static char board_name[128] = {0};
 static char pmic_type[64] = {0};
+static char board_version[64] = {0};
 static uint32_t  hb_board_id = 0;
 
 char *hb_hardware_name_get(void)
@@ -31,14 +32,10 @@ int32_t hb_hardware_name_set(const char *name)
 
 char *hb_board_name_get(void)
 {
-	if (strlen(board_name) == 0)
+	if (!strlen(hardware_name) || !strlen(board_version))
 		pr_err("board_name is empty now!\n");
+	snprintf(board_name, sizeof(board_name), "%s-%s", hardware_name, board_version);
 	return board_name;
-}
-
-int32_t hb_board_name_set(const char *name)
-{
-	return !strlcpy(board_name, name, sizeof(board_name));
 }
 
 char *hb_ethact_name_get(void)
@@ -80,6 +77,18 @@ char *hb_pmic_type_get(void)
 	if (strlen(pmic_type) == 0)
 		pr_err("pmic type is empty now!\n");
 	return pmic_type;
+}
+
+int32_t hb_board_version_set(const char *name)
+{
+	return !strlcpy(board_version, name, sizeof(board_version));
+}
+
+char *hb_board_version_get(void)
+{
+	if (strlen(board_version) == 0)
+		pr_err("board version is empty now!\n");
+	return board_version;
 }
 
 int32_t hb_board_id_get(uint32_t *board_id)
@@ -143,4 +152,3 @@ int hb_device_init(void)
 
 	return 0;
 }
-

@@ -81,14 +81,14 @@ static int do_hb_net0_ipaddr(ofnode node, int32_t id)
 	return do_hb_board_type_common(node, id, "net_eth0_ipaddr", hb_eth0_ip_set);
 }
 
-static int do_hb_board_name(ofnode node, int32_t id)
-{
-	return do_hb_board_type_common(node, id, "board_name_array", hb_board_name_set);
-}
-
 static int do_hb_pmic_type(ofnode node, int32_t id)
 {
 	return do_hb_board_type_common(node, id, "pmic_type", hb_pmic_type_set);
+}
+
+static int do_hb_board_version(ofnode node, int32_t id)
+{
+	return do_hb_board_type_common(node, id, "board_version", hb_board_version_set);
 }
 
 enum array_num {
@@ -96,8 +96,8 @@ enum array_num {
 	HB_HARDWARE_ARRAY,
 	HB_ETH_ARRAY,
 	HB_NET0_IPADDR,
-	HB_BOARD_NAME,
 	HB_PMIC_TYPE,
+	HB_BOARD_VERSION,
 	HB_ARRAY_NUM_MAX,
 };
 
@@ -106,8 +106,8 @@ static board_type_fn *bard_type[] = {
 	[HB_HARDWARE_ARRAY] = do_hb_hardware_array,
 	[HB_ETH_ARRAY] = do_hb_eth_array,
 	[HB_NET0_IPADDR] = do_hb_net0_ipaddr,
-	[HB_BOARD_NAME] = do_hb_board_name,
 	[HB_PMIC_TYPE] = do_hb_pmic_type,
+	[HB_BOARD_VERSION] = do_hb_board_version,
 };
 
 __weak void btype_set(ulong board_type)
