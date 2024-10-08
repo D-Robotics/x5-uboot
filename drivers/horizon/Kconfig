@@ -52,6 +52,12 @@ config HOBOT_X5_EVB_LP4_V1P2
 	  Select this option for forcing Board Type X5 LP4 EVB V1P2.
 	  Select HOBOT_ADC_BTYPE when uncertain.
 
+config HOBOT_X5_EVB_LP4_V1P3
+	bool "X5-EVB_LP4-V1P3"
+	help
+	  Select this option for forcing Board Type X5 LP4 EVB V1P3.
+	  Select HOBOT_ADC_BTYPE when uncertain.
+
 endchoice
 
 endmenu

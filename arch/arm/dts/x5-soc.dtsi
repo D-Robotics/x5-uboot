@@ -15,6 +15,7 @@
 			HOBOT_X5_EVB_LP4_1_A_ID
 			HOBOT_X5_EVB_LP4_1_B_ID
 			HOBOT_X5_EVB_LP4_V1P2_ID
+			HOBOT_X5_EVB_LP4_V1P3_ID
 			>;
 
 		x5_soc_uart1: serial@34070000 {
