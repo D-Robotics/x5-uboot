@@ -39,13 +39,14 @@
 				<0 50 0 40 HOBOT_X5_FPGA_ID 0 0 0 0 0>,
 				<1100 1300 800 1000 HOBOT_X5_SOC_ID 1 0 0 1 0>,
 				<0 40 40 80 HOBOT_X5_SVB_ID 2 0 0 0 0>,
-				<151 240 51 140 HOBOT_X5_EVB_ID 3 0 0 1 0>,
-				<151 240 151 240 HOBOT_X5_EVB_V2_ID 3 0 0 1 1>;
-		hardware_array = "x5-fpga", "x5-soc", "x5-svb", "x5-evb";
+				<151 240 51 140 HOBOT_X5_EVB_LP4_1_A_ID 3 0 0 1 0>,
+				<151 240 151 240 HOBOT_X5_EVB_LP4_1_B_ID 3 0 0 1 1>,
+				<151 240 251 340 HOBOT_X5_EVB_LP4_V1P2_ID 3 0 0 1 2>;
+		hardware_array = "x5-fpga", "x5-soc", "x5-svb", "X5_EVB_LP4";
 		ethact_array = "default";
 		net_eth0_ipaddr = "192.168.1.10";
 		pmic_type = "dual-pmic", "single-pmic";
-		board_version = "v1", "v2";
+		board_version = "1_A", "1_B", "V1P2";
 	};
 
 	lsio_iomuxc: lsio_iomuxc@34180000 {
