@@ -39,6 +39,7 @@
 #include <linux/arm-smccc.h>
 #include <linux/sizes.h>
 #include <part.h>
+#include <hb_ipi.h>
 
 #ifndef MEMDUMP_PARTITION
 #define MEMDUMP_PARTITION            "ramdump"
@@ -222,18 +223,13 @@ int search_userdata_part(char *part_str, int str_len)
 	return 1;
 }
 
-#if 0
-
-static int memdump_dump_cpu_context(char *directory)
+int drobot_dump_cpu_context(ulong **buf)
 {
 	ulong *cpu_context_buf;
 	int cpu_context_buf_idx = 0;
-	char filename[100] = {0};
 	struct arm_smccc_res res;
 	unsigned long sip_version;
 	int cpu, reg, ret;
-	loff_t len = 0;
-	ulong time;
 
 	cpu_context_buf = malloc(HB_IPI_MAX_CORES * HB_IPI_MAX_REGS *sizeof(cpu_context_buf[0]));
 	if (!cpu_context_buf)
@@ -251,7 +247,7 @@ static int memdump_dump_cpu_context(char *directory)
 
 	for (cpu = 0; cpu < HB_IPI_MAX_CORES; cpu++) {
 		for (reg = 0; reg < HB_IPI_MAX_REGS; reg++) {
-			//arm_smccc_smc(HB_SIP_IPI, HB_SIP_IPI_GET_CORE_CONTEXT, cpu, reg, 0, 0, 0, 0, &res);
+			arm_smccc_smc(HB_SIP_IPI, HB_SIP_IPI_GET_CORE_CONTEXT, cpu, reg, 0, 0, 0, 0, &res);
 			if (res.a0 != 0) {
 				break;
 			}
@@ -265,10 +261,31 @@ static int memdump_dump_cpu_context(char *directory)
 	if (res.a0 != 0) {
 		printf("Failed to clear core contexts withs tatus %lu\n", res.a0);
 	}
+	*buf = cpu_context_buf;
+	return cpu_context_buf_idx * sizeof(cpu_context_buf[0]);
+free_buf:
+	free(cpu_context_buf);
 
+	return ret;
+
+}
+
+static int memdump_dump_cpu_context(char *directory)
+{
+	char filename[100] = {0};
+	loff_t len = 0;
+	ulong time;
+	ulong *buf = NULL;
+	int ret = 0;
+
+	ret = drobot_dump_cpu_context(&buf);
+	if (ret < 0) {
+		printf("dumpp cpu core context filaed\n");
+		return ret;   
+	}
 	snprintf(filename, sizeof(filename), "%s/cpu-contexts.bin", directory);
 	time = get_timer(0);
-	ret = fs_write(filename, (ulong)cpu_context_buf, 0, cpu_context_buf_idx * sizeof(cpu_context_buf[0]), &len);
+	ret = fs_write(filename, (ulong)buf, 0, ret, &len);
 	time = get_timer(time);
 	if (ret < 0) {
 		printf("Fail to write cpu contexts to userdata:%s,ret=%d,len=%lld\n", filename, ret, len);
@@ -278,12 +295,11 @@ static int memdump_dump_cpu_context(char *directory)
 		ret = 0;
 	}
 
-free_buf:
-	free(cpu_context_buf);
+	free(buf);
 
 	return ret;
 }
-#endif
+
 int memdump_dump_ext4(char *intf, int dev, int part, char *directory)
 {
 	int ret, i, count;
@@ -295,7 +311,7 @@ int memdump_dump_ext4(char *intf, int dev, int part, char *directory)
 	snprintf(dev_part_str, sizeof(dev_part_str), "%x:%x", dev, part);
 	if (fs_set_blk_dev(intf, dev_part_str, FS_TYPE_EXT))
 		return 1;
-	//(void) memdump_dump_cpu_context(directory);
+	(void) memdump_dump_cpu_context(directory);
 
 	for (i = 0; i < CONFIG_NR_DRAM_BANKS; ++i) {
 		if (gd->bd->bi_dram[i].size == 0) {
