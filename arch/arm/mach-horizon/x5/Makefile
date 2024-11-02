@@ -10,4 +10,5 @@ obj-y += x5_efuse.o
 obj-y += fdt_setup.o
 obj-y += boot_info.o
 obj-y += x5_rpmb.o
+obj-y += x5_ion_setup.o
 endif
