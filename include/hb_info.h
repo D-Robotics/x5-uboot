@@ -19,7 +19,7 @@ uint32_t hb_board_id_get(uint32_t *board_id);
 int hb_board_id_set(uint32_t board_id);
 char *hb_eth0_ip_get(void);
 int hb_eth0_ip_set(const char *eth0_ip);
-char *hb_board_name_get(void);
+char *hb_hw_info_get(void);
 int hb_device_init(void);
 char *hb_bootargs_console(void);
 int32_t hb_get_socid(char *socid);

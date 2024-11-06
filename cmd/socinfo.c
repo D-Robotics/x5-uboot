@@ -36,7 +36,7 @@ static int hb_dtb_property_config(int offset, char *prop, int value)
 		return 1;
 	}
 
-	snprintf(node_data, sizeof(node_data), "%x", value);
+	snprintf(node_data, sizeof(node_data), "0x%04x", value);
 	len = strlen(node_data) + 1;
 
 	ret = fdt_setprop(hb_dtb, offset, prop, node_data, len);
@@ -215,11 +215,11 @@ static int hb_set_board_version(int offset)
 	return ret;
 }
 
-static int hb_set_board_name(int offset)
+static int hb_set_hw_info(int offset)
 {
 	int  ret;
 	int  len = 0;
-	char *prop = "board_name";
+	char *prop = "hw_info";
 	static char node_data[SCRATCHPAD] __aligned(4);
 	const void *ptmp;
 	char *data = NULL;
@@ -233,9 +233,9 @@ static int hb_set_board_name(int offset)
 
 	memcpy(node_data, ptmp, len);
 
-	/* set board_name */
+	/* set hw_info */
 	len = strlen(node_data) + 1;
-	data = hb_board_name_get();
+	data = hb_hw_info_get();
 	if (data == NULL) {
 		strncpy(node_data, "unkown", strlen("unkown") + 1);
 	} else {
@@ -294,8 +294,8 @@ int hb_fdt_set_board_info(void *fdt_blob)
 		return 1;
 	}
 
-	/* set board_name */
-	ret = hb_set_board_name(nodeoffset);
+	/* set hw_info */
+	ret = hb_set_hw_info(nodeoffset);
 	if (ret < 0) {
 		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
 		return 1;

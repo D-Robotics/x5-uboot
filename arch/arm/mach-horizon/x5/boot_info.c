@@ -13,7 +13,7 @@
 static char hardware_name[64] = {0};
 static char ethact_name[64] = {0};
 static char net_eth0_ip[64] = {0};
-static char board_name[128] = {0};
+static char hw_info[128] = {0};
 static char pmic_type[64] = {0};
 static char board_version[64] = {0};
 static uint32_t  hb_board_id = 0;
@@ -30,12 +30,12 @@ int32_t hb_hardware_name_set(const char *name)
 	return  !strlcpy(hardware_name, name, sizeof(hardware_name));
 }
 
-char *hb_board_name_get(void)
+char *hb_hw_info_get(void)
 {
 	if (!strlen(hardware_name) || !strlen(board_version))
-		pr_err("board_name is empty now!\n");
-	snprintf(board_name, sizeof(board_name), "%s-%s", hardware_name, board_version);
-	return board_name;
+		pr_err("hw_info is empty now!\n");
+	snprintf(hw_info, sizeof(hw_info), "%s_%s", hardware_name, board_version);
+	return hw_info;
 }
 
 char *hb_ethact_name_get(void)
