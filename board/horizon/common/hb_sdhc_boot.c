@@ -60,7 +60,7 @@ static inline s64 mmc_offset(int copy)
 			return val;
 	}
 
-	defvalue = 0x0;
+	defvalue = CONFIG_ENV_OFFSET;
 	defvalue = 0;
 	propname = dt_prop.offset;
 

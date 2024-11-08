@@ -374,13 +374,9 @@ static int abortboot_single_key(int bootdelay)
 	 * Check if key already pressed
 	 */
 	if (tstc()) {	/* we got a key press	*/
-		int key;
-		key = getchar();	/* consume input	*/
-		if (key == '\r')
-		{
-			puts("\b\b\b 0");
-			abort = 1;	/* don't auto boot	*/
-		}
+		getchar();	/* consume input	*/
+		puts("\b\b\b 0");
+		abort = 1;	/* don't auto boot	*/
 	}
 
 	while ((bootdelay > 0) && (!abort)) {
@@ -390,15 +386,13 @@ static int abortboot_single_key(int bootdelay)
 		do {
 			if (tstc()) {	/* we got a key press	*/
 				int key;
+
+				abort  = 1;	/* don't auto boot	*/
+				bootdelay = 0;	/* no more delay	*/
 				key = getchar();/* consume input	*/
-				if (key == '\r')
-				{
-					abort  = 1;	/* don't auto boot	*/
-					bootdelay = 0;	/* no more delay	*/
-					if (IS_ENABLED(CONFIG_AUTOBOOT_USE_MENUKEY))
-						menukey = key;
-					break;
-				}
+				if (IS_ENABLED(CONFIG_AUTOBOOT_USE_MENUKEY))
+					menukey = key;
+				break;
 			}
 			udelay(10000);
 		} while (!abort && get_timer(ts) < 1000);
