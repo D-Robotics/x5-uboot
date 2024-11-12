@@ -2,7 +2,7 @@
 /*
  * Hobot X5 board device tree source
  *
- * Copyright (c) 2024, Horizon. All rights reserved.
+ * Copyright (c) 2024, D-Robotics. All rights reserved.
  */
 
 /dts-v1/;
@@ -10,5 +10,5 @@
 #include "x5.dtsi"
 
 / {
-	model = "Horizon X5";
+	model = "D-Robotics X5";
 };
