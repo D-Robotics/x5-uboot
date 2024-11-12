@@ -460,6 +460,7 @@
 #define CONFIG_EXTRA_ENV_SETTINGS \
     ENV_MEM_LAYOUT_SETTINGS \
     RDK_UPDATE \
+    "bootdelay=1\0"                                                                     \
 	BOOTENV
 #else
 #define CONFIG_EXTRA_ENV_SETTINGS                                                       \
