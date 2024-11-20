@@ -8,6 +8,7 @@
 #include <configs/x5.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/board/hb_board_id.h>
+#include <dt-bindings/pinctrl/horizon-pinfunc.h>
 
 / {
 	compatible = "Horizon,x5";
@@ -49,15 +50,87 @@
 		board_version = "1_A", "1_B", "V1P2";
 	};
 
+	ls_gpio0: gpio@34120000 {
+		compatible = "snps,dw-apb-gpio";
+		status = "okay";
+		reg = <0x34120000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ls_gpio0_porta: gpio@ls_0 {
+			compatible = "snps,dw-apb-gpio-port";
+			gpio-controller;
+			snps,nr-gpios = <LSIO_GPIO0_NUM>;
+			reg = <0>;
+			#gpio-cells = <2>;
+			gpio-ranges = <&lsio_iomuxc 0 0 32>;
+			gpio-base = <379>;
+		};
+	};
+
+	ls_gpio1: gpio@34130000 {
+		compatible = "snps,dw-apb-gpio";
+		status = "okay";
+		reg = <0x34130000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ls_gpio1_porta: gpio@ls_1 {
+			compatible = "snps,dw-apb-gpio-port";
+			gpio-controller;
+			snps,nr-gpios = <LSIO_GPIO1_NUM>;
+			reg = <0>;
+			#gpio-cells = <2>;
+			gpio-ranges = <&lsio_iomuxc 0 32 17>;
+			gpio-base = <347>;
+		};
+	};
 	lsio_iomuxc: lsio_iomuxc@34180000 {
 		compatible = "d-robotics,horizon-lsio-iomuxc";
 		reg = <0x34180000 0x200>;
+		horizon,gpio-banks = <&ls_gpio0 &ls_gpio1>;
 	};
 
+	hs_gpio0: gpio@35060000 {
+		compatible = "snps,dw-apb-gpio";
+		status = "okay";
+		reg = <0x35060000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		hs_gpio0_porta: gpio@hs_0 {
+			compatible = "snps,dw-apb-gpio-port";
+			gpio-controller;
+			snps,nr-gpios = <HSIO_GPIO0_NUM>;
+			reg = <0>;
+			#gpio-cells = <2>;
+			gpio-ranges = <&hsio_iomuxc 0 0 31>;
+			gpio-base = <466>;
+		};
+	};
+
+	hs_gpio1: gpio@35070000 {
+		compatible = "snps,dw-apb-gpio";
+		status = "okay";
+		reg = <0x35070000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		hs_gpio1_porta: gpio@hs_1 {
+			compatible = "snps,dw-apb-gpio-port";
+			gpio-controller;
+			snps,nr-gpios = <HSIO_GPIO1_NUM>;
+			reg = <0>;
+			#gpio-cells = <2>;
+			gpio-ranges = <&hsio_iomuxc 0 31 18>;
+			gpio-base = <434>;
+		};
+	};
 	hsio_iomuxc: hsio_iomuxc@35050000 {
 		compatible = "d-robotics,horizon-hsio-iomuxc";
 		reg = <0x35050000 0x200>,	/* iomux */
 				<0x31040040 0x4>;	/* mode select */
+		horizon,gpio-banks = <&hs_gpio0>, <&hs_gpio1>;
 	};
 
 	lsio_sys_con: syscon@34180000 {

@@ -434,7 +434,11 @@
 		>;
 	};
 
-
+	pinctrl_lsio_gpio0_5: lsiogpio0grp14 {
+		horizon,pins = <
+			LSIO_UART1_TX   LSIO_PINMUX_3 BIT_OFFSET14      MUX_ALT2        &pconf_input_en
+		>;
+	};
 	pinctrl_lsio_gpio1_0_3: lsiogpio1grp0 {
 		horizon,pins = <
 			LSIO_SPI5_SCLK	LSIO_PINMUX_2	BIT_OFFSET8		MUX_ALT1	&pconf_input_en
