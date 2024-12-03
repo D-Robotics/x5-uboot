@@ -249,6 +249,10 @@
 		ranges;
 	};
 
+        psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
 };
 #include "x5-fpga.dtsi"
 #include "x5-svb.dtsi"
