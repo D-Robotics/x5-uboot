@@ -56,9 +56,39 @@ static int do_play(struct cmd_tbl *cmdtp, int flag, int argc,
 	return 0;
 }
 
+#ifdef CONFIG_SOUND_HOBOT
+static int do_play_file(struct cmd_tbl *cmdtp, int flag, int argc,
+		char *const argv[]) {
+	struct udevice *dev;
+	int ret = 0;
+	char *file_path = NULL;
+
+	if (argc > 1)
+		file_path = argv[1];
+
+	if (!file_path) {
+		printf("Input file_path Invalid\n");
+		return -EINVAL;
+	}
+
+	ret = uclass_first_device_err(UCLASS_SOUND, &dev);
+	if (!ret)
+		ret = sound_beep_file(dev, file_path);
+	if (ret) {
+		printf("Sound device faile to play %s (err=%d)\n", file_path, ret);
+		return CMD_RET_FAILURE;
+	}
+
+	return 0;
+}
+#endif
+
 static struct cmd_tbl cmd_sound_sub[] = {
 	U_BOOT_CMD_MKENT(init, 0, 1, do_init, "", ""),
 	U_BOOT_CMD_MKENT(play, 2, 1, do_play, "", ""),
+#ifdef CONFIG_SOUND_HOBOT
+	U_BOOT_CMD_MKENT(play_file, 1, 1, do_play_file, "", ""),
+#endif
 };
 
 /* process sound command */
@@ -87,4 +117,7 @@ U_BOOT_CMD(
 	"sound sub-system",
 	"init - initialise the sound driver\n"
 	"sound play [len] [freq] - play a sound for len ms at freq hz\n"
+#ifdef CONFIG_SOUND_HOBOT
+	"sound play_file [file_name] - play a pcm from file\n"
+#endif
 );

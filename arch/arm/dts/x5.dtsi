@@ -266,6 +266,24 @@
 		pinctrl-0 = <&pinctrl_i2c2>;
 	};
 
+	i2c5: i2c@341c0000 {
+		compatible = "snps,designware-i2c";
+		status = "okay";
+		reg = <0x341c0000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&i2cclk>;
+		#clock-names = "i2c-clk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_i2c5>;
+
+		es8156: es8156@8 {
+			reg = <0x8>;
+			compatible = "hobot,es8156";
+			#sound-dai-cells = <0>;
+		};
+	};
+
 	board_dts: board_dts {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -277,6 +295,38 @@
 		compatible = "arm,psci-0.2";
 		method = "smc";
 	};
+
+	i2s0: i2s0@320b0000 {
+		compatible = "hobot, hobot-i2s";
+		reg = <0x320b0000 0x10000>;
+		#sound-dai-cells = <1>;
+		pinctrl-names = "default";
+		pinctrl-o = <&pinctrl_dsp_i2s0>;
+		status = "okay";
+	};
+
+	i2s1: i2s1@320c0000 {
+		compatible = "hobot, hobot-i2s";
+		reg = <0x320c0000 0x10000>;
+		#sound-dai-cells = <1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_dsp_i2s1>;
+		status = "okay";
+	};
+
+	sound {
+		compatible = "hobot,audio-codec";
+		status = "okay";
+
+		cpu {
+			sound-dai = <&i2s1 0>;
+		};
+
+		codec {
+			sound-dai = <&es8156>;
+		};
+	};
+
 };
 #include "x5-fpga.dtsi"
 #include "x5-svb.dtsi"

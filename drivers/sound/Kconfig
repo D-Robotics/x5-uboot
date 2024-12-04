@@ -148,4 +148,10 @@ config SOUND_WM8994
 	  audio data and I2C for codec control. At present it only works
 	  with the Samsung I2S driver.
 
+
+config SOUND_HOBOT
+	bool "Support Hobot sound card"
+	depends on I2S
+	help
+	  Test hobot audio sound.
 endmenu

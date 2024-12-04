@@ -120,6 +120,17 @@ int sound_setup(struct udevice *dev);
  */
 int sound_beep(struct udevice *dev, int msecs, int frequency_hz);
 
+#ifdef CONFIG_SOUND_HOBOT
+/**
+ * play_file() - Play a pcm file
+ *
+ * @dev: Sound device
+ * @file_path: File path
+ * Return: 0 if OK, -ve on error
+ */
+int sound_beep_file(struct udevice *dev, char *file_path);
+#endif
+
 /**
  * sound_start_beep() - Start beeping
  *
