@@ -8,6 +8,7 @@
 #include <dt-bindings/pinctrl/horizon-pinfunc.h>
 #include <dt-bindings/pinctrl/horizon-lsio-pinfunc.h>
 #include <dt-bindings/pinctrl/horizon-hsio-pinfunc.h>
+#include <dt-bindings/pinctrl/horizon-dsp-pinfunc.h>
 /*
  * The horizon,pins defined in each group is a tuple of
  * <pin_id, mux_reg_offset, mux_reg_bit, mux mode, pinconf_attributes>
@@ -86,6 +87,18 @@
 			bias-pull-up;
 			power-source = <HORIZON_IO_PAD_VOLTAGE_1V8>;
 			drive-strength = <12>;
+	};
+
+	pconf_drv_pd_ds2_1v8: pconf-dev-pd-ds2-1v8 {
+			bias-pull-down;
+			power-source = <HORIZON_IO_PAD_VOLTAGE_1V8>;
+			drive-strength = <2>;
+	};
+
+	pconf_drv_pu_ds2_1v8: pconf-dev-pu-ds2-1v8 {
+			bias-pull-up;
+			power-source = <HORIZON_IO_PAD_VOLTAGE_1V8>;
+			drive-strength = <2>;
 	};
 
 	pconf_drv_pu_padctrl_3v3_max: pconf-dev-pad-3v3-pu-max-high {
@@ -488,6 +501,28 @@
 		horizon,pins = <
 			LSIO_I2C4_SCL	LSIO_PINMUX_3	BIT_OFFSET0	MUX_ALT1	&pconf_input_en
 			LSIO_I2C4_SDA	LSIO_PINMUX_3	BIT_OFFSET2	MUX_ALT1	&pconf_input_en
+		>;
+	};
+};
+
+&dsp_iomuxc {
+	pinctrl_dsp_i2s0: i2s0grp {
+	horizon,pins = <
+			DSP_I2S0_DI  DSP_PINMUX_0  BIT_OFFSET4  MUX_ALT0 &pconf_drv_pd_ds2_1v8
+			DSP_I2S0_DO  DSP_PINMUX_0  BIT_OFFSET6  MUX_ALT0 &pconf_drv_pd_ds2_1v8
+			DSP_I2S0_MCLK  DSP_PINMUX_0  BIT_OFFSET8  MUX_ALT0 &pconf_drv_pu_ds2_1v8
+			DSP_I2S0_SCLK  DSP_PINMUX_0  BIT_OFFSET10  MUX_ALT0 &pconf_drv_pu_ds2_1v8
+			DSP_I2S0_WS  DSP_PINMUX_0  BIT_OFFSET12  MUX_ALT0 &pconf_drv_pu_ds2_1v8
+	>;
+};
+
+pinctrl_dsp_i2s1: i2s1grp {
+	horizon,pins = <
+			DSP_I2S1_DI  DSP_PINMUX_0  BIT_OFFSET14  MUX_ALT0 &pconf_drv_pd_ds2_1v8
+			DSP_I2S1_DO  DSP_PINMUX_0  BIT_OFFSET16  MUX_ALT0 &pconf_drv_pd_ds2_1v8
+			DSP_I2S1_MCLK  DSP_PINMUX_0  BIT_OFFSET18  MUX_ALT0 &pconf_drv_pu_ds2_1v8
+			DSP_I2S1_SCLK  DSP_PINMUX_0  BIT_OFFSET20  MUX_ALT0 &pconf_drv_pu_ds2_1v8
+			DSP_I2S1_WS  DSP_PINMUX_0  BIT_OFFSET22  MUX_ALT0 &pconf_drv_pu_ds2_1v8
 		>;
 	};
 };

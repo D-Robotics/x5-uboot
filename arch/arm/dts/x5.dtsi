@@ -134,6 +134,30 @@
 		horizon,gpio-banks = <&hs_gpio0>, <&hs_gpio1>;
 	};
 
+	dsp_gpio: gpio@32150000 {
+		compatible = "snps,dw-apb-gpio";
+		status = "okay";
+		reg = <0x32150000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		dsp_gpio_porta: gpio@dsp {
+			compatible = "snps,dw-apb-gpio-port";
+			gpio-controller;
+			snps,nr-gpios = <DSP_GPIO_NUM>;
+			reg = <0>;
+			#gpio-cells = <2>;
+			gpio-ranges = <&dsp_iomuxc 0 0 23>;
+			gpio-base = <411>;
+		};
+	};
+
+	dsp_iomuxc: dsp_iomuxc@31040014 {
+		compatible = "d-robotics,horizon-dsp-iomuxc";
+		reg = <0x31040014 0x100>;
+		horizon,gpio-banks = <&dsp_gpio>;
+	};
+
 	lsio_sys_con: syscon@34180000 {
 		compatible = "syscon";
 		reg = <0x34180000 0x10000>;
