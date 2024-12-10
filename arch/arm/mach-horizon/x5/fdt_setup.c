@@ -316,7 +316,7 @@ static void hb_do_fdt_overlay(void *blob)
 
 	dtbo_part = env_get("dtbo_part");
 	if (dtbo_part == NULL) {
-		dtbo_part = "0:c";
+		dtbo_part = "0:d";
 	}
 
 	dtbo_load_addr = env_get_hex("dtbo_load_addr", 0x90000000);
