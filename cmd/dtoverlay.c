@@ -16,22 +16,6 @@
 
 #include <hb_utils.h>
 
-uint32_t hb_dev_name_get(char *devname)
-{
-	char *fdtfile;
-	size_t len;
-
-	fdtfile = env_get("fdtfile");
-	if (!fdtfile) {
-		return 1;
-	}
-
-	len = strlen(fdtfile);
-
-	strncpy(devname, fdtfile, len - 4);
-	return 0;
-}
-
 static int do_dtoverlay(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 {
     char *data, *dp, *lp, *ptr, *cfg_file;
