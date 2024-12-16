@@ -17,6 +17,22 @@
 #include <fs.h>
 #include <command.h>
 
+uint32_t hb_dev_name_get(char *devname)
+{
+	char *fdtfile;
+	size_t len;
+
+	fdtfile = env_get("fdtfile");
+	if (!fdtfile) {
+		return 1;
+	}
+
+	len = strlen(fdtfile);
+
+	strncpy(devname, fdtfile, len - 4);
+	return 0;
+}
+
 int hb_extract_filter_name(const char* line, char* filter_name)
 {
     int len = strlen(line);
