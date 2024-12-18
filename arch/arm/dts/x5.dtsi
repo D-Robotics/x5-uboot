@@ -302,7 +302,7 @@
 		reg = <0x320b0000 0x10000>;
 		#sound-dai-cells = <1>;
 		pinctrl-names = "default";
-		pinctrl-o = <&pinctrl_dsp_i2s0>;
+		pinctrl-0 = <&pinctrl_dsp_i2s0>;
 		status = "okay";
 	};
 
