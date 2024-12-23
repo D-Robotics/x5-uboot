@@ -13,15 +13,27 @@
 #include <mtd.h>
 #include <jffs2/load_kernel.h>
 #include <linux/ctype.h>
+#include <blk.h>
+#include <part.h>
+#include <fb_mmc.h>
+#include <linux/types.h>
+#include <mmc.h>
 
 #define UPDATE_MODE 2
 #define RECOVERY_MODE 0x010000
-#define NAND_DISK 1
-#define SINGLE_PARTITION 2
+#define FASTBOOT_RESPONSE_LEN	(64 + 1)
+#define BLKSIZE 0x10000
 
 #ifdef CONFIG_USB_STORAGE
 static int usb_stor_curr_dev = -1; /* current device */
 #endif
+
+enum {
+	NAND_DISK,
+	NAND_SINGLE_PART,
+	EMMC_DISK,
+	EMMC_SINGLE_PART,
+};
 
 int mtd_write_image(struct fs_dirent *dent, const char *dirname, int flag)
 {
@@ -30,7 +42,7 @@ int mtd_write_image(struct fs_dirent *dent, const char *dirname, int flag)
 	char mtdparts[20];
 	int32_t ret = 0;
 
-	if(flag == SINGLE_PARTITION){
+	if(flag == NAND_SINGLE_PART){
 		strcpy(mtdparts, dent->name);
 		token = strtok(mtdparts, ".");
 	} else if(flag == NAND_DISK){
@@ -60,10 +72,134 @@ int mtd_write_image(struct fs_dirent *dent, const char *dirname, int flag)
 	return 0;
 }
 
+static struct disk_partition get_mmc_partition_info(const char *name, struct disk_partition info)
+{
+	struct disk_partition ret = {0};
+	struct blk_desc *dev_desc = NULL;
+	char response[FASTBOOT_RESPONSE_LEN] = {0};
+
+	if(fastboot_mmc_get_part_info(name, &dev_desc, &info, response)  < 0) {
+		printf("cannot find partition: '%s'\n", name);
+		return ret;
+	}
+	ret.start = info.start;
+
+	return ret;
+}
+
+static struct mmc *init_mmc_device(int dev, bool force_init,
+				     enum bus_mode speed_mode)
+{
+	struct mmc *mmc;
+	mmc = find_mmc_device(dev);
+	if (!mmc) {
+		printf("no mmc device at slot %x\n", dev);
+		return NULL;
+	}
+
+	if (!mmc_getcd(mmc))
+		force_init = true;
+
+	if (force_init)
+		mmc->has_init = 0;
+
+	if (IS_ENABLED(CONFIG_MMC_SPEED_MODE_SET))
+		mmc->user_speed_mode = speed_mode;
+
+	if (mmc_init(mmc))
+		return NULL;
+
+#ifdef CONFIG_BLOCK_CACHE
+	struct blk_desc *bd = mmc_get_blk_desc(mmc);
+	blkcache_invalidate(bd->if_type, bd->devnum);
+#endif
+
+	return mmc;
+}
+
+int mmc_write_image(struct fs_dirent *dent, const char *dirname, int flag)
+{
+	int32_t ret = 0;
+	char *token = NULL;
+	char mmcparts[20];
+	char buffer[128] = {0};
+	loff_t bytes = BLKSIZE * 512;
+	loff_t pos = 0;
+	loff_t load_size = dent->size;
+	loff_t start_blk = 0;
+	loff_t cnt = 0;
+
+	struct disk_partition part_info = {0};
+
+	if(flag == EMMC_SINGLE_PART){
+		strcpy(mmcparts, dent->name);
+		token = strtok(mmcparts, ".");
+	} else if(flag == EMMC_DISK){
+		strcpy(mmcparts, "addr:0x0");
+		start_blk = 0;
+	}
+	printf("load %s to mmcparts %s\n", dent->name, token);
+	memset(buffer, 0, sizeof(buffer));
+
+	part_info = get_mmc_partition_info(token, part_info);
+	if(part_info.start == 0 && token != NULL){
+		printf("get mmc %s partition info faild\n", token);
+		return -1;
+	}
+
+	if(token != NULL){
+		start_blk = part_info.start;
+		printf("token %s, start_blk 0x%llx\n", token, start_blk);
+	}
+	cnt = (load_size + 511) / 512;
+
+	while(load_size > bytes){
+		snprintf(buffer, sizeof(buffer), "fatload usb 0 ${kernel_addr} %s%s %llx %llx", dirname, dent->name, bytes, pos);
+		ret = run_command(buffer, 1);	if (ret) {
+			printf("fatload %s from usb failed\n", dent->name);
+			return -1;
+		}
+		memset(buffer, 0, sizeof(buffer));
+		snprintf(buffer, sizeof(buffer), "mmc write ${kernel_addr} 0x%llx 0x%x", start_blk, BLKSIZE);
+		ret = run_command(buffer, 1);	if (ret) {
+			printf("fatload %s from usb failed\n", dent->name);
+			return -1;
+		}
+
+		pos += bytes;
+		load_size -= bytes;
+		start_blk += BLKSIZE;
+		cnt -= BLKSIZE;
+		memset(buffer, 0, sizeof(buffer));
+	}
+	if(load_size > 0){
+		printf("finally load %s to %s partition start, %lld, pos %lld, size %lld\n", dent->name, mmcparts, bytes, pos, load_size);
+		snprintf(buffer, sizeof(buffer), "fatload usb 0 ${kernel_addr} %s%s %llx %llx", dirname, dent->name, load_size, pos);
+		ret = run_command(buffer, 1);	if (ret) {
+			printf("fatload %s from usb failed\n", dent->name);
+			return -1;
+		}
+
+		memset(buffer, 0, sizeof(buffer));
+		snprintf(buffer, sizeof(buffer), "mmc write ${kernel_addr} 0x%llx 0x%llx", start_blk, cnt);
+		ret = run_command(buffer, 1);	if (ret) {
+			printf("fatload %s from usb failed\n", dent->name);
+			return -1;
+		}
+	}
+
+	printf("load %s to %s partition success\n", dent->name, mmcparts);
+	memset(buffer, 0, sizeof(buffer));
+	return 0;
+}
+
 int fs_read_image(const char *dirname, struct fs_dir_stream *dirs)
 {
 	struct fs_dirent *dent;
+	const char *nand_device = "nand";
+	const char *emmc_device = "emmc";
 	int32_t ret = -1;
+	struct mmc *mmc;
 
 	dirs = fs_opendir(dirname);
 	if (!dirs){
@@ -71,26 +207,55 @@ int fs_read_image(const char *dirname, struct fs_dir_stream *dirs)
 		return -errno;
 	}
 
+	if(0 == strcmp(env_get("boot_device"), emmc_device)){
+		mmc = init_mmc_device(0, false, MMC_MODES_END);
+		if (!mmc){
+			printf("mmc init faild\n");
+			return -1;
+		}
+	}
 	printf("start update partition\n");
 	while ((dent = fs_readdir(dirs))) {
 		if(0 == strcmp(dent->name, "boot.img")
 			|| 0 == strcmp(dent->name, "system.img")
 			|| 0 == strcmp(dent->name, "hbre.img")
-			|| 0 == strcmp(dent->name, "userdata.img")){
-			ret = mtd_write_image(dent, dirname, SINGLE_PARTITION);
-			if(-1 == ret){
-				printf("mtd write %s faild\n", dent->name);
-				fs_closedir(dirs);
-				return ret;
-			}
-		}else if(0 == strcmp(dent->name, "nand_disk.img")){
-			ret = mtd_write_image(dent, dirname, NAND_DISK);
-			if(-1 == ret){
-				printf("mtd write %s faild\n", dent->name);
-				fs_closedir(dirs);
-				return ret;
-			}
-			goto finally;
+			|| 0 == strcmp(dent->name, "app.img")
+			|| 0 == strcmp(dent->name, "userdata.img"))
+			{
+				if(0 == strcmp(env_get("boot_device"), nand_device)){
+					printf("nand write %s\n", dent->name);
+					ret = mtd_write_image(dent, dirname, NAND_SINGLE_PART);
+					if(-1 == ret){
+						printf("mtd write %s faild\n", dent->name);
+						fs_closedir(dirs);
+						return ret;
+					}
+				}else if(0 == strcmp(env_get("boot_device"), emmc_device)){
+					printf("emmc load %s, size %lld\n", dent->name, dent->size);
+					ret = mmc_write_image(dent, dirname, EMMC_SINGLE_PART);
+					if(-1 == ret){
+						printf("emmc write %s faild\n", dent->name);
+						fs_closedir(dirs);
+						return ret;
+					}
+				}
+			}else if((0 == strcmp(dent->name, "nand_disk.img")) || (0 == strcmp(dent->name, "emmc_disk.img"))){
+				if(0 == strcmp(env_get("boot_device"), nand_device)){
+					ret = mtd_write_image(dent, dirname, NAND_DISK);
+					if(-1 == ret){
+						printf("mtd write %s faild\n", dent->name);
+						fs_closedir(dirs);
+						return ret;
+					}
+				}else if(0 == strcmp(env_get("boot_device"), emmc_device)){
+					ret = mmc_write_image(dent, dirname, EMMC_DISK);
+					if(-1 == ret){
+						printf("emmc write %s faild\n", dent->name);
+						fs_closedir(dirs);
+						return ret;
+					}
+				}
+				 goto finally;
 		}
 	}
 finally:
@@ -103,10 +268,9 @@ static int do_usb_update(struct cmd_tbl *cmdtp, int flag, int argc,
 			char *const argv[])
 {
 	char *reset_reason = "COLD_BOOT";
-	char *boot_device = "nand";
 	struct fs_dir_stream *dirs = NULL;
 
-	if(0 == strcmp(env_get("reset_reason"), reset_reason) && 0 == strcmp(env_get("boot_device"), boot_device)){
+	if(0 == strcmp(env_get("reset_reason"), reset_reason)){
 		bootstage_mark_name(BOOTSTAGE_ID_USB_START, "usb_start");
 
 		if (usb_init() < 0)
