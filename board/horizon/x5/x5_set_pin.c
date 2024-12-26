@@ -43,109 +43,154 @@ static int x5_pin_get_from_40pin_id(int pin_40pin)
 	return -1;
 }
 
+static int x5_get_pin_addr(int pin, unsigned long long *pinmux_addr, unsigned long  long *gpio_addr)
+{
+	if(pin_info_array[pin].pin_gpio_group == LSIO_GPIO_0)
+	{
+		*pinmux_addr = X5LsioPinMuxBase;
+		*gpio_addr = X5LsioGPIO0Base;
+	}
+	else if(pin_info_array[pin].pin_gpio_group == LSIO_GPIO_1)
+	{
+		*pinmux_addr = X5LsioPinMuxBase;
+		*gpio_addr = X5LsioGPIO1Base;
+	}
+	else if(pin_info_array[pin].pin_gpio_group == DSP_GPIO_0)
+	{
+		*pinmux_addr = X5DspPinMuxBase;
+		*gpio_addr = X5DspGPIO0Base;
+	}
+	else
+		return -1;
+
+	return 0;
+}
+
 static void x5_set_pin_func(int pin, unsigned int val)
 {
 	uint32_t reg = 0;
 	uint32_t mask = 0x3;
+	unsigned long long pinmux_addr = 0;
+	unsigned long long gpio_addr = 0;
 
-	reg = readl((void *)pin_info_array[pin].pin_iomux_base);
+	if(x5_get_pin_addr(pin, &pinmux_addr, &gpio_addr)!= 0)
+		return;
+
+	reg = readl((void *)(pinmux_addr+pin_info_array[pin].pin_iomux_offset));
 	val &= mask;
-	reg = (reg & ~(mask << pin_info_array[pin].pin_iomux_offset)) | (val << pin_info_array[pin].pin_iomux_offset);
-	writel(reg, (void *)pin_info_array[pin].pin_iomux_base);
+	reg = (reg & ~(mask << pin_info_array[pin].pin_iomux_bit)) | (val << pin_info_array[pin].pin_iomux_bit);
+	writel(reg, (void *)(pinmux_addr+pin_info_array[pin].pin_iomux_offset));
 }
 
 static void x5_set_pin_dir(int pin, int dir)
 {
 	uint32_t reg = 0;
+	unsigned long long pinmux_addr = 0;
+	unsigned long long gpio_addr = 0;
 
+	if(x5_get_pin_addr(pin, &pinmux_addr, &gpio_addr)!= 0)
+		return;
+
+	reg = readl((void *)(gpio_addr + gpio_dir));
 	if (dir) {
 		/* set pin to ouput */
-		reg = readl((void *)pin_info_array[pin].pin_gpio_base + gpio_dir);
 		reg |= (1 << pin_info_array[pin].pin_gpio_number);
-		writel(reg, (void *)pin_info_array[pin].pin_gpio_base + gpio_dir);
 	} else {
 		/* set pin to input */
-		reg = readl((void *)pin_info_array[pin].pin_gpio_base + gpio_dir);
 		reg &= ~(1 << pin_info_array[pin].pin_gpio_number);
-		writel(reg, (void *)pin_info_array[pin].pin_gpio_base + gpio_dir);
 	}
+	writel(reg, (void *)(gpio_addr + gpio_dir));
 }
 
 static void x5_set_pin_value(int pin, unsigned int val)
 {
 	uint32_t reg = 0;
+	unsigned long long pinmux_addr = 0;
+	unsigned long long gpio_addr = 0;
+
+	if(x5_get_pin_addr(pin, &pinmux_addr, &gpio_addr)!= 0)
+		return;
 
 	/* set pin output value*/
-	reg = readl((void *)pin_info_array[pin].pin_gpio_base + gpio_data);
+	reg = readl((void *)(gpio_addr + gpio_data));
 	if (val == 1) {
 		reg |= (1 << pin_info_array[pin].pin_gpio_number);
 	} else {
 		reg &= ~(1 << pin_info_array[pin].pin_gpio_number);
 	}
-
-	writel(reg, (void *)pin_info_array[pin].pin_gpio_base + gpio_data);
+	writel(reg, (void *)(gpio_addr + gpio_data));
 }
 
 static void x5_set_gpio_pull(int pin, enum pull_state state)
 {
 	uint32_t reg = 0;
+	unsigned long long pinmux_addr = 0;
+	unsigned long long gpio_addr = 0;
 
-	reg = readl((void *)pin_info_array[pin].pin_ctrl_base);
+	if(x5_get_pin_addr(pin, &pinmux_addr, &gpio_addr)!= 0)
+		return;
+
+	reg = readl((void *)(pinmux_addr+pin_info_array[pin].pin_ctr_offset));
 
 	switch (state) {
 		case NO_PULL:
-			if (pin_info_array[pin].pin_pd_offset == -1)
+			if (pin_info_array[pin].pin_pd_bit == -1)
 			{
-				reg &= ~(1 << pin_info_array[pin].pin_pe_offset);
+				reg &= ~(1 << pin_info_array[pin].pin_pe_bit);
 
 			}else
 			{
-				reg &= ~(1 << pin_info_array[pin].pin_pd_offset);
-				reg &= ~(1 << pin_info_array[pin].pin_pu_offset);
+				reg &= ~(1 << pin_info_array[pin].pin_pd_bit);
+				reg &= ~(1 << pin_info_array[pin].pin_pu_bit);
 			}
 			break;
 		case PULL_UP:
-			if (pin_info_array[pin].pin_pd_offset == -1)
+			if (pin_info_array[pin].pin_pd_bit == -1)
 			{
-				reg |= (1 << pin_info_array[pin].pin_pe_offset);
-				reg |= (1 << pin_info_array[pin].pin_ps_offset);
+				reg |= (1 << pin_info_array[pin].pin_pe_bit);
+				reg |= (1 << pin_info_array[pin].pin_ps_bit);
 
 			}else
 			{
-				reg &= ~(1 << pin_info_array[pin].pin_pd_offset);
-				reg |= (1 << pin_info_array[pin].pin_pu_offset);
+				reg &= ~(1 << pin_info_array[pin].pin_pd_bit);
+				reg |= (1 << pin_info_array[pin].pin_pu_bit);
 			}
 			break;
 		case PULL_DOWN:
-			if (pin_info_array[pin].pin_pd_offset == -1)
+			if (pin_info_array[pin].pin_pd_bit == -1)
 			{
-				reg |= (1 << pin_info_array[pin].pin_pe_offset);
-				reg &= ~(1 << pin_info_array[pin].pin_ps_offset);
+				reg |= (1 << pin_info_array[pin].pin_pe_bit);
+				reg &= ~(1 << pin_info_array[pin].pin_ps_bit);
 
 			}else
 			{
-				reg |= (1 << pin_info_array[pin].pin_pd_offset);
-				reg &= ~(1 << pin_info_array[pin].pin_pu_offset);
+				reg |= (1 << pin_info_array[pin].pin_pd_bit);
+				reg &= ~(1 << pin_info_array[pin].pin_pu_bit);
 			}
 			break;
 		default:
 			break;
 	}
 
-	writel(reg, (void *)pin_info_array[pin].pin_ctrl_base);
+	writel(reg, (void *)(pinmux_addr+pin_info_array[pin].pin_ctr_offset));
 }
 
 static void x5_set_gpio_schmit(int pin, int val)
 {
 	uint32_t reg = 0;
+	unsigned long long pinmux_addr = 0;
+	unsigned long long gpio_addr = 0;
 
-	reg = readl((void *)pin_info_array[pin].pin_ctrl_base);
+	if(x5_get_pin_addr(pin, &pinmux_addr, &gpio_addr)!= 0)
+		return;
+
+	reg = readl((void *)(pinmux_addr+pin_info_array[pin].pin_ctr_offset));
 	if (val == 1) {
-		reg |= (1 << pin_info_array[pin].pin_schmit_offset);
+		reg |= (1 << pin_info_array[pin].pin_schmit_bit);
 	} else {
-		reg &= ~(1 << pin_info_array[pin].pin_schmit_offset);
+		reg &= ~(1 << pin_info_array[pin].pin_schmit_bit);
 	}
-	writel(reg, (void *)pin_info_array[pin].pin_ctrl_base);
+	writel(reg, (void *)(pinmux_addr+pin_info_array[pin].pin_ctr_offset));
 }
 
 static void x5_set_gpio_drvstrength(int pin, int val)
@@ -153,50 +198,67 @@ static void x5_set_gpio_drvstrength(int pin, int val)
 
 	uint32_t reg = 0;
 	uint32_t mask = 0xf;
+	unsigned long long pinmux_addr = 0;
+	unsigned long long gpio_addr = 0;
 
-	reg = readl((void *)pin_info_array[pin].pin_ctrl_base);
+	if(x5_get_pin_addr(pin, &pinmux_addr, &gpio_addr)!= 0)
+		return;
+
+	reg = readl((void *)(pinmux_addr+pin_info_array[pin].pin_ctr_offset));
 	val &= mask;
-	reg = (reg & ~(mask << pin_info_array[pin].pin_drvstrength_offset)) | (val << pin_info_array[pin].pin_drvstrength_offset);
-	writel(reg, (void *)pin_info_array[pin].pin_ctrl_base);
+	reg = (reg & ~(mask << pin_info_array[pin].pin_drvstrength_bit)) | (val << pin_info_array[pin].pin_drvstrength_bit);
+	writel(reg, (void *)(pinmux_addr+pin_info_array[pin].pin_ctr_offset));
 }
 
 void dump_pin_info(int pin_40pin)
 {
 	int pin;
+	unsigned long long pinmux_addr = 0;
+	unsigned long long gpio_addr = 0;
+
 	pin = x5_pin_get_from_40pin_id(pin_40pin);
 
-	if (pin > PIN_MAX_NUMS && pin < 0)
+	if (pin > PIN_MAX_NUMS || pin < 0)
 	{
-		printf("pin %d wrong\n", pin);
+		printf("pin_40pin %d wrong\n", pin_40pin);
 		return;
 	}
 
+	if(x5_get_pin_addr(pin, &pinmux_addr, &gpio_addr)!= 0)
+		return;
+
 	printf("pin_index_40pin %d\n", pin_info_array[pin].pin_index_40pin);
 	printf("pin_index_bcm %d\n", pin_info_array[pin].pin_index_bcm);
-	printf("pin_iomux_base 0x%llx\n", pin_info_array[pin].pin_iomux_base);
-	printf("pin_iomux_offset %d\n", pin_info_array[pin].pin_iomux_offset);
-	printf("pin_ctrl_base 0x%llx\n", pin_info_array[pin].pin_ctrl_base);
-	printf("[offset]: schmit %d drvstrength %d pd %d pu %d pe %d ps %d strong_pu %d\n", 
-	pin_info_array[pin].pin_schmit_offset,
-	pin_info_array[pin].pin_drvstrength_offset,
-	pin_info_array[pin].pin_pd_offset,
-	pin_info_array[pin].pin_pu_offset,
-	pin_info_array[pin].pin_pe_offset,
-	pin_info_array[pin].pin_ps_offset,
-	pin_info_array[pin].pin_strong_pu_offset);
-	printf("pin_gpio_base 0x%llx\n", pin_info_array[pin].pin_gpio_base);
+	printf("pin_iomux_base 0x%llx\n", pinmux_addr);
+	printf("pin_iomux_offset 0x%llx\n", pin_info_array[pin].pin_iomux_offset);
+	printf("pin_ctrl_offset 0x%llx\n", pin_info_array[pin].pin_ctr_offset);
+	printf("[bit]: schmit %d drvstrength %d pd %d pu %d pe %d ps %d strong_pu %d\n", 
+	pin_info_array[pin].pin_schmit_bit,
+	pin_info_array[pin].pin_drvstrength_bit,
+	pin_info_array[pin].pin_pd_bit,
+	pin_info_array[pin].pin_pu_bit,
+	pin_info_array[pin].pin_pe_bit,
+	pin_info_array[pin].pin_ps_bit,
+	pin_info_array[pin].pin_strong_pu_bit);
+	printf("pin_gpio_base 0x%llx\n", gpio_addr);
 	printf("pin_gpio_number %d\n", pin_info_array[pin].pin_gpio_number);
 	printf("func [%s] [%s] [%s] [%s]\n", pin_info_array[pin].func_name0,pin_info_array[pin].func_name1,pin_info_array[pin].func_name2,pin_info_array[pin].func_name3);
-	printf("pin_ctrl_base 0x%08x\n", readl((void *)pin_info_array[pin].pin_iomux_base));
-	printf("pin_ctrl_base 0x%08x\n", readl((void *)pin_info_array[pin].pin_ctrl_base));
-	printf("pin_gpio_data_base 0x%08x\n", readl((void *)pin_info_array[pin].pin_gpio_base + gpio_data));
-	printf("pin_gpio__dir_base 0x%08x\n", readl((void *)pin_info_array[pin].pin_gpio_base + gpio_dir));
+	printf("pin_ctrl_base 0x%08x\n", readl((void *)(pinmux_addr+pin_info_array[pin].pin_iomux_offset)));
+	printf("pin_ctrl_base 0x%08x\n", readl((void *)(pinmux_addr+pin_info_array[pin].pin_ctr_offset)));
+	printf("pin_gpio_data_base 0x%08x\n", readl((void *)gpio_addr + gpio_data));
+	printf("pin_gpio__dir_base 0x%08x\n", readl((void *)gpio_addr + gpio_dir));
 }
 
 void x5_set_pin(int pin_40pin, char *cmd)
 {
 	int pin;
 	pin = x5_pin_get_from_40pin_id(pin_40pin);
+
+	if (pin > PIN_MAX_NUMS || pin < 0)
+	{
+		printf("pin_40pin %d wrong\n", pin_40pin);
+		return;
+	}
 
 	if (strcmp(cmd, "f0") == 0) {
 		x5_set_pin_func(pin, 0);
