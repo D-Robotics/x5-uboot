@@ -48,6 +48,16 @@ int arch_cpu_init(void)
 	return 0;
 }
 
+#ifdef CONFIG_DROBOT_RECORD_UBOOT_RESET
+void record_uboot_reset(void)
+{
+	uint32_t value = 0;
+	value = readl(AON_STATUS_REG1);
+	value &= ~(AON_RESET_REASON_MASK << AON_RESET_REASON_OFFSET);
+	value |= AON_RESET_REASON_UBOOT;
+	writel(value, AON_STATUS_REG1);
+}
+#endif
 /*
  * Perform the low-level reset.
  */

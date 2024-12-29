@@ -27,6 +27,7 @@ int32_t hb_pmic_type_set(const char *name);
 char *hb_pmic_type_get(void);
 int32_t hb_board_version_set(const char *name);
 char *hb_board_version_get(void);
+void record_uboot_reset(void);
 
 static inline uint32_t hb_csum_calculate(void *buffer, size_t size)
 {

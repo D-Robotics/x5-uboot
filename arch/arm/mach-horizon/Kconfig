@@ -21,6 +21,12 @@ config DROBOT_BOOT_KEY_IN_RPMB
 	help
 	  Support save boot key in rpmb in drobotic X5 SOC.
 
+config DROBOT_RECORD_UBOOT_RESET
+	bool "record uboot reset reason"
+	default y
+	help
+	  Support save boot key in rpmb in drobotic X5 SOC.
+
 source "arch/arm/mach-horizon/x5/Kconfig"
 
 endif

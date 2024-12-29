@@ -25,6 +25,9 @@
 #include <cpu_func.h>
 #include <irq_func.h>
 #include <linux/delay.h>
+#ifdef CONFIG_DROBOT_RECORD_UBOOT_RESET
+#include <hb_info.h>
+#endif
 
 __weak void reset_misc(void)
 {
@@ -34,6 +37,9 @@ int do_reset(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 {
 	puts ("resetting ...\n");
 
+#ifdef CONFIG_DROBOT_RECORD_UBOOT_RESET
+	record_uboot_reset();
+#endif
 	mdelay(50);				/* wait 50 ms */
 
 	disable_interrupts();
