@@ -22,6 +22,13 @@
 #define DW_WDT_CR_RMOD_OFFSET	0x01
 #define DW_WDT_CRR_RESTART_VAL	0x76
 
+#define BOOT_MODE_SHIFT          (0)
+#define BOOT_MODE_MASK           (0x7L << BOOT_MODE_SHIFT)
+#define BOOT_SRC_QSPI_NOR   0x4
+#define BOOT_SRC_QSPI_NAND  0x5
+#define DISP_SYS_REG_BASE 0x3E0A0000
+#define BOOT_STRAP_PIN_REG       (DISP_SYS_REG_BASE + 0xA4)
+
 struct designware_wdt_priv {
 	void __iomem	*base;
 	unsigned int	clk_khz;
@@ -120,6 +127,8 @@ static int designware_wdt_probe(struct udevice *dev)
 {
 	struct designware_wdt_priv *priv = dev_get_priv(dev);
 	__maybe_unused int ret;
+	unsigned int ustrap_pin_info = readl(BOOT_STRAP_PIN_REG);
+	unsigned int boot_src;
 
 	priv->base = dev_remap_addr(dev);
 	if (!priv->base)
@@ -130,12 +139,20 @@ static int designware_wdt_probe(struct udevice *dev)
 	priv->reset_offset = dev_read_u32_default(dev, "syscon-wdt-rst-offset", 0);
 	priv->reset_bit = dev_read_u32_default(dev, "syscon-wdt-rst-bit", 0);
 
+	boot_src = (ustrap_pin_info & BOOT_MODE_MASK) >> BOOT_MODE_SHIFT;
+
 #if CONFIG_IS_ENABLED(CLK)
 	struct clk clk;
+	unsigned long current_rate;
 
 	ret = clk_get_by_index(dev, 0, &clk);
 	if (ret)
 		return ret;
+
+	if(boot_src == BOOT_SRC_QSPI_NOR || boot_src == BOOT_SRC_QSPI_NAND )
+		current_rate = clk_get_rate(&clk) / 2;
+	else
+		current_rate = clk_get_rate(&clk);
 
 	ret = clk_enable(&clk);
 	if (ret)
@@ -144,10 +161,10 @@ static int designware_wdt_probe(struct udevice *dev)
 	ret = dev_read_u32(dev, "clk-rate-div", &priv->clk_rate_div);
 	if (!ret){
 		if (priv->clk_rate_div != 0)
-			priv->clk_khz = (clk_get_rate(&clk) / 1000) / priv->clk_rate_div;
+			priv->clk_khz = (current_rate / 1000) / priv->clk_rate_div;
 	}
 	else
-		priv->clk_khz = clk_get_rate(&clk) / 1000;
+		priv->clk_khz = current_rate / 1000;
 	if (!priv->clk_khz) {
 		ret = -EINVAL;
 		goto err;
