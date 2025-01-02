@@ -104,6 +104,9 @@ int chip_last_stage_init(void)
 			printf("boot action: entry recovery mode\n");
 			env_set("recovery_mode", "yes");
 		break;
+		case BOOT_DFU:
+			printf("boot action: DFU USB2.0\n");
+			env_set("preboot", "dfu 0");
 	}
 	writel(clear_mode, AON_STATUS_REG1);
 #ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB

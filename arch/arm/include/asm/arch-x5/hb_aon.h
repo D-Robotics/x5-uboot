@@ -17,7 +17,7 @@
 AON_STATUS_REG1
 bit0~bit3 : ab slot
 bit4~bit7: reset reason 0(cold boot) 1 (watchdog) 2(reboot command) 3(panic in kernel) 4(uboot reset)
-bit8~bit11: 0(NORMAL) 1(usb3) 2(usb2) 3(uart) 4(RECOERY)
+bit8~bit11: 0(NORMAL) 1(usb3) 2(usb2) 3(uart) 4(RECOERY) 6(dfu)
 bit12~bit15: 0(NORMAL) 1(ubootonce) 2(udumpfastboot)
 bit16~bit19: 0(dual pmic) 1(single pmic)
 bit20~bit23: ab switch reason: 0(normal) 1(misc broken) 2(boot corruted) 3(dm-verity corruped)
@@ -79,6 +79,8 @@ enum boot_action {
     BOOT_DEVICE_USB2,
     BOOT_DEVICE_UART,
     BOOT_RECOVERY,
+    BOOT_EYE,
+    BOOT_DFU,
 };
 
 enum panic_action {
