@@ -38,7 +38,7 @@ enum {
 
 int hb_read_efuse(uint32_t offset, uint32_t size, char *output_buffer);
 int hb_get_socuid(uint32_t *socuid);
-bool is_secure_boot(void);
+int is_secure_boot(void);
 
 enum efuse_type {
 	EFUSE_SECURE = 0,

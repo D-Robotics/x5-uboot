@@ -18,7 +18,10 @@
 
 #define PTA_EFUSE_READ          0
 #define PTA_EFUSE_WRITE         1
+#define PTA_EFUSE_IS_SECURE     2
+#define PTA_EFUSE_DUMP_KEY_HASH_AND_SEC_BOOT     6
 #define TEE_ERROR_ACCESS_DENIED 0xffff0001
+#define HASH_DATA_LEN 32
 
 int hb_read_efuse(uint32_t offset, uint32_t size, char *output_buffer)
 {
@@ -84,13 +87,54 @@ exit:
 	return rc;
 }
 
-bool is_secure_boot()
+int is_secure_boot()
 {
-	int32_t value = 0;
-	hb_read_efuse(MBEDTLS_OTP_USER_SECUR_FLAG_OFFSET,
-				  4,
-				  (char *)&value);
-	return (value & 0x1);
+	int rc = CMD_RET_SUCCESS;
+	const struct tee_optee_ta_uuid uuid = PTA_EFUSE;
+	struct tee_open_session_arg session;
+	struct tee_invoke_arg invoke;
+	struct tee_param param[1];
+	struct udevice *tee_dev = NULL;
+
+	tee_dev = tee_find_device(NULL, NULL, NULL, NULL);
+	if (!tee_dev) {
+		rc = -ENODEV;
+		goto exit;
+	}
+
+	memset(&session, 0, sizeof(session));
+	tee_optee_ta_uuid_to_octets(session.uuid, &uuid);
+	if (tee_open_session(tee_dev, &session, 0, NULL)) {
+		rc = -ENXIO;
+		goto exit;
+	}
+
+	memset(param, 0, sizeof(param));
+	param[0].attr = TEE_PARAM_ATTR_TYPE_VALUE_OUTPUT;
+
+	memset(&invoke, 0, sizeof(invoke));
+	invoke.func    = PTA_EFUSE_IS_SECURE;
+	invoke.session = session.session;
+
+	rc = tee_invoke_func(tee_dev, &invoke, 1, param);
+	if (rc != 0) {
+		printf("tee_invoke_func failed with error [0x%x]\n", rc);
+		goto close_session;
+	}
+	if (invoke.ret) {
+		rc = invoke.ret;
+		if (invoke.ret == TEE_ERROR_ACCESS_DENIED)
+			printf("efuse region access denied\n");
+		else
+			printf("optee read efuse failed with error [0x%x]\n", invoke.ret);
+		goto close_session;
+	}
+
+	rc = param[0].u.value.a;
+close_session:
+	tee_close_session(tee_dev, session.session);
+exit:
+	return (rc & 0x1);
 }
 
 int hb_get_socuid(uint32_t *socuid)
@@ -111,7 +155,96 @@ int hb_get_socuid(uint32_t *socuid)
 	return 0;
 }
 
-static int dump_efuse(void)
+static int dump_usr_rot_key_hash(uint32_t *hash_data, uint32_t *is_sec_chip2)
+{
+	int rc = CMD_RET_SUCCESS;
+	const struct tee_optee_ta_uuid uuid = PTA_EFUSE;
+	struct tee_open_session_arg session;
+	struct tee_invoke_arg invoke;
+	struct tee_param param[2];
+	struct udevice *tee_dev = NULL;
+	struct tee_shm *shm_val;
+
+	tee_dev = tee_find_device(NULL, NULL, NULL, NULL);
+	if (!tee_dev) {
+		rc = -ENODEV;
+		goto exit;
+	}
+
+	rc = tee_shm_alloc(tee_dev, HASH_DATA_LEN, TEE_SHM_ALLOC, &shm_val);
+	if (rc) {
+		rc = -ENOMEM;
+		goto exit;
+	}
+
+	memset(&session, 0, sizeof(session));
+	tee_optee_ta_uuid_to_octets(session.uuid, &uuid);
+	if (tee_open_session(tee_dev, &session, 0, NULL)) {
+		rc = -ENXIO;
+		goto free_shm;
+	}
+
+	memset(param, 0, sizeof(param));
+	param[0].attr          = TEE_PARAM_ATTR_TYPE_VALUE_OUTPUT;
+	param[1].attr          = TEE_PARAM_ATTR_TYPE_MEMREF_OUTPUT;
+	param[1].u.memref.shm  = shm_val;
+	param[1].u.memref.size = HASH_DATA_LEN;
+
+	memset(&invoke, 0, sizeof(invoke));
+	invoke.func    = PTA_EFUSE_DUMP_KEY_HASH_AND_SEC_BOOT;
+	invoke.session = session.session;
+
+	rc = tee_invoke_func(tee_dev, &invoke, 2, param);
+	if (rc != 0) {
+		printf("tee_invoke_func failed with error [0x%x]\n", rc);
+		goto close_session;
+	}
+	if (invoke.ret) {
+		rc = invoke.ret;
+		if (invoke.ret == TEE_ERROR_ACCESS_DENIED)
+			printf("efuse region access denied\n");
+		else
+			printf("optee read efuse failed with error [0x%x]\n", invoke.ret);
+		goto close_session;
+	}
+	memcpy(hash_data, shm_val->addr, HASH_DATA_LEN);
+	*is_sec_chip2 = param[0].u.value.a;
+
+close_session:
+	tee_close_session(tee_dev, session.session);
+free_shm:
+	tee_shm_free(shm_val);
+exit:
+	return rc;
+}
+
+static int dump_efuse_usr_rot_hash(void)
+{
+	int32_t ret = 0;
+	uint32_t hash_data[HASH_DATA_LEN / 4] = {0};
+	uint32_t is_sec_chip2 = 0;
+
+	ret = dump_usr_rot_key_hash(hash_data, &is_sec_chip2);
+	if (ret) {
+		printf("dump root key hash failed\n");
+		goto exit;
+	}
+
+	for (uint32_t i = 0; i < HASH_DATA_LEN / 4; i++){
+		printf("root key hash[%d]: 0x%08x\n", i, *(hash_data + i));
+	}
+
+	if (is_sec_chip2 == 1) {
+		printf("[secure boot all]: True\n");
+	} else {
+		printf("[secure boot all]: False\n");
+	}
+
+exit:
+	return ret;
+}
+
+static int dump_efuse_all(void)
 {
 	uint32_t efuse_buf[14] = {0};
 	int32_t ret;
@@ -138,6 +271,20 @@ static int dump_efuse(void)
 		printf("non-secure bank[%d]:0x%x\n", i, efuse_buf[i]);
 	}
 	return ret;
+}
+
+static int dump_efuse(char *opt)
+{
+	if (!opt)
+		return dump_efuse_all();
+
+	if (strcmp(opt, "all") == 0) {
+		return dump_efuse_all();
+	} else if (strcmp(opt, "root_hash") == 0) {
+		return dump_efuse_usr_rot_hash();
+	} else {
+		return CMD_RET_USAGE;
+	}
 }
 
 static int is_valid_read_efuse_region(struct efuse_info *efuse)
@@ -448,9 +595,9 @@ static int do_optee_efuse(struct cmd_tbl *cmdtp, int flag, int argc, char *const
 		}
 		return ret;
 	} else if (strcmp(cmd, "dump") == 0) {
-		if (argc != 2)
+		if ((argc != 2) && (argc != 3))
 			return CMD_RET_USAGE;
-		return dump_efuse();
+		return dump_efuse(argv[2]);
 	} else if (strcmp(cmd, "write") == 0) {
 		if (argc < 6)
 			return CMD_RET_USAGE;
@@ -480,4 +627,4 @@ static int do_optee_efuse(struct cmd_tbl *cmdtp, int flag, int argc, char *const
 U_BOOT_CMD(efuse, 6, 1, do_optee_efuse, "Read/Dump efuse access via optee",
 		   "read [type] [bank] - efuse read 'type' 'banks'\n"
 		   "efuse write [type] [bank] [value] [lock]- efuse write 'type' 'banks' 'value' 'lock'\n"
-		   "efuse dump - dump all banks\n");
+		   "efuse dump - [all|root_hash]\n");
