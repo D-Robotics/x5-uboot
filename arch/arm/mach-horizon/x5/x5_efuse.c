@@ -259,6 +259,7 @@ static int is_valid_write_efuse_region(struct efuse_info *efuse)
 	/* valid read region:
 		non secure region[13:10]
 		secure region[20:13]
+		secure region[28:25]
 	*/
 	if ((efuse->type == EFUSE_NONSECURE) &&
 		(efuse->bank > 9 && efuse->bank < 14))
@@ -268,6 +269,9 @@ static int is_valid_write_efuse_region(struct efuse_info *efuse)
 		(efuse->bank > 12 && efuse->bank < 21))
 		return 1;
 
+	if ((efuse->type == EFUSE_SECURE) &&
+		(efuse->bank > 24 && efuse->bank < 29))
+		return 1;
 	printf("WRITE efuse type:%d, bank:%d invalid\n", efuse->type, efuse->bank);
 	return 0;
 }
@@ -314,6 +318,11 @@ static int is_valid_write_efuse_condition(struct efuse_info *efuse)
 	int ret = 0;
 	struct efuse_info tmp = {0};
 
+	/* usr root key can not be read,
+	* so, check write condition in optee
+	*/
+	if (efuse->bank > 24 && efuse->bank < 29 && efuse->type == EFUSE_SECURE)
+		return 1;
 	memcpy(&tmp, efuse, sizeof(tmp));
 	ret = hb_read_efuse_and_lock(&tmp);
 	if (ret) {
