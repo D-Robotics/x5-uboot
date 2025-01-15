@@ -486,3 +486,13 @@ failed_fill_buf:
 	free(fill_buf);
 	return -1;
 }
+
+int get_sparse_header_info(void *data, sparse_header_t *sparse_header)
+{
+	if (!data || !sparse_header)
+		return -EINVAL;
+
+	memcpy(sparse_header, data, sizeof(sparse_header_t));
+
+	return 0;
+}

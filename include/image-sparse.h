@@ -40,3 +40,5 @@ static inline int is_sparse_image(void *buf)
 
 int write_sparse_image(struct sparse_storage *info, const char *part_name,
 		       void *data, char *response);
+
+int get_sparse_header_info(void *data, sparse_header_t *sparse_header);

@@ -781,9 +781,16 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 	if (is_sparse_image(download_buffer)) {
 		struct fb_mmc_sparse sparse_priv;
 		struct sparse_storage sparse;
+		sparse_header_t sparse_info;
 		int err;
 
 		sparse_priv.dev_desc = dev_desc;
+
+		if (get_sparse_header_info(download_buffer, &sparse_info) < 0) {
+			pr_err("get sparse header info failed\n");
+			fastboot_fail("get sparse header info failed", response);
+			return;
+		}
 
 		if (start_addr == -1) {
 			sparse.blksz = info.blksz;
@@ -792,7 +799,7 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 		} else {
 			sparse.blksz = dev_desc->blksz;
 			sparse.start = start_addr;
-			sparse.size  = dev_desc->lba * dev_desc->blksz;
+			sparse.size  = DIV_ROUND_UP(sparse_info.total_blks * sparse_info.blk_sz, dev_desc->blksz);
 		}
 
 		sparse.write = fb_mmc_sparse_write;
