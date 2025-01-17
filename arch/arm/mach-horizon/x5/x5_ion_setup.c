@@ -59,7 +59,13 @@
 #define DDR_SIZE_2GB_SUFFIX "_2g"
 #define DDR_SIZE_4GB ((uint64_t)4 * SZ_1G)
 #define DDR_SIZE_GE4GB_SUFFIX "_ge4g"
+#define DDR_SIZE_RDK_SUFFIX "_rdk"
 #define ION_MIN_SIZE (0x4000000)  /* 64 MiB */
+
+#define DEFAULT_ION_REGION_START (0xA4100000)
+#define RDK_DEFAULT_ION_RESERVED_SIZE (0x14000000) /* 320MiB */
+#define RDK_DEFAULT_ION_CARVEOUT_SIZE (0x14000000) /* 320MiB */
+#define RDK_DEFAULT_ION_CMA_SIZE (0x8000000) /* 128MiB */
 
 #define SIZE_ZERO (0x0u)
 static int rsv_offset;
@@ -296,6 +302,7 @@ int hb_setup_ion_size(void *blob)
 	uint64_t ddr_size = ((uint64_t)4 * SZ_1G);
 	uint64_t offset_size;
 	uint32_t num_banks = 0;
+	char *board_id = NULL;
 
 	memset(ion_reserved_name, 0, sizeof(node_suffix));
 	memset(ion_carveout_name, 0, sizeof(node_suffix));
@@ -324,8 +331,13 @@ int hb_setup_ion_size(void *blob)
 	 * and ion regions must be shrinked.
 	 */
 
+	board_id = env_get("hb_board_id");
+	log_debug("%s: Get board_id:%s\n", __func__, board_id);
+	
 	log_debug("%s: Get ddr_size:%lld\n", __func__, ddr_size);
-	if (ddr_size <= DDR_SIZE_1GB) {
+	if (strcmp(board_id,"0x0301") == 0 || strcmp(board_id,"0x0302") == 0) {
+	strncpy(node_suffix, DDR_SIZE_RDK_SUFFIX, ION_NODE_SUFFIX_MAX_LEN - 1);
+	} else if (ddr_size <= DDR_SIZE_1GB) {
 		strncpy(node_suffix, DDR_SIZE_1GB_SUFFIX, ION_NODE_SUFFIX_MAX_LEN - 1);
 	} else if (ddr_size <= DDR_SIZE_2GB) {
 		strncpy(node_suffix, DDR_SIZE_2GB_SUFFIX, ION_NODE_SUFFIX_MAX_LEN - 1);
@@ -335,6 +347,11 @@ int hb_setup_ion_size(void *blob)
 	log_debug("ION region suffix:%s\n", node_suffix);
 	if (hb_parse_ion_dts(blob)) {
 		pr_err("ION fdt parse failed!\n");
+		ion_reserved_size_dft = RDK_DEFAULT_ION_RESERVED_SIZE;
+		ion_carveout_size_dft = RDK_DEFAULT_ION_CARVEOUT_SIZE;
+		ion_cma_size_dft = RDK_DEFAULT_ION_CMA_SIZE;
+		ion_region_start = DEFAULT_ION_REGION_START;
+		printf("Use default ION size ion_reserved_size_dft:%#llx, ion_carveout_size_dft:%#llx, ion_cma_size_dft:%#llx, ion_region_start:%#llx\n", ion_reserved_size_dft, ion_carveout_size_dft, ion_cma_size_dft,ion_region_start);
 	}
 	hb_ion_set_region_size(blob, ddr_size);
 
