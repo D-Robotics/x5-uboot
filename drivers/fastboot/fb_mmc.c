@@ -866,11 +866,15 @@ void fastboot_mmc_erase(const char *cmd, char *response)
 		dev_desc = fastboot_mmc_get_dev(response);
 		if (!dev_desc)
 			return;
-
-		if (fb_mmc_erase_mmc_hwpart(dev_desc))
+		printf("Erasing whole emmc ...\n");
+		if (fb_mmc_erase_mmc_hwpart(dev_desc)){
+			pr_err("Erase whole emmc failed.\n");
 			fastboot_fail("Failed to erase EMMC_USER", response);
-		else
+		}
+		else{
+			printf("Erase whole emmc ok.\n");
 			fastboot_okay(NULL, response);
+		}
 		return;
 	}
 #endif
