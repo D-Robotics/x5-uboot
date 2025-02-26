@@ -23,6 +23,8 @@
 #define TEE_ERROR_ACCESS_DENIED 0xffff0001
 #define HASH_DATA_LEN 32
 
+static uint32_t g_sec_info = 0xFFFF;
+
 int hb_read_efuse(uint32_t offset, uint32_t size, char *output_buffer)
 {
 	int rc = CMD_RET_SUCCESS;
@@ -87,7 +89,7 @@ exit:
 	return rc;
 }
 
-int is_secure_boot()
+int _get_secure_boot_info(void)
 {
 	int rc = CMD_RET_SUCCESS;
 	const struct tee_optee_ta_uuid uuid = PTA_EFUSE;
@@ -130,11 +132,37 @@ int is_secure_boot()
 		goto close_session;
 	}
 
-	rc = param[0].u.value.a;
+	g_sec_info = param[0].u.value.a;
 close_session:
 	tee_close_session(tee_dev, session.session);
 exit:
-	return (rc & 0x1);
+	return rc;
+}
+
+int get_sec_info(uint32_t *sec_info)
+{
+	int ret = 0;
+
+	if (g_sec_info == 0xFFFF) {
+		ret = _get_secure_boot_info(); // get g_sec_info
+	}
+	*sec_info = g_sec_info;
+
+	return ret;
+}
+
+int is_secure_boot()
+{
+	uint32_t sec_info = 0;
+
+	if (get_sec_info(&sec_info)) {
+		return 1;
+	}
+
+	if ((sec_info == SEC_CHIP1_SEC_BOOT) || (sec_info == SEC_CHIP2))
+		return 1;
+	else
+		return 0;
 }
 
 int hb_get_socuid(uint32_t *socuid)

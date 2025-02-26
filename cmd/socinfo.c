@@ -249,6 +249,96 @@ static int hb_set_hw_info(int offset)
 	return ret;
 }
 
+static int hb_set_sec_chip(int offset, char *data)
+{
+	int  ret;
+	int  len = 0;
+	char *prop = "sec_chip";
+	static char node_data[SCRATCHPAD] __aligned(4);
+	const void *ptmp;
+
+	memset(node_data, 0, sizeof(node_data));
+	ptmp = fdt_getprop(hb_dtb, offset, prop, &len);
+	if ((len > SCRATCHPAD) || ptmp == NULL) {
+		printf("prop (%d) doesn't fit in scratchpad!\n", len);
+		return 1;
+	}
+
+	memcpy(node_data, ptmp, len);
+
+	/* set sec_chip */
+	len = strlen(node_data) + 1;
+	if (data == NULL) {
+		strncpy(node_data, "unkown", strlen("unkown") + 1);
+	} else {
+		strncpy(node_data, data, strlen(data) + 1);
+	}
+	ret = fdt_setprop(hb_dtb, offset, prop, node_data, len);
+	if (ret < 0) {
+		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
+		return 1;
+	}
+	return ret;
+}
+
+static int hb_set_sec_boot(int offset, char *data)
+{
+	int  ret;
+	int  len = 0;
+	char *prop = "sec_boot";
+	static char node_data[SCRATCHPAD] __aligned(4);
+	const void *ptmp;
+
+	memset(node_data, 0, sizeof(node_data));
+	ptmp = fdt_getprop(hb_dtb, offset, prop, &len);
+	if ((len > SCRATCHPAD) || ptmp == NULL) {
+		printf("prop (%d) doesn't fit in scratchpad!\n", len);
+		return 1;
+	}
+
+	memcpy(node_data, ptmp, len);
+
+	/* set sec_boot */
+	len = strlen(node_data) + 1;
+	if (data == NULL) {
+		strncpy(node_data, "unkown", strlen("unkown") + 1);
+	} else {
+		strncpy(node_data, data, strlen(data) + 1);
+	}
+	ret = fdt_setprop(hb_dtb, offset, prop, node_data, len);
+	if (ret < 0) {
+		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
+		return 1;
+	}
+	return ret;
+}
+
+static int hb_set_sec_info(int offset)
+{
+	int  ret;
+	uint32_t sec_info = 0;
+
+	ret = get_sec_info(&sec_info);
+	if (ret) {
+		goto exit;
+	}
+
+	if (sec_info == NOSEC_CHIP) {
+		ret = hb_set_sec_chip(offset, "nosec_chip") || hb_set_sec_boot(offset, "disable");
+	} else if (sec_info == SEC_CHIP1_SEC_BOOT) {
+		ret = hb_set_sec_chip(offset, "sec_chip1") || hb_set_sec_boot(offset, "enable");
+	} else if (sec_info == SEC_CHIP1_NOSEC_BOOT) {
+		ret = hb_set_sec_chip(offset, "sec_chip1") || hb_set_sec_boot(offset, "disable");
+	} else if (sec_info == SEC_CHIP2) {
+		ret = hb_set_sec_chip(offset, "sec_chip2") || hb_set_sec_boot(offset, "enable");
+	} else {
+		ret = hb_set_sec_chip(offset, "no_support") || hb_set_sec_boot(offset, "no_support");
+	}
+
+exit:
+	return ret;
+}
+
 int hb_fdt_set_board_info(void *fdt_blob)
 {
 	char *pathp  = "/soc/socinfo";
@@ -303,6 +393,13 @@ int hb_fdt_set_board_info(void *fdt_blob)
 
 	/* set board id */
 	ret = hb_set_board_id(nodeoffset);
+	if (ret < 0) {
+		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
+		return 1;
+	}
+
+	/* set sec_chip and sec_boot */
+	ret = hb_set_sec_info(nodeoffset);
 	if (ret < 0) {
 		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
 		return 1;
