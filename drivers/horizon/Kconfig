@@ -68,6 +68,11 @@ config HOBOT_X5_RDK_V1P0
 	help
 	  Select this option for Board Type X5 RDK V1P0.
 
+config HOBOT_X5_MD_V0P1_ID
+	bool "X5MD_V0P1"
+	help
+	  Select this option for Board Type X5 MD V0P1.
+
 endchoice
 
 endmenu

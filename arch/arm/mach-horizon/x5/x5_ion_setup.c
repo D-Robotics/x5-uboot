@@ -335,7 +335,7 @@ int hb_setup_ion_size(void *blob)
 	log_debug("%s: Get board_id:%s\n", __func__, board_id);
 	
 	log_debug("%s: Get ddr_size:%lld\n", __func__, ddr_size);
-	if (strcmp(board_id,"0x0301") == 0 || strcmp(board_id,"0x0302") == 0) {
+	if (strcmp(board_id,"0x0301") == 0 || strcmp(board_id,"0x0302") == 0 || strcmp(board_id,"0x0501") == 0) {
 	strncpy(node_suffix, DDR_SIZE_RDK_SUFFIX, ION_NODE_SUFFIX_MAX_LEN - 1);
 	} else if (ddr_size <= DDR_SIZE_1GB) {
 		strncpy(node_suffix, DDR_SIZE_1GB_SUFFIX, ION_NODE_SUFFIX_MAX_LEN - 1);
