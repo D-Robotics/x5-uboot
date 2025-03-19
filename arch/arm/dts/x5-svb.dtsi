@@ -17,10 +17,13 @@
 		x5_svb_uart1: serial@34070000 {
 			compatible = "ns16550a";
 			reg = <0x34070000 0x10000>;
-			clock-frequency = <UART_CLK_FREQ>;
 			reg-shift = <2>;
 			current-speed = <115200>;
 			u-boot,dm-pre-reloc;
+			clocks = <&uartclk>;
+			#clock-names = "uart-clk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_uart1>;
 			status = "disabled";
 		};
 

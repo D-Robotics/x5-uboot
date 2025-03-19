@@ -199,6 +199,11 @@
 			#clock-cells = <0>;
 			clock-frequency = <I2C_CLK_FREQ>;
 		};
+		uartclk: uartclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <UART_CLK_FREQ>;
+		};
 		wdtclk: wdtclk {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
