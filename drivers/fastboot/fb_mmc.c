@@ -799,7 +799,7 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 		} else {
 			sparse.blksz = dev_desc->blksz;
 			sparse.start = start_addr;
-			sparse.size  = DIV_ROUND_UP(sparse_info.total_blks * sparse_info.blk_sz, dev_desc->blksz);
+			sparse.size  = DIV_ROUND_UP_ULL((lbaint_t)sparse_info.total_blks * (lbaint_t)sparse_info.blk_sz, dev_desc->blksz);
 		}
 
 		sparse.write = fb_mmc_sparse_write;
