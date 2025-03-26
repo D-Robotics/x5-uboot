@@ -80,11 +80,16 @@
 
 #define RDK_UPDATE \
 	"img_update=" \
-		"if mmc dev 1; then " \
-			"echo SD Card detected,into ums update system; imgupdate 0; " \
-			"else " \
-			"echo SD Card not detected into fastboot update miniboot; imgupdate 1; " \
-		"fi\0"
+    "if mmc dev 1; then " \
+        "echo SD Card detected, entering UMS update system on mmc 1; " \
+        "imgupdate 1; " \
+    "elif mmc dev 0; then " \
+        "echo EMMC detected, entering UMS update system on mmc 0; " \
+        "imgupdate 0; " \
+    "else " \
+        "echo SD Card not detected, entering Fastboot update mode; " \
+        "imgupdate 2; " \
+    "fi\0"
 
 #else
 

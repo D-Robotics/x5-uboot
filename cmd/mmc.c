@@ -1172,8 +1172,10 @@ static int do_imgupdate(struct cmd_tbl *cmdtp, int flag,
 		printf("button Long press, need into update mode\n");
 		udelay(100*1000);
 		if (strcmp(argv[1], "0") == 0)
+			run_command("ums 0 mmc 0",0);
+		else if (strcmp(argv[1], "1") == 0)
 			run_command("ums 0 mmc 1",0);
-		else
+		else 
 			run_command("fastboot 0",0);
 	}
 	else
