@@ -37,6 +37,9 @@ int run_usb_dnl_gadget(int usbctrl_index, char *usb_dnl_gadget)
 		return CMD_RET_FAILURE;
 	}
 
+	printf("DFU initialized (controller %d), ready for transfers\n",
+		usbctrl_index);
+
 #ifdef CONFIG_DFU_TIMEOUT
 	unsigned long start_time = get_timer(0);
 #endif
