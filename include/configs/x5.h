@@ -123,21 +123,21 @@
 
 #define X5_DFU_ALT_INFO_SDCARD                          \
     "dfu_alt_info_sdcard="                              \
-    "emmc0_disk.img raw 0x0 " DFU_MMC_SIZE "\0"
+    "mmc1_disk.img raw 0x0 " DFU_MMC_SIZE "\0"
 
 #define X5_DFU_ALT_INFO_EMMC                            \
     "dfu_alt_info_emmc="                                \
-    "emmc1_disk.img raw 0x0 " DFU_MMC_SIZE "\0"
+    "mmc0_disk.img raw 0x0 " DFU_MMC_SIZE "\0"
 
 #define X5_DFU_EMMC_ENV                                 \
     "dfu_emmc_info="                                    \
     "setenv dfu_alt_info \"${dfu_alt_info_emmc}\"\0"    \
-    "dfu_emmc=run dfu_emmc_info && dfu 0 mmc 1\0"
+    "dfu_emmc=run dfu_emmc_info && dfu 0 mmc 0\0"
 
 #define X5_DFU_SDCARD_ENV                               \
     "dfu_sdcard_info="                                  \
     "setenv dfu_alt_info \"${dfu_alt_info_sdcard}\"\0"  \
-    "dfu_sdcard=run dfu_sdcard_info && dfu 0 mmc 0\0"
+    "dfu_sdcard=run dfu_sdcard_info && dfu 0 mmc 1\0"
 
 #define X5_USB_BOOT            \
     "usbboot="                 \
