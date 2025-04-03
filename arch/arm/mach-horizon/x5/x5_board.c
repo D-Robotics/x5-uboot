@@ -236,6 +236,31 @@ void tf_power(void)
 	udelay(100*1000);
 }
 
+#define HSIO_GPIO_DIR 0x35060004
+#define HSIO_GPIO_IO 0x35060000
+#define HSIO_GPIO_23 23
+
+void net_phy_reset(void)
+{
+	unsigned int value=0;
+
+	value = readl((void *)HSIO_GPIO_DIR);
+	value = value | (0x01 << HSIO_GPIO_23);
+	writel(value, (void *)HSIO_GPIO_DIR);
+
+	value = readl((void *)HSIO_GPIO_IO);
+	value = value & (~(0x01 << HSIO_GPIO_23));
+	writel(value, (void *)HSIO_GPIO_IO);
+
+	udelay(50*1000);
+
+	value = readl((void *)HSIO_GPIO_IO);
+	value = value | (0x01 << HSIO_GPIO_23);
+	writel(value, (void *)HSIO_GPIO_IO);
+
+	udelay(50*1000);
+}
+
 static void board_env_setup(void)
 {
 	u32 board_id;
@@ -270,6 +295,7 @@ static void board_env_setup(void)
 		env_set("serial#", hex_socuid);
 	}
 	tf_power();
+	net_phy_reset();
 }
 
 int last_stage_init(void)

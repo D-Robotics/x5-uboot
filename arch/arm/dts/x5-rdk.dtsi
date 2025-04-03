@@ -132,9 +132,9 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 
-				x5_rdk_ethphy0: ethernet-phy@1 {
+				x5_rdk_ethphy0: ethernet-phy@0 {
 					compatible = "ethernet-phy-ieee802.3-c22";
-					reg = <1>;
+					reg = <0>;
 					max-frequency = <125000000>;
 				};
 			};
