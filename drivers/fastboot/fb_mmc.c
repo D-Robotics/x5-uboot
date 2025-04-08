@@ -287,13 +287,19 @@ static int read_raw_image(struct blk_desc *dev_desc, struct disk_partition *info
 	blks_offset = lldiv(blks_offset, info->blksz);
 
 	if (blkcnt + blks_offset > info->size) {
-		pr_err("too large for partition: '%s'. blkcnt(%lu), blks_offset(%lu), size(%lu)\n",
-				part_name, blkcnt, blks_offset, info->size);
-		fastboot_fail("too large for partition", response);
+		pr_err("Partition overflow: '%s' (available=0x%lx, requested=0x%lx)\n"
+			"  Block details: offset=0x%lx, count=0x%lx (total blocks=0x%lx)\n",
+			part_name, info->size * info->blksz,
+			(blkcnt + blks_offset) * info->blksz,
+			blks_offset * info->blksz,
+			blkcnt * info->blksz,
+			info->size * info->blksz);
+		fastboot_fail("partition too small for read operation", response);
 		return -1;
 	}
 
-	puts("Loading Raw Image\n");
+	printf("Loading data from mmc partition: dev=%d, part='%s', blks=0x%lx (offset=0x%lx, size=0x%x)\n",
+		dev_desc->devnum, part_name, blkcnt, blks_offset, size);
 
 	blks = fb_mmc_blk_read(dev_desc, info->start + blks_offset, blkcnt, buffer);
 
@@ -303,8 +309,8 @@ static int read_raw_image(struct blk_desc *dev_desc, struct disk_partition *info
 		return blks * info->blksz;
 	}
 
-	printf("........ read " LBAFU " bytes from '%s'\n", blkcnt * info->blksz,
-	       part_name);
+	printf("Read 0x%lx bytes from partition '%s' (dev %d)\n",
+		blkcnt * info->blksz, part_name, dev_desc->devnum);
 	fastboot_okay(NULL, response);
 
 	return blks * info->blksz;
@@ -327,7 +333,8 @@ static int64_t read_raw_image_from_addr(struct blk_desc *dev_desc, u64 addr,
 	blks_offset = ((offset + (blksz - 1)) & ~(blksz - 1));
 	blks_offset = lldiv(blks_offset, blksz);
 
-	puts("Flashing Raw Image\n");
+	printf("Loading MMC RAW data: dev=%d, blks=0x%lx (offset=0x%llx, size=0x%llx)\n",
+		dev_desc->devnum, blkcnt, addr + blks_offset, size);
 
 	blks = fb_mmc_blk_read(dev_desc, addr + blks_offset, blkcnt, buffer);
 
@@ -337,8 +344,8 @@ static int64_t read_raw_image_from_addr(struct blk_desc *dev_desc, u64 addr,
 		return -1;
 	}
 
-	printf("........ read \" %llu \" bytes from 0x%llx\n",
-			blkcnt * blksz, addr + blks_offset);
+	printf("Read 0x%llx bytes from block 0x%llx (dev %d)\n",
+		blkcnt * blksz, addr + blks_offset, dev_desc->devnum);
 	fastboot_okay(NULL, response);
 
 	return blks * dev_desc->blksz;
@@ -907,95 +914,52 @@ void fastboot_mmc_erase(const char *cmd, char *response)
 	fastboot_okay(NULL, response);
 }
 
-/**
- * fastboot_mmc_flash_read() - Read image from eMMC to upload buffer
- *
- * @cmd: Named partition to write image to
- * @upload_buffer: buffer to load image data
- * @buffer_size: size of upload_buffer
- * @offset: offset that bytes already loaded
- * @response: Pointer to fastboot response buffer
- *
- * On success, the number of bytes read is returned.
- * On error, -1 is returned.
- */
-int64_t fastboot_mmc_flash_read(char *cmd, void *upload_buffer,
-			u64 buffer_size, s64 offset, char *response)
+int64_t fastboot_mmc_flash_read(struct fetch_info *info, void *upload_buffer,
+								u64 buffer_size, s64 offset, char *response)
 {
 	struct blk_desc *dev_desc;
-	struct disk_partition info;
-	char *cur, *next;
-	int64_t start_addr = -1;
-	uint64_t length = 0;
-	int64_t partition_size = 0;
-	int64_t remaining_size = 0;
-	int64_t read_size = 0;
-	int64_t r = -1;
+	struct disk_partition part_info;
+	int ret = -1;
+
+	if (!info || !upload_buffer || buffer_size == 0) {
+		fastboot_fail("invalid parameters", response);
+		return -1;
+	}
 
 	dev_desc = fastboot_mmc_get_dev(response);
 	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
-		pr_err("invalid mmc device\n");
 		fastboot_fail("invalid mmc device", response);
 		return -1;
 	}
 
-	memset(&info, 0, sizeof(struct disk_partition));
+	memset(&part_info, 0, sizeof(part_info));
 
-	next = cmd;
-	cur = strsep(&next, "@");
-
-	/* addr@length or addr@end_part case */
-	if (cur && next && !strict_strtoul(cur, 16, (unsigned long *)&start_addr)) {
-		/* addr@length */
-		if (strict_strtoul(next, 16, (unsigned long *)&length) < 0) {
-			/* addr@end_part_name */
-			if (part_get_info_by_name_or_alias(&dev_desc, next, &info) < 0) {
-				pr_err("cannot find partition: '%s'\n", next);
-				fastboot_fail("cannot find partition", response);
-			} else {
-				length = info.start + info.size;
-			}
+	switch (info->type) {
+	case FETCH_PARTITION:
+	case FETCH_PART_RANGE:
+		if (fastboot_mmc_get_part_info(info->part_name, &dev_desc,
+			&part_info, response) < 0) {
+			pr_err("cannot find partition: '%s'\n", info->part_name);
+			fastboot_fail("cannot find partition", response);
+			return -1;
 		}
-	} else if (fastboot_mmc_get_part_info(cmd, &dev_desc, &info, response) < 0) {
 
-		pr_err("cannot find partition: '%s'\n", cmd);
-		fastboot_fail("cannot find partition", response);
-
-		return -1;
+		ret = read_raw_image(dev_desc, &part_info, info->part_name,
+			upload_buffer, info->size, info->addr, response);
+		break;
+	case FETCH_ADDR_RANGE:
+	case FETCH_ADDR_PART:
+		ret = read_raw_image_from_addr(dev_desc,
+			(u64)info->addr / dev_desc->blksz,
+			dev_desc->blksz, upload_buffer,
+			info->size, offset, response);
+	default:
+		break;
 	}
 
-	if (start_addr != -1 && length > 0)
-		partition_size = length * dev_desc->blksz;
-	else
-		partition_size = info.size * info.blksz;
-
-	remaining_size = partition_size - offset;
-	if (remaining_size <= 0) {
-		pr_err("Error: No remaining bytes to be fetched. partition_size(%llu), offset(%llu)\n",
-				partition_size, offset);
-
-		fastboot_fail("Error: No remaining bytes to be fetched.", response);
-		return -1;
+	if (ret < 0) {
+		fastboot_fail("mmc read operation failed", response);
 	}
 
-	printf("remaining(%llu bytes) to be fetched. continue...\n", remaining_size);
-
-	read_size = buffer_size > remaining_size ? remaining_size : buffer_size;
-
-	if (start_addr < 0 && start_addr != -1) {
-		pr_err("Error: start_addr: %08lld(%08llx) invalid...\n", start_addr, start_addr);
-		fastboot_fail("Error: start_addr(< 0) invalid...\n", response);
-
-		return -1;
-	}
-
-	if (start_addr == -1)
-		r = read_raw_image(dev_desc, &info, cmd, upload_buffer,
-				read_size, offset, response);
-	else
-		r = read_raw_image_from_addr(dev_desc, (u64)start_addr,
-				dev_desc->blksz, upload_buffer,
-				read_size, offset, response);
-
-	return r;
+	return ret;
 }

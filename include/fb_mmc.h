@@ -43,13 +43,15 @@ void fastboot_mmc_erase(const char *cmd, char *response);
 /**
  * fastboot_mmc_flash_read() - Read image from eMMC to upload buffer
  *
- * @cmd: Named partition to write image to
- * @upload_buffer: buffer to load image data
- * @buffer_size: size of upload_buffer
- * @offset: offset that bytes already loaded
- * @response: Pointer to fastboot response buffer
+ * @info: Pointer to fetch_info structure
+ * @upload_buffer: Buffer to store read data
+ * @buffer_size: Size of the upload buffer
+ * @offset: Offset from start to begin reading
+ * @response: Fastboot response buffer
+ *
+ * Returns: Number of bytes read on success, -1 on error
  */
-int64_t fastboot_mmc_flash_read(char *cmd, void *upload_buffer,
+int64_t fastboot_mmc_flash_read(struct fetch_info *info, void *upload_buffer,
 			u64 buffer_size, s64 offset, char *response);
 
 /**

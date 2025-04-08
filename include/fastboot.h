@@ -29,7 +29,6 @@ enum {
 	FASTBOOT_COMMAND_ERASE,
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_FETCH)
-	FASTBOOT_COMMAND_LOAD,
 	FASTBOOT_COMMAND_FETCH,
 #endif
 	FASTBOOT_COMMAND_BOOT,
@@ -48,9 +47,6 @@ enum {
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_BOOTBUS)
 	FASTBOOT_COMMAND_OEM_BOOTBUS,
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_RAMDUMP)
-	FASTBOOT_COMMAND_OEM_RAMDUMP,
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_SET_MEDIUM)
 	FASTBOOT_COMMAND_OEM_SET_MEDIUM,
@@ -88,6 +84,30 @@ enum fastboot_reboot_reason {
 	FASTBOOT_REBOOT_REASON_FASTBOOTD,
 	FASTBOOT_REBOOT_REASON_RECOVERY,
 	FASTBOOT_REBOOT_REASONS_COUNT
+};
+
+/* Fetch operation types */
+/* partname format */
+#define FETCH_PARTITION      0xFA47B007FFEE77AA
+/* partname@addr-size format */
+#define FETCH_PART_RANGE     0xFA47B007FFEE77BB
+/* addr@size format */
+#define FETCH_ADDR_RANGE     0xFA47B007DDCC55AA
+/* addr@partname format */
+#define FETCH_ADDR_PART      0xFA47B007DDCC55BB
+/* ramdump format */
+#define FETCH_RAMDUMP        0xFA47B007BBAA00AA
+/* ramdump@addr-size format */
+#define FETCH_RAMDUMP_RANGE  0xFA47B007BBAA00BB
+
+#define FETCH_CMD_LEN	(128)
+
+/* Structure to hold parsed fetch command information */
+struct fetch_info {
+	u64 type;               /* Type of fetch operation */
+	char part_name[FETCH_CMD_LEN];    /* Partition name */
+	ulong addr;             /* Starting address (for address-based fetches) */
+	ulong size;             /* Size of data to fetch */
 };
 
 /**
@@ -229,8 +249,9 @@ void fastboot_data_download(const void *fastboot_data,
  * Writes to response. fastboot_bytes_send is updated to indicate the number
  * of bytes that have been transferred.
  */
-void fastboot_data_upload(void *fastboot_data,  void *src_buf,
-			    unsigned int fastboot_data_len, char *response);
+void fastboot_data_upload(struct fetch_info *info, void *fastboot_data,
+			void *src_buf, unsigned int fastboot_data_len,
+			char *response);
 /**
  * fastboot_download_complete() - Mark current transfer complete
  *
@@ -263,20 +284,12 @@ int fastboot_tx_write(const char *buffer, unsigned int buffer_size);
 int fastboot_tx_write_more(const char *buffer);
 
 /**
- * fastboot_upload_ramdump() - wrapper function for upload ramdump to host
- *
- * wrapper function to upload requested ram data to host pc,
- * used for oem ramdump feature..
- */
-void fastboot_upload_ramdump(void);
-
-/**
  * fastboot_fetch_data() - wrapper function for upload mmc image/partition to host
  *
  * wrapper function to upload requested mmc partition or image to host pc,
  * used for fastboot fetch command..
  */
-void fastboot_fetch_data(void);
+void fastboot_fetch_data(struct fetch_info *info);
 
 /**
  * fastboot_upload_complete() - Mark current transfer complete
@@ -309,5 +322,20 @@ void fastboot_set_medium(fb_flash_type flash_type, unsigned long medium_devnum);
  * < 0: no user input
  */
 s32 fastboot_medium_devnum(void);
+
+
+/**
+ * Parse fetch command string into structured format
+ * @param cmd: Input command string to parse
+ * @param info: Output structure to store parsed information
+ * @return: 0 on success, -1 on error
+ *
+ * Supported formats:
+ * 1. partname[@addr-size]  - Fetch from partition with optional range
+ * 2. addr@size             - Fetch from absolute address range
+ * 3. addr@partname         - Fetch from address to end of partition(include)
+ * 4. ramdump[@addr-size]   - Special ramdump format
+ */
+int fastboot_parse_fetch_cmd(const char *cmd, struct fetch_info *info);
 
 #endif /* _FASTBOOT_H_ */

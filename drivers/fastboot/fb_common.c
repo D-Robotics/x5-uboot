@@ -11,6 +11,7 @@
  */
 
 #include <bcb.h>
+#include <ctype.h>
 #include <common.h>
 #include <command.h>
 #include <env.h>
@@ -254,4 +255,104 @@ void fastboot_set_medium(fb_flash_type flash_type, unsigned long medium_devnum)
 {
 	selected_flash_type = flash_type;
 	fastboot_medium_number = medium_devnum;
+}
+
+static bool valid_hex_address(const char *s) {
+	if (!s || !*s) return false;
+
+	/* Must start with "0x" */
+	if (strncmp(s, "0x", 2) != 0)
+		return false;
+
+	/* All remaining chars must be hex digits */
+	for (const char *p = s + 2; *p; p++) {
+		if (!isxdigit(*p))
+			return false;
+	}
+
+	return true;
+	}
+
+int fastboot_parse_fetch_cmd(const char *cmd, struct fetch_info *info)
+{
+	char *p;
+	char cmd_copy[128];
+	char *token;
+
+	if (!cmd || !info) {
+		return -1;
+	}
+
+	memset(info, 0, sizeof(*info));
+
+	/* Create modifiable copy of command */
+	strncpy(cmd_copy, cmd, sizeof(cmd_copy) - 1);
+	cmd_copy[sizeof(cmd_copy) - 1] = '\0';
+
+	if (!strncmp(cmd_copy, "ramdump", 7)) {
+		info->type = FETCH_RAMDUMP;
+		p = cmd_copy + 7;
+
+		if (*p == '@') {
+			info->type = FETCH_RAMDUMP_RANGE;
+			p++;
+			token = strsep(&p, "-");
+			if (!token) {
+				return -1;
+			}
+
+			info->addr = simple_strtoul(token, NULL, 16);
+
+			if (p) {
+				info->size = simple_strtoul(p, NULL, 16);
+			}
+		}
+		return 0;
+	}
+
+	p = strchr(cmd_copy, '@');
+	if (!p) {
+		info->type = FETCH_PARTITION;
+		strlcpy(info->part_name, cmd_copy, FETCH_CMD_LEN);
+		return 0;
+	}
+
+	*p = '\0';
+	token = cmd_copy;
+	p++;
+
+	if (valid_hex_address(token)) {
+		/* Could be either FETCH_ADDR_RANGE or FETCH_ADDR_PART */
+		info->addr = simple_strtoul(token, NULL, 16);
+
+		if (valid_hex_address(p)) {
+			/* addr@size format (e.g., 0x50000000@0x1000) */
+			info->type = FETCH_ADDR_RANGE;
+			info->size = simple_strtoul(p, NULL, 16);
+
+			if (info->size == 0) {
+				return -1;
+			}
+		} else {
+			/* addr@partname format (e.g., 0x50000000@kernel) */
+			info->type = FETCH_ADDR_PART;
+			strlcpy(info->part_name, p, FETCH_CMD_LEN);
+		}
+	} else {
+		/* partname@addr-size format */
+		info->type = FETCH_PART_RANGE;
+		strlcpy(info->part_name, token, FETCH_CMD_LEN);
+
+		token = strsep(&p, "-");
+		if (!token) {
+			return -1;
+		}
+
+		info->addr = simple_strtoul(token, NULL, 16);
+		if (p) {
+			info->size = simple_strtoul(p, NULL, 16);
+		}
+	}
+
+	return 0;
 }

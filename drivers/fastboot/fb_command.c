@@ -61,7 +61,6 @@ static void flash(char *, char *);
 static void erase(char *, char *);
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_FETCH)
-static void load(char *, char *);
 static void fetch(char *, char *);
 #endif
 static void reboot_bootloader(char *, char *);
@@ -75,9 +74,6 @@ static void oem_partconf(char *, char *);
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_BOOTBUS)
 static void oem_bootbus(char *, char *);
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_RAMDUMP)
-static void oem_ramdump(char *cmd_parameter, char *response);
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_SET_MEDIUM)
 static void oem_set_medium(char *cmd_parameter, char *response);
@@ -115,10 +111,6 @@ static const struct {
 	},
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_FETCH)
-	[FASTBOOT_COMMAND_LOAD] = {
-		.command = "load",
-		.dispatch = load
-	},
 	[FASTBOOT_COMMAND_FETCH] = {
 		.command = "fetch",
 		.dispatch = fetch
@@ -172,12 +164,6 @@ static const struct {
 	[FASTBOOT_COMMAND_OEM_BOOTBUS] = {
 		.command = "oem bootbus",
 		.dispatch = oem_bootbus,
-	},
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_RAMDUMP)
-	[FASTBOOT_COMMAND_OEM_RAMDUMP] = {
-		.command = "oem ramdump",
-		.dispatch = oem_ramdump,
 	},
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_SET_MEDIUM)
@@ -400,7 +386,7 @@ void fastboot_upload_complete(char *response)
 {
 	/* Upload complete. Respond with "OKAY" */
 	fastboot_okay(NULL, response);
-	printf("\nuploading of %u bytes finished\n", fastboot_bytes_send);
+	printf("\nuploading 0x%x bytes completed\n", fastboot_bytes_send);
 	fastboot_bytes_expected = 0;
 	fastboot_bytes_send = 0;
 }
@@ -473,41 +459,38 @@ static void erase(char *cmd_parameter, char *response)
 }
 #endif
 
+
 #if CONFIG_IS_ENABLED(FASTBOOT_FETCH)
+
 /**
- * load() - load partition image to indicated buffer.
+ * load_data() - load partition image to indicated buffer.
  *
- * @cmd_parameter: Pointer to partition name
+ * @info: Pointer to fetch_info
  * @response: Pointer to fastboot response buffer
  *
  * Loads the partition image to the indicated buffer, for following
  * partition fetch/backup.
  */
-static void load(char *cmd_parameter, char *response)
+static void load_data(struct fetch_info *info, char *response)
 {
 	int64_t bytes_loaded = -1;
-
-	if (!cmd_parameter) {
-		fastboot_fail("Expected command parameter", response);
-		return;
-	}
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
 	if (fastboot_get_flash_type() == FLASH_TYPE_UNKNOWN ||
 			fastboot_get_flash_type() == FLASH_TYPE_EMMC) {
-		bytes_loaded = fastboot_mmc_flash_read(cmd_parameter, fastboot_buf_addr,
+		bytes_loaded = fastboot_mmc_flash_read(info, fastboot_buf_addr,
 				fastboot_buf_size, fastboot_bytes_loaded, response);
 	}
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
 	if (fastboot_get_flash_type() == FLASH_TYPE_NAND)
-		bytes_loaded = fastboot_nand_flash_read(cmd_parameter, fastboot_buf_addr,
+		bytes_loaded = fastboot_nand_flash_read(info, fastboot_buf_addr,
 				fastboot_buf_size, fastboot_bytes_loaded, response);
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_SPINAND)
 #if 0
 	if (fastboot_get_flash_type() == FLASH_TYPE_SPINAND)
-		fastboot_spinand_flash_read(cmd_parameter, fastboot_buf_addr,
+		fastboot_spinand_flash_read(info, fastboot_buf_addr,
 				fastboot_buf_size, fastboot_bytes_loaded, response);
 #endif
 #endif
@@ -526,23 +509,83 @@ static void load(char *cmd_parameter, char *response)
  */
 static void fetch(char *cmd_parameter, char *response)
 {
-	char *tmp;
+	struct fetch_info info;
+	char *p;
+	char cmd_copy[128];
+	ulong offset_start = 0;
+	ulong offset_size = 0;
+	int ret;
 
-	if (!cmd_parameter) {
+	if (!cmd_parameter)
+	{
 		fastboot_fail("Expected command parameter", response);
 		return;
 	}
 
-	fastboot_bytes_expected = simple_strtoul(cmd_parameter, &tmp, 16);
-	if (fastboot_bytes_expected == 0 || fastboot_bytes_expected < 0) {
-		fastboot_fail("Expected invalid image size", response);
+	printf("fastboot fetch %s\n", cmd_parameter);
+
+	/* Create working copy of command */
+	strncpy(cmd_copy, cmd_parameter, sizeof(cmd_copy) - 1);
+	cmd_copy[sizeof(cmd_copy) - 1] = '\0';
+
+	/* Check for additional :start:size suffix */
+	p = strchr(cmd_copy, ':');
+	if (p)
+	{
+		*p = '\0';
+		p++;
+
+		/* Parse additional parameters */
+		char *token = strsep(&p, ":");
+		if (!token || !p)
+		{
+			fastboot_fail("invalid fetch parameters", response);
+			return;
+		}
+
+		offset_start = simple_strtoul(token, NULL, 16);
+		offset_size = simple_strtoul(p, NULL, 16);
+
+		fastboot_bytes_expected = offset_size;
+		if (fastboot_bytes_expected <= 0) {
+			fastboot_fail("Invalid image size", response);
+			return;
+		}
+	} else {
+		fastboot_fail("Malformed parameter (no colons)", response);
 		return;
+	}
+
+	/* Parse main fetch command */
+	ret = fastboot_parse_fetch_cmd(cmd_copy, &info);
+	if (ret)
+	{
+		fastboot_fail("cannot parse fetch command", response);
+		return;
+	}
+
+	/* Handle additional parameters if present */
+	if (p)
+	{
+		/* Additional parameters override the original values */
+		if (offset_size != 0)
+		{
+			info.size = offset_size;
+			info.addr += offset_start;
+		}
+		else
+		{
+			fastboot_fail("missing size in extra parameters", response);
+			return;
+		}
 	}
 
 	fastboot_response("DATA", response, "%08x", fastboot_bytes_expected);
 	fastboot_tx_write_more(response);
 
-	fastboot_fetch_data();
+	fastboot_bytes_loaded = 0;
+
+	fastboot_fetch_data(&info);
 
 	fastboot_none_resp(response);
 }
@@ -568,7 +611,7 @@ u32 fastboot_upload_remaining(void)
  * @response: Pointer to fastboot response buffer
  *
  */
-void fastboot_data_upload(void *fastboot_data,
+void fastboot_data_upload(struct fetch_info *info, void *fastboot_data,
 			    void *src_buf,
 			    unsigned int fastboot_data_len,
 			    char *response)
@@ -591,9 +634,13 @@ void fastboot_data_upload(void *fastboot_data,
 	if (src_buf)
 		memcpy(fastboot_data, src_buf + fastboot_bytes_send,
 				fastboot_data_len);
-	else
+	else {
+		if (info)
+			load_data(info, response);
+
 		memcpy(fastboot_data, fastboot_buf_addr + fastboot_bytes_send,
-				fastboot_data_len);
+			fastboot_data_len);
+	}
 
 	pre_dot_num = fastboot_bytes_send / BYTES_PER_DOT;
 	fastboot_bytes_send += fastboot_data_len;
@@ -789,36 +836,6 @@ static void oem_bootbus(char *cmd_parameter, char *response)
 		fastboot_fail("Cannot set oem bootbus", response);
 	else
 		fastboot_okay(NULL, response);
-}
-#endif
-
-#if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_RAMDUMP)
-/**
- * oem_ramdump() - Execute the OEM ramdump command
- *
- * @cmd_parameter: Pointer to command parameter
- * @response: Pointer to fastboot response buffer
- */
-static void oem_ramdump(char *cmd_parameter, char *response)
-{
-	char *tmp;
-
-	if (!cmd_parameter)
-		fastboot_bytes_expected = gd->ram_size;
-	else
-		fastboot_bytes_expected = simple_strtoul(cmd_parameter, &tmp, 16);
-
-	if (!fastboot_bytes_expected) {
-		fastboot_fail("Expected nonzero image size", response);
-		return;
-	}
-
-	fastboot_response("DATA", response, "%08x", fastboot_bytes_expected);
-	fastboot_tx_write_more(response);
-
-	fastboot_upload_ramdump();
-
-	fastboot_none_resp(response);
 }
 #endif
 

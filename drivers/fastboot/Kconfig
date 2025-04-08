@@ -232,13 +232,6 @@ config FASTBOOT_CMD_OEM_BOOTBUS
 	  Add support for the "oem bootbus" command from a client. This set
 	  the mmc boot configuration for the selecting eMMC device.
 
-config FASTBOOT_CMD_OEM_RAMDUMP
-	bool "Enable the 'oem ramdump' command"
-	help
-	  Add support for the "oem ramdump" command from a client. This
-	  could help to dump indicated/whole dram data to host pc through
-	  fastboot oem command.
-
 config FASTBOOT_CMD_OEM_SET_MEDIUM
 	bool "Enable the 'oem set_medium' command"
 	help

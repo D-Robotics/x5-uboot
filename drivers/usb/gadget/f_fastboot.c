@@ -38,9 +38,6 @@
  * that expect bulk OUT requests to be divisible by maxpacket size.
  */
 
-#define RAMDUMP_MAGIC			0xFA47B007AADD00FF
-#define FETCH_MAGIC			0xFA47B007FFEE77CC
-
 typedef struct usb_req usb_req;
 struct usb_req {
 	struct usb_request *in_req;
@@ -559,16 +556,26 @@ static void rx_handler_dl_image(struct usb_ep *ep, struct usb_request *req)
 
 static void tx_handler_ul_image(struct usb_ep *ep, struct usb_request *req)
 {
-	static void *src_buf = NULL;	// use static value, following loop still use it.
+	static void *src_buf = NULL;  // static value, following loop still use it.
 	char response[FASTBOOT_RESPONSE_LEN] = {0};
 	struct usb_request *in_req = fastboot_func->in_req;
 	unsigned int transfer_size = fastboot_upload_remaining();
 	void *buffer = in_req->buf;
+	struct fetch_info *info = NULL;
 	int ret;
 
-	if ((u64)ep == RAMDUMP_MAGIC && (u64)req == RAMDUMP_MAGIC)
+	if (ep)
+		info = (struct fetch_info *)ep->driver_data;
+
+	if (info && info->type == FETCH_RAMDUMP)
 		src_buf = (void *)PHYS_SDRAM_1;
-	else if ((u64)ep == FETCH_MAGIC && (u64)req == FETCH_MAGIC)
+	else if (info && info->type == FETCH_RAMDUMP_RANGE)
+		src_buf = (void *)(info->addr);
+	else if (info &&
+		(info->type == FETCH_PARTITION
+			|| info->type == FETCH_PART_RANGE
+			|| info->type == FETCH_ADDR_PART
+			|| info->type == FETCH_ADDR_RANGE))
 		src_buf = NULL;	// use default fastboot_buf_addr data
 	else if (req->status)
 		printf("status: %d ep '%s' trans: %d len %d\n", req->status,
@@ -590,7 +597,8 @@ static void tx_handler_ul_image(struct usb_ep *ep, struct usb_request *req)
 	if (transfer_size > EP_BUFFER_SIZE)
 		transfer_size = EP_BUFFER_SIZE;
 
-	fastboot_data_upload(buffer, src_buf, transfer_size, response);
+	fastboot_data_upload(info,
+		buffer, src_buf, transfer_size, response);
 	if (response[0]) {
 		fastboot_tx_write_str(response);
 	} else {
@@ -605,19 +613,13 @@ static void tx_handler_ul_image(struct usb_ep *ep, struct usb_request *req)
 	}
 }
 
-void fastboot_upload_ramdump(void)
+void fastboot_fetch_data(struct fetch_info *info)
 {
-	printf("start ramdump\n");
+	struct usb_ep ep = {
+		.driver_data = (void *)info,
+	};
 
-	tx_handler_ul_image((struct usb_ep *)RAMDUMP_MAGIC,
-			(struct usb_request *)RAMDUMP_MAGIC);
-}
-void fastboot_fetch_data(void)
-{
-	printf("start fetch image/partition");
-
-	tx_handler_ul_image((struct usb_ep *)FETCH_MAGIC,
-			(struct usb_request *)FETCH_MAGIC);
+	tx_handler_ul_image((struct usb_ep *)&ep, NULL);
 }
 
 static void do_exit_on_complete(struct usb_ep *ep, struct usb_request *req)
