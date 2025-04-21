@@ -133,6 +133,7 @@
 			max-speed = <1000>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_enet &pinctrl_lsio_gpio0_31_output_normal>;
+			phy-reset-gpios = <&ls_gpio0_porta 31 GPIO_ACTIVE_HIGH>;
 
 			mdio {
 				compatible = "snps,dwmac-mdio";

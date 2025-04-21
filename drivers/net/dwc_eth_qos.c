@@ -1374,6 +1374,21 @@ err_free_reset_eqos:
 __weak int board_interface_eth_init(struct udevice *dev,
 				    phy_interface_t interface_type)
 {
+	struct eqos_priv *eqos = dev_get_priv(dev);
+	int ret;
+
+	ret = gpio_request_by_name(dev, "phy-reset-gpios", 0,
+		&eqos->phy_reset_gpio,
+		GPIOD_IS_OUT | GPIOD_IS_OUT_ACTIVE);
+	if (ret) {
+		pr_err("Failed to request PHY reset GPIO: %d\n", ret);
+		return ret;
+	}
+
+	dm_gpio_set_value(&eqos->phy_reset_gpio, 0);
+	mdelay(10);
+	dm_gpio_set_value(&eqos->phy_reset_gpio, 1);
+	mdelay(10);
 	return 0;
 }
 
