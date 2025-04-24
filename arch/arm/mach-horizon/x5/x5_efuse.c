@@ -656,3 +656,18 @@ U_BOOT_CMD(efuse, 6, 1, do_optee_efuse, "Read/Dump efuse access via optee",
 		   "read [type] [bank] - efuse read 'type' 'banks'\n"
 		   "efuse write [type] [bank] [value] [lock]- efuse write 'type' 'banks' 'value' 'lock'\n"
 		   "efuse dump - [all|root_hash]\n");
+
+
+int get_chip_type(uint32_t *chip_type)
+{
+	int ret = 0;
+	uint32_t _chip_type = 0;
+
+	ret = hb_read_efuse(EFUSE_CPU_OPPTABLE_OFFSET, 4, (char *)&_chip_type);
+	if (ret) {
+		return ret;
+	}
+	_chip_type &= EFUSE_CPU_OPPTABLE_MASK;
+	*chip_type = (_chip_type >> EFUSE_CPU_OPPTABLE_BIT);
+	return ret;
+}

@@ -38,15 +38,23 @@ enum {
     SEC_CHIP2,
 };
 
+enum {
+    CHIP_X5_UKNOWN = 0,
+    CHIP_X5_H,
+    CHIP_X5_M,
+    CHIP_X5_B,
+};
+
 #define MAX_CPU	8
-#define EFUSE_CPU_OPPTABLE_OFFSET	0x54
-#define EFUSE_CPU_OPPTABLE_BIT		(28)
-#define EFUSE_CPU_OPPTABLE_MASK		(0x3 << EFUSE_CPU_OPPTABLE_BIT)
+#define EFUSE_CPU_OPPTABLE_OFFSET	0x74
+#define EFUSE_CPU_OPPTABLE_BIT		(7)
+#define EFUSE_CPU_OPPTABLE_MASK		(0xF << EFUSE_CPU_OPPTABLE_BIT)
 
 int hb_read_efuse(uint32_t offset, uint32_t size, char *output_buffer);
 int hb_get_socuid(uint32_t *socuid);
 int is_secure_boot(void);
 int get_sec_info(uint32_t *sec_info);
+int get_chip_type(uint32_t *chip_type);
 
 enum efuse_type {
 	EFUSE_SECURE = 0,

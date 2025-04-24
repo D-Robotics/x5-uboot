@@ -339,6 +339,51 @@ exit:
 	return ret;
 }
 
+static int hb_set_soc_name(int offset)
+{
+	int  ret;
+	int  len = 0;
+	char *prop = "soc_name";
+	static char node_data[SCRATCHPAD] __aligned(4);
+	const void *ptmp;
+	uint32_t chip_type = 0;
+
+	memset(node_data, 0, sizeof(node_data));
+	ptmp = fdt_getprop(hb_dtb, offset, prop, &len);
+	if ((len > SCRATCHPAD) || ptmp == NULL) {
+		printf("prop (%d) doesn't fit in scratchpad!\n", len);
+		return 1;
+	}
+
+	memcpy(node_data, ptmp, len);
+
+	/* set hw_name */
+	len = strlen(node_data) + 1;
+
+	ret = get_chip_type(&chip_type);
+	if (ret) {
+		printf("read efuse chip type failed\n");
+		return 1;
+	}
+
+	if (chip_type == CHIP_X5_H) {
+		strncpy(node_data, "X5H", strlen("X5H") + 1);
+	} else if (chip_type == CHIP_X5_M) {
+		strncpy(node_data, "X5M", strlen("X5M") + 1);
+	} else if (chip_type == CHIP_X5_B) {
+		strncpy(node_data, "X5B", strlen("X5B") + 1);
+	} else {
+		strncpy(node_data, "UKNOWN", strlen("UKNOWN") + 1);
+	}
+
+	ret = fdt_setprop(hb_dtb, offset, prop, node_data, len);
+	if (ret < 0) {
+		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
+		return 1;
+	}
+	return ret;
+}
+
 int hb_fdt_set_board_info(void *fdt_blob)
 {
 	char *pathp  = "/soc/socinfo";
@@ -400,6 +445,13 @@ int hb_fdt_set_board_info(void *fdt_blob)
 
 	/* set sec_chip and sec_boot */
 	ret = hb_set_sec_info(nodeoffset);
+	if (ret < 0) {
+		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
+		return 1;
+	}
+
+	/* set soc_name */
+	ret = hb_set_soc_name(nodeoffset);
 	if (ret < 0) {
 		printf("libfdt fdt_setprop(): %s\n", fdt_strerror(ret));
 		return 1;

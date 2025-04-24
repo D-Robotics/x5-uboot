@@ -173,27 +173,23 @@ static void check_cpu_1_8g_support(void *fdt)
 {
         int offs, ret;
         int enable;
-        int efuse;
+        uint32_t chip_type = 0;
         int i;
         char node[128] = {0};
 
         enable = env_get_yesno("enable_cpu_18g");
 
         /* enable opp table according to efuse info */
-        ret = hb_read_efuse(EFUSE_CPU_OPPTABLE_OFFSET, 4, (char *)&efuse);
+        ret = get_chip_type(&chip_type);
         if (ret) {
-            printf("read efuse cpu type failed\n");
+            printf("read efuse chip type failed\n");
             return;
         }
-        efuse &= EFUSE_CPU_OPPTABLE_MASK;
-        efuse = (efuse >> EFUSE_CPU_OPPTABLE_BIT);
 
         /* update pll table if 1.8G supported */
-        if (enable && efuse == 0) {
+        if (enable && ((chip_type == CHIP_X5_H) || (chip_type == CHIP_X5_UKNOWN))) {
                 /* enable corresponding opp table */
-                memset(node, 0, sizeof(node));
-                sprintf(node, "/cpu-opp-table-%d/", efuse);
-                offs = fdt_path_offset(fdt, node);
+                offs = fdt_path_offset(fdt, "/cpu-opp-table-0/");
                 if (offs < 0) {
                         printf("failed to get sub_node!");
                         return;
@@ -218,13 +214,10 @@ static void check_cpu_1_8g_support(void *fdt)
                 }
                 printf("%s CPU 1.8G!\n", enable ? "enable" : "disable");
         } else {
-                char opp_node[128] = {0};
                 int opp_offs;
                 u32 phandle;
 
-                // TODO: remove hardcode after efuse burned
-                efuse = 1;
-                /* enable pll table for 1.8G support */
+                /* disable pll table for 1.8G support */
                 opp_offs = fdt_path_offset(fdt, "/soc/hps-clock-controller@34210000");
                 if (opp_offs < 0) {
                         printf("failed to get hps clock node!");
@@ -236,11 +229,8 @@ static void check_cpu_1_8g_support(void *fdt)
                         return;
                 }
                 /* enable corresponding opp table */
-                memset(opp_node, 0, sizeof(opp_node));
-                sprintf(opp_node, "/cpu-opp-table-%d/", efuse);
-                //printf("opp_node: %s\n", opp_node);
 
-                opp_offs = fdt_path_offset(fdt, opp_node);
+                opp_offs = fdt_path_offset(fdt, "/cpu-opp-table-1/");
                 if (opp_offs < 0) {
                         printf("failed to get opp_node!");
                         return;
