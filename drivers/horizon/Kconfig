@@ -78,6 +78,11 @@ bool "X5MD_V0P2"
 help
 Select this option for Board Type X5 MD V0P2.
 
+config HOBOT_X5_MD_V0P3_ID
+bool "X5MD_V0P3"
+help
+Select this option for Board Type X5 MD V0P3.
+
 endchoice
 
 endmenu

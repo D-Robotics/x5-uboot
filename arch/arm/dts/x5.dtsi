@@ -48,7 +48,8 @@
 				<251 340 51 140 HOBOT_X5_RDK_ID 5 0 0 1 0>,
 				<251 340 151 240 HOBOT_X5_RDK_V1P0_ID 5 0 0 1 1>,
 				<451 540 51 140 HOBOT_X5_MD_V0P1_ID 6 0 0 1 0>,
-				<451 540 151 240 HOBOT_X5_MD_V0P2_ID 6 0 0 1 1>;
+				<451 540 151 240 HOBOT_X5_MD_V0P2_ID 6 0 0 1 1>,
+				<451 540 251 340 HOBOT_X5_MD_V0P3_ID 6 0 0 1 2>;
 		hardware_array = "x5-fpga", "x5-soc", "x5-svb", "X5_EVB_LP4", "X5_EVB_LP4X", "x5-rdk", "x5-md";
 		ethact_array = "default";
 		net_eth0_ipaddr = "192.168.1.10";
