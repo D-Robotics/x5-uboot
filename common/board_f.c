@@ -229,6 +229,13 @@ static int show_dram_config(void)
 		print_size(gd->bd->bi_dram[i].size, "\n");
 #endif
 	}
+
+	if(size <= 0x100000000)
+	{
+		gd->bd->bi_dram[0].size = 0x7c000000;
+		gd->bd->bi_dram[1].start = 0x100000000;
+		gd->bd->bi_dram[1].size = 0x80000000;
+	}
 	debug("\nDRAM:  ");
 
 	print_size(size, "");

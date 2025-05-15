@@ -26,11 +26,11 @@
  */
 #define X5_DDR_BASE       0x80000000
 #define PHYS_SDRAM_1      0x84000000
-#define PHYS_SDRAM_1_SIZE 0x7c000000
+#define PHYS_SDRAM_1_SIZE 0xfc000000
 #define DDR_RESERVED_SIZE      (PHYS_SDRAM_1 - X5_DDR_BASE)
 
 #define PHYS_SDRAM_2      0x100000000
-#define PHYS_SDRAM_2_SIZE 0x80000000
+#define PHYS_SDRAM_2_SIZE 0x100000000
 
 /* Keep in sync with kernel/arch/arm64/boot/dts/hobot/x5-memory.dtsi
  * the lowest entry with "no-map" bindings.
