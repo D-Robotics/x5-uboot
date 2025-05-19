@@ -8,13 +8,10 @@
 #include <env.h>
 #include <fastboot.h>
 #include <fastboot-internal.h>
-#include <fb_mmc.h>
-#include <fb_nand.h>
-#include <fb_spinand.h>
-#include <fb_ram.h>
 #include <part.h>
 #include <stdlib.h>
 #include <mapmem.h>
+#include <fb_storage.h>
 
 #include <asm/global_data.h>
 
@@ -25,7 +22,6 @@
 DECLARE_GLOBAL_DATA_PTR;
 
 #define EP_BUFFER_SIZE			4096
-
 
 /**
  * image_size - final fastboot image size
@@ -403,28 +399,11 @@ void fastboot_upload_complete(char *response)
  */
 static void flash(char *cmd_parameter, char *response)
 {
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
-	if (fastboot_get_flash_type() == FLASH_TYPE_UNKNOWN ||
-			fastboot_get_flash_type() == FLASH_TYPE_EMMC) {
-		fastboot_mmc_flash_write(cmd_parameter, fastboot_buf_addr,
-				image_size, response);
-	}
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
-	if (fastboot_get_flash_type() == FLASH_TYPE_NAND)
-		fastboot_nand_flash_write(cmd_parameter, fastboot_buf_addr,
-				image_size, response);
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_SPINAND)
-	if (fastboot_get_flash_type() == FLASH_TYPE_SPINAND)
-		fastboot_spinand_flash_write(cmd_parameter, fastboot_buf_addr,
-				image_size, response);
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_RAM)
-	if (fastboot_get_flash_type() == FLASH_TYPE_RAM)
-		fastboot_ram_flash_write(cmd_parameter, fastboot_buf_addr,
-				image_size, response);
-#endif
+	const struct fastboot_storage_ops *ops = get_current_storage_ops();
+
+	if (ops && ops->flash_write)
+		ops->flash_write(cmd_parameter, fastboot_buf_addr,
+			image_size, response);
 }
 
 /**
@@ -438,24 +417,10 @@ static void flash(char *cmd_parameter, char *response)
  */
 static void erase(char *cmd_parameter, char *response)
 {
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
-	if (fastboot_get_flash_type() == FLASH_TYPE_UNKNOWN ||
-			fastboot_get_flash_type() == FLASH_TYPE_EMMC) {
-		fastboot_mmc_erase(cmd_parameter, response);
-	}
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
-	if (fastboot_get_flash_type() == FLASH_TYPE_NAND)
-		fastboot_nand_erase(cmd_parameter, response);
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_SPINAND)
-	if (fastboot_get_flash_type() == FLASH_TYPE_SPINAND)
-		fastboot_spinand_erase(cmd_parameter, response);
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_RAM)
-	if (fastboot_get_flash_type() == FLASH_TYPE_RAM)
-		fastboot_ram_erase(cmd_parameter, response);
-#endif
+	const struct fastboot_storage_ops *ops = get_current_storage_ops();
+
+	if (ops && ops->erase)
+		ops->erase(cmd_parameter, response);
 }
 #endif
 
@@ -475,25 +440,11 @@ static void load_data(struct fetch_info *info, char *response)
 {
 	int64_t bytes_loaded = -1;
 
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
-	if (fastboot_get_flash_type() == FLASH_TYPE_UNKNOWN ||
-			fastboot_get_flash_type() == FLASH_TYPE_EMMC) {
-		bytes_loaded = fastboot_mmc_flash_read(info, fastboot_buf_addr,
+	const struct fastboot_storage_ops *ops = get_current_storage_ops();
+
+	if (ops && ops->flash_read)
+		bytes_loaded = ops->flash_read(info, fastboot_buf_addr,
 				fastboot_buf_size, fastboot_bytes_loaded, response);
-	}
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
-	if (fastboot_get_flash_type() == FLASH_TYPE_NAND)
-		bytes_loaded = fastboot_nand_flash_read(info, fastboot_buf_addr,
-				fastboot_buf_size, fastboot_bytes_loaded, response);
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_SPINAND)
-#if 0
-	if (fastboot_get_flash_type() == FLASH_TYPE_SPINAND)
-		fastboot_spinand_flash_read(info, fastboot_buf_addr,
-				fastboot_buf_size, fastboot_bytes_loaded, response);
-#endif
-#endif
 
 	if (bytes_loaded > 0) {
 		fastboot_bytes_loaded += bytes_loaded;

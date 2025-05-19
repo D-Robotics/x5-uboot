@@ -7,12 +7,10 @@
 #include <env.h>
 #include <fastboot.h>
 #include <fastboot-internal.h>
-#include <fb_mmc.h>
-#include <fb_nand.h>
-#include <fb_spinand.h>
 #include <fs.h>
 #include <part.h>
 #include <version.h>
+#include <fb_storage.h>
 
 #include <asm/global_data.h>
 DECLARE_GLOBAL_DATA_PTR;
@@ -110,53 +108,17 @@ static const struct {
  * @param[out] size If not NULL, will contain partition size
  * Return: Partition number or negative value on error
  */
-static int getvar_get_part_info(const char *part_name, char *response,
+static int getvar_get_part(const char *part_name, char *response,
 				size_t *size)
 {
-	int r = -ENODEV;
+	const struct fastboot_storage_ops *ops = get_current_storage_ops();
 
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
-	if (fastboot_get_flash_type() == FLASH_TYPE_UNKNOWN ||
-			fastboot_get_flash_type() == FLASH_TYPE_EMMC) {
-		struct blk_desc *dev_desc;
-		struct disk_partition part_info;
-
-		r = fastboot_mmc_get_part_info(part_name, &dev_desc, &part_info,
-					       response);
-		if (r >= 0 && size)
-			*size = part_info.size * part_info.blksz;
+	if (!ops || !ops->get_part) {
+		fastboot_fail("Operation not supported", response);
+		return -ENOSYS;
 	}
-#endif
 
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
-	if (fastboot_get_flash_type() == FLASH_TYPE_NAND) {
-		struct part_info *part_info;
-
-		r = fastboot_nand_get_part_info(part_name, &part_info, response);
-		if (r >= 0 && size)
-			*size = part_info->size;
-	}
-#endif
-
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_SPINAND)
-	if (fastboot_get_flash_type() == FLASH_TYPE_SPINAND) {
-		struct part_info *part_info;
-
-		r = fastboot_spinand_get_part_info(part_name, &part_info, response);
-		if (r >= 0 && size)
-			*size = part_info->size;
-	}
-#endif
-
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_RAM)
-	if (fastboot_get_flash_type() == FLASH_TYPE_RAM) {
-		// FIXME: Lack ram medium's get part info function
-		fastboot_fail("ram storage is not supported in bootloader", response);
-		r = -ENODEV;
-	}
-#endif
-
-	return r;
+	return ops->get_part(part_name, size, response);
 }
 #endif
 
@@ -252,13 +214,13 @@ static void getvar_has_slot(char *part_name, char *response)
 		goto fail;
 	strcat(part_name_wslot, "_a");
 
-	r = getvar_get_part_info(part_name_wslot, response, NULL);
+	r = getvar_get_part(part_name_wslot, response, NULL);
 	if (r >= 0) {
 		fastboot_okay("yes", response); /* part exists and slotted */
 		return;
 	}
 
-	r = getvar_get_part_info(info.part_name, response, NULL);
+	r = getvar_get_part(info.part_name, response, NULL);
 	if (r >= 0)
 		fastboot_okay("no", response); /* part exists but not slotted */
 
@@ -273,34 +235,23 @@ fail:
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
 static void getvar_partition_type(char *part_name, char *response)
 {
-	int r;
-	struct blk_desc *dev_desc;
-	struct disk_partition part_info;
+	const struct fastboot_storage_ops *ops = get_current_storage_ops();
 
-	r = fastboot_mmc_get_part_info(part_name, &dev_desc, &part_info,
-				       response);
-	if (r >= 0) {
-		r = fs_set_blk_dev_with_part(dev_desc, r);
-		if (r < 0)
-			fastboot_fail("failed to set partition", response);
-		else
-			fastboot_okay(fs_get_type_name(), response);
-	}
+	if (ops && ops->get_part_type)
+		ops->get_part_type(part_name, response);
 }
 #endif
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
 static void getvar_partition_size(char *part_name, char *response)
 {
-	int r;
+	int ret;
 	size_t size;
-
-	struct blk_desc *dev_desc;
-	struct disk_partition part_info;
 
 	struct fetch_info info;
 	char cmd_copy[128];
-	int ret;
+
+	const struct fastboot_storage_ops *ops = get_current_storage_ops();
 
 	/* Create working copy of command */
 	strncpy(cmd_copy, part_name, sizeof(cmd_copy) - 1);
@@ -314,28 +265,14 @@ static void getvar_partition_size(char *part_name, char *response)
 	}
 
 	if (info.type == FETCH_PARTITION) {
-		r = getvar_get_part_info(info.part_name, response, &size);
-
-		if (r >= 0)
+		ret = getvar_get_part(info.part_name, response, &size);
+		if (ret >= 0)
 			fastboot_response("OKAY", response, "0x%016zx", size);
 	} else if (info.type == FETCH_PART_RANGE) {
 		fastboot_response("OKAY", response, "0x%016zx", info.size);
 	} else if (info.type == FETCH_ADDR_PART) {
-		if (strcmp(info.part_name, "all") == 0) {
-			dev_desc = fastboot_mmc_get_dev(response);
-			if (!dev_desc) {
-				fastboot_fail("Storage device not initialized", response);
-				return;
-			}
-			size = dev_desc->lba * dev_desc->blksz;
-			fastboot_response("OKAY", response, "0x%016zx", size);
-		} else {
-			r = fastboot_mmc_get_part_info(info.part_name, &dev_desc, &part_info, response);
-			if (r >= 0) {
-				size = (part_info.start + part_info.size) * part_info.blksz - info.addr;
-				fastboot_response("OKAY", response, "0x%016zx", size);
-			}
-		}
+		if (ops && ops->get_fetch_size)
+			ops->get_fetch_size(info.part_name, info.addr, response);
 	} else if (info.type == FETCH_ADDR_RANGE) {
 		fastboot_response("OKAY", response, "0x%016zx", info.size);
 	} else if (info.type == FETCH_RAMDUMP) {
@@ -356,42 +293,15 @@ static void getvar_is_userspace(char *var_parameter, char *response)
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
 static void getvar_block_size(char *part_name, char *response)
 {
-	int r = -1;
+	int ret = -1;
 	size_t size = 0;
 
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
-	if (fastboot_get_flash_type() == FLASH_TYPE_UNKNOWN ||
-			fastboot_get_flash_type() == FLASH_TYPE_EMMC) {
-		struct blk_desc *dev_desc;
+	const struct fastboot_storage_ops *ops = get_current_storage_ops();
 
-		dev_desc = fastboot_mmc_get_dev(response);
-		if (!dev_desc) {
-			fastboot_fail("block device not found", response);
-		} else {
-			size = dev_desc->blksz;
-			r = 0;
-		}
-	}
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
-	if (fastboot_get_flash_type() == FLASH_TYPE_NAND) {
-		struct part_info *part_info;
+	if (ops && ops->get_block_size)
+		ret = ops->get_block_size(part_name, &size, response);
 
-		r = fastboot_nand_get_part_info(part_name, &part_info, response);
-		if (r >= 0)
-			size = part_info->sector_size;
-	}
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_SPINAND)
-	if (fastboot_get_flash_type() == FLASH_TYPE_SPINAND) {
-		struct part_info *part_info;
-
-		r = fastboot_spinand_get_part_info(part_name, &part_info, response);
-		if (r >= 0)
-			size = part_info->sector_size;
-	}
-#endif
-	if (r >= 0)
+	if (ret >= 0)
 		fastboot_response("OKAY", response, "0x%016zx", size);
 }
 #endif

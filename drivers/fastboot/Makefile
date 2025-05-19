@@ -3,6 +3,7 @@
 obj-y += fb_common.o
 obj-y += fb_getvar.o
 obj-y += fb_command.o
+obj-y += fb_storage.o
 obj-$(CONFIG_FASTBOOT_FLASH_MMC) += fb_mmc.o
 obj-$(CONFIG_FASTBOOT_FLASH_NAND) += fb_nand.o
 obj-$(CONFIG_FASTBOOT_FLASH_SPINAND) += fb_spinand.o

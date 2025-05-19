@@ -9,6 +9,7 @@
 
 #include <fastboot.h>
 #include <image-sparse.h>
+#include <fb_storage.h>
 
 #include <mtd.h>
 #include <linux/mtd/mtd.h>
@@ -382,6 +383,23 @@ int fastboot_spinand_get_part_info(const char *part_name,
 	return fb_spinand_lookup(part_name, &mtd, part_info, response);
 }
 
+int fastboot_spinand_get_part(const char *part_name, size_t *size, char *response)
+{
+	int ret;
+	struct part_info *part_info;
+
+	if (!part_name || !strcmp(part_name, "")) {
+		fastboot_fail("partition not given", response);
+		return -ENOENT;
+	}
+
+	ret = fastboot_spinand_get_part_info(part_name, &part_info, response);
+	if (ret >= 0 && size)
+		*size = part_info->size;
+
+	return ret;
+}
+
 /**
  * fastboot_spinand_flash_write() - Write image to NAND for fastboot
  *
@@ -545,4 +563,215 @@ void fastboot_spinand_erase(const char *cmd, char *response)
 	}
 
 	fastboot_okay(NULL, response);
+}
+
+int fastboot_spinand_get_mtd(struct mtd_info **mtd, char *response)
+{
+	const char *mtd_name = "spi-nand0";
+
+	/* mtd device probe */
+	if (mtd_probe_devices() < 0) {
+		pr_err("mtd_probe_devices failed\n");
+		fastboot_fail("no mtd devices", response);
+		return -EINVAL;
+	}
+
+	*mtd = get_mtd_device_nm(mtd_name);
+	if (IS_ERR_OR_NULL(*mtd)) {
+		pr_err("MTD device %s not found, ret %ld\n",
+				mtd_name, PTR_ERR(*mtd));
+		fastboot_fail("no mtd devices", response);
+		return -EINVAL;
+	}
+	put_mtd_device(*mtd);
+
+	return 0;
+}
+
+
+int fastboot_spinand_block_size(const char *part_name, size_t *size,
+	char *response)
+{
+	int ret = -1;
+	struct part_info *part_info;
+
+	ret = fastboot_spinand_get_part_info(part_name, &part_info, response);
+	if (ret >= 0) {
+		*size = part_info->sector_size;
+		return 0;
+	}
+
+	return ret;
+}
+
+void fastboot_spinand_get_fetch_size(const char *part_name, size_t offset,
+	char *response)
+{
+	struct part_info *part;
+	struct mtd_info *mtd = NULL;
+	size_t size = 0;
+	int ret = -1;
+
+	if (strcmp(part_name, "all") == 0) {
+		ret = fastboot_spinand_get_mtd(&mtd, response);
+		if (ret >= 0) {
+			size = mtd->size;
+			fastboot_response("OKAY", response, "0x%016zx", size);
+		}
+	} else {
+		ret = fb_spinand_lookup(part_name, &mtd, &part, response);
+		if (ret >= 0) {
+			size = part->offset + part->size - offset;
+			fastboot_response("OKAY", response, "0x%016zx", size);
+		}
+	}
+}
+
+static int _fb_spinand_read(struct mtd_info *mtd, struct part_info *part,
+			     void *buffer, u32 offset,
+			     size_t length, size_t *readlen)
+{
+	u64 remaining, off;
+	int ret;
+
+	pr_debug("%s, mtd(%p), part(%p), buffer(%p), offset(%u), length(%ld)\n",
+		 __func__, mtd, part, buffer, offset, length);
+
+	if (!mtd_is_aligned_with_min_io_size(mtd, offset)) {
+		printf("Offset(0x%x) not aligned with a page(0x%x)\n",
+		       offset, mtd->writesize);
+		return -EINVAL;
+	}
+
+	if (!mtd_is_aligned_with_min_io_size(mtd, length)) {
+		length = round_up(length, mtd->writesize);
+		printf("Size not a page boundary (0x%x), rounding to 0x%lx\n",
+		       mtd->writesize, length);
+	}
+
+	struct mtd_oob_ops io_op = {};
+	bool has_pages = mtd->type == MTD_NANDFLASH ||
+	                 mtd->type == MTD_MLCNANDFLASH;
+
+	remaining = length;
+	off = offset;
+
+	io_op.mode = MTD_OPS_AUTO_OOB;
+	io_op.len = has_pages ? mtd->writesize : length;
+	io_op.ooblen = 0;
+	io_op.datbuf = buffer;
+	io_op.oobbuf = NULL;
+
+	/* Skip bad blocks before starting */
+	while (mtd_block_isbad(mtd, off))
+		off += mtd->erasesize;
+
+	while (remaining) {
+		/* Skip bad blocks */
+		if (mtd_is_aligned_with_block_size(mtd, off) &&
+		    mtd_block_isbad(mtd, off)) {
+			off += mtd->erasesize;
+			continue;
+		}
+
+		io_op.len = has_pages ? mtd->writesize :
+			(remaining < mtd->writesize ? remaining : mtd->writesize);
+		io_op.datbuf = buffer;
+		io_op.oobbuf = NULL;
+
+		ret = mtd_read_oob(mtd, off, &io_op);
+		if (ret) {
+			printf("Failure while reading at offset 0x%llx, error(%d)\n",
+			       off, ret);
+			return ret;
+		}
+
+		off += io_op.retlen;
+		remaining -= io_op.retlen;
+		buffer += io_op.retlen;
+	}
+
+	if (readlen)
+		*readlen = off - offset;
+
+	return 0;
+}
+
+int64_t fastboot_spinand_flash_read(struct fetch_info *info,
+									void *upload_buffer, u64 buffer_size,
+									s64 offset, char *response)
+{
+	struct mtd_info *mtd = NULL;
+	struct part_info *part;
+	size_t read_len = 0;
+	int ret = -ENODEV;
+
+	if (!info || !upload_buffer || buffer_size == 0) {
+		fastboot_fail("invalid params", response);
+		return -EINVAL;
+	}
+
+	ret = fastboot_spinand_get_mtd(&mtd, response);
+	if (ret != 0 || !mtd) {
+		fastboot_fail("no SPI NAND device", response);
+		return -ENODEV;
+	}
+
+	u64 read_offset = 0, read_size = info->size;
+	struct part_info *part_ptr = NULL;
+
+	if (info->type == FETCH_PARTITION || info->type == FETCH_PART_RANGE) {
+		if (fastboot_spinand_get_part_info(info->part_name, &part,
+				response) < 0) {
+			pr_err("Partition '%s' not found\n", info->part_name);
+			fastboot_fail("unknown partition", response);
+			return -ENOENT;
+		}
+		part_ptr = part;
+
+		if (offset > part->size) {
+			fastboot_fail("read offset exceeds partition size", response);
+			return -EINVAL;
+		}
+		read_offset = part->offset;
+		read_size = min_t(u64, info->size, part->size - offset);
+	} else {
+		read_offset = info->addr + offset;
+	}
+
+	ret = _fb_spinand_read(mtd, part_ptr, upload_buffer, read_offset, read_size,
+						   &read_len);
+
+	if (ret) {
+		pr_err("%s: SPI NAND read failed (err=%d)!\n", __func__, ret);
+		switch (ret) {
+		case -EIO:
+			fastboot_fail("flash read ECC error", response);
+			break;
+		case -EINVAL:
+			fastboot_fail("invalid read request", response);
+			break;
+		default:
+			fastboot_fail("unknown read error", response);
+		}
+		return ret;
+	}
+
+	return (int64_t)read_len;
+}
+
+static const struct fastboot_storage_ops spinand_ops = {
+	.flash_write = fastboot_spinand_flash_write,
+	.flash_read = fastboot_spinand_flash_read,
+	.erase = fastboot_spinand_erase,
+	.get_part = fastboot_spinand_get_part,
+	.get_block_size = fastboot_spinand_block_size,
+	// .get_part_type = fastboot_spinand_get_part_type,
+	.get_fetch_size = fastboot_spinand_get_fetch_size,
+	.type_name = "spinand"
+};
+
+void fastboot_spinand_register(void)
+{
+	fastboot_storage_register(FLASH_TYPE_SPINAND, &spinand_ops);
 }

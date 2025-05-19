@@ -6,61 +6,6 @@
 #ifndef _FB_MMC_H_
 #define _FB_MMC_H_
 
-struct blk_desc;
-struct disk_partition;
-
-/**
- * fastboot_mmc_get_part_info() - Lookup eMMC partion by name
- *
- * @part_name: Named partition to lookup
- * @dev_desc: Pointer to returned blk_desc pointer
- * @part_info: Pointer to returned struct disk_partition
- * @response: Pointer to fastboot response buffer
- */
-int fastboot_mmc_get_part_info(const char *part_name,
-			       struct blk_desc **dev_desc,
-			       struct disk_partition *part_info,
-			       char *response);
-
-/**
- * fastboot_mmc_flash_write() - Write image to eMMC for fastboot
- *
- * @cmd: Named partition to write image to
- * @download_buffer: Pointer to image data
- * @download_bytes: Size of image data
- * @response: Pointer to fastboot response buffer
- */
-void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
-			      u32 download_bytes, char *response);
-/**
- * fastboot_mmc_flash_erase() - Erase eMMC for fastboot
- *
- * @cmd: Named partition to erase
- * @response: Pointer to fastboot response buffer
- */
-void fastboot_mmc_erase(const char *cmd, char *response);
-
-/**
- * fastboot_mmc_flash_read() - Read image from eMMC to upload buffer
- *
- * @info: Pointer to fetch_info structure
- * @upload_buffer: Buffer to store read data
- * @buffer_size: Size of the upload buffer
- * @offset: Offset from start to begin reading
- * @response: Fastboot response buffer
- *
- * Returns: Number of bytes read on success, -1 on error
- */
-int64_t fastboot_mmc_flash_read(struct fetch_info *info, void *upload_buffer,
-			u64 buffer_size, s64 offset, char *response);
-
-/**
- * fastboot_mmc_get_dev() - Lookup indicated mmc device
- *
- * @response: Pointer to fastboot response buffer
- *
- * Return: the indicated mmc block description, struct blk_desc *
- */
-struct blk_desc *fastboot_mmc_get_dev(char *response);
+void fastboot_mmc_register(void);
 
 #endif

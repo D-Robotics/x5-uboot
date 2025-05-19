@@ -17,6 +17,7 @@
 #include <env.h>
 #include <fastboot.h>
 #include <net/fastboot.h>
+#include <fb_storage.h>
 
 /**
  * fastboot_buf_addr - base address of the fastboot download buffer
@@ -213,26 +214,6 @@ void fastboot_set_progress_callback(void (*progress)(const char *msg))
 }
 
 /*
- * fastboot_init() - initialise new fastboot protocol session
- *
- * @buf_addr: Pointer to download buffer, or NULL for default
- * @buf_size: Size of download buffer, or zero for default
- * @medium_devnum: Medium device number(eg. mmc 0 or 1)
- * @flash_type: User selected flash type, eg. mmc/nand/spinand/ram
- */
-void fastboot_init(void *buf_addr, u32 buf_size, fb_flash_type flash_type,
-		s32 medium_devnum)
-{
-	fastboot_buf_addr = buf_addr ? buf_addr :
-				       (void *)CONFIG_FASTBOOT_BUF_ADDR;
-	fastboot_buf_size = buf_size ? buf_size : CONFIG_FASTBOOT_BUF_SIZE;
-	fastboot_set_progress_callback(NULL);
-
-	fastboot_medium_number = medium_devnum;
-	selected_flash_type = flash_type;
-}
-
-/*
  * fastboot_medium_devnum() - get fastboot medium devnum
  *
  * @void
@@ -253,8 +234,33 @@ s32 fastboot_medium_devnum(void)
  */
 void fastboot_set_medium(fb_flash_type flash_type, unsigned long medium_devnum)
 {
+	if (flash_type >= FLASH_TYPE_COUNT) {
+		pr_err("Unsupported flash type %d\n", flash_type);
+		return;
+	}
 	selected_flash_type = flash_type;
 	fastboot_medium_number = medium_devnum;
+}
+
+/*
+ * fastboot_init() - initialise new fastboot protocol session
+ *
+ * @buf_addr: Pointer to download buffer, or NULL for default
+ * @buf_size: Size of download buffer, or zero for default
+ * @medium_devnum: Medium device number(eg. mmc 0 or 1)
+ * @flash_type: User selected flash type, eg. mmc/nand/spinand/ram
+ */
+void fastboot_init(void *buf_addr, u32 buf_size, fb_flash_type flash_type,
+		s32 medium_devnum)
+{
+	fastboot_buf_addr = buf_addr ? buf_addr :
+				       (void *)CONFIG_FASTBOOT_BUF_ADDR;
+	fastboot_buf_size = buf_size ? buf_size : CONFIG_FASTBOOT_BUF_SIZE;
+	fastboot_set_progress_callback(NULL);
+
+	fastboot_set_medium(flash_type, medium_devnum);
+
+	fastboot_storage_init();
 }
 
 static bool valid_hex_address(const char *s) {

@@ -10,9 +10,11 @@
 #include <fastboot.h>
 #include <fastboot-internal.h>
 #include <fb_mmc.h>
+#include <fb_storage.h>
 #include <image-sparse.h>
 #include <image.h>
 #include <log.h>
+#include <fs.h>
 #include <part.h>
 #include <mmc.h>
 #include <div64.h>
@@ -598,8 +600,8 @@ static int fb_mmc_update_zimage(struct blk_desc *dev_desc,
  * @response: Pointer to fastboot response buffer
  */
 int fastboot_mmc_get_part_info(const char *part_name,
-			       struct blk_desc **dev_desc,
-			       struct disk_partition *part_info, char *response)
+								struct blk_desc **dev_desc,
+								struct disk_partition *part_info, char *response)
 {
 	int ret;
 
@@ -633,6 +635,24 @@ int fastboot_mmc_get_part_info(const char *part_name,
 	return ret;
 }
 
+int fastboot_mmc_get_part(const char *part_name, size_t *size, char *response)
+{
+	int ret;
+	struct blk_desc *dev_desc;
+	struct disk_partition part_info;
+
+	if (!part_name || !strcmp(part_name, "")) {
+		fastboot_fail("partition not given", response);
+		return -ENOENT;
+	}
+
+	ret = fastboot_mmc_get_part_info(part_name, &dev_desc, &part_info, response);
+	if (ret >= 0 && size)
+		*size = part_info.size * part_info.blksz;
+
+	return ret;
+}
+
 struct blk_desc *fastboot_mmc_get_dev(char *response)
 {
 	u32 mmc_dev;
@@ -649,6 +669,66 @@ struct blk_desc *fastboot_mmc_get_dev(char *response)
 		return NULL;
 	}
 	return ret;
+}
+
+int fastboot_mmc_block_size(const char *part_name, size_t *size,
+	char *response)
+{
+	struct blk_desc *dev_desc;
+
+	dev_desc = fastboot_mmc_get_dev(response);
+	if (!dev_desc) {
+		fastboot_fail("block device not found", response);
+	} else {
+		*size = dev_desc->blksz;
+		return 0;
+	}
+
+	return -1;
+}
+
+int fastboot_mmc_get_part_type(const char *part_name, char *response)
+{
+	int ret = -1;
+	struct blk_desc *dev_desc;
+	struct disk_partition part_info;
+
+	ret = fastboot_mmc_get_part_info(part_name, &dev_desc, &part_info,
+				       response);
+	if (ret >= 0) {
+		ret = fs_set_blk_dev_with_part(dev_desc, ret);
+		if (ret < 0)
+			fastboot_fail("failed to set partition", response);
+		else
+			fastboot_okay(fs_get_type_name(), response);
+	}
+
+	return ret;
+}
+
+void fastboot_mmc_get_fetch_size(const char *part_name, size_t offset,
+	char *response)
+{
+	int ret = -1;
+	struct blk_desc *dev_desc;
+	struct disk_partition part_info;
+	size_t size = 0;
+
+	if (strcmp(part_name, "all") == 0) {
+		dev_desc = fastboot_mmc_get_dev(response);
+		if (!dev_desc) {
+			fastboot_fail("Storage device not initialized", response);
+			return;
+		}
+		size = dev_desc->lba * dev_desc->blksz;
+		fastboot_response("OKAY", response, "0x%016zx", size);
+	} else {
+		ret = fastboot_mmc_get_part_info(part_name, &dev_desc, &part_info, response);
+		if (ret >= 0) {
+			size = (part_info.start + part_info.size) * part_info.blksz - offset;
+			fastboot_response("OKAY", response, "0x%016zx", size);
+		}
+	}
 }
 
 /**
@@ -962,4 +1042,20 @@ int64_t fastboot_mmc_flash_read(struct fetch_info *info, void *upload_buffer,
 	}
 
 	return ret;
+}
+
+static const struct fastboot_storage_ops mmc_ops = {
+	.flash_write = fastboot_mmc_flash_write,
+	.flash_read = fastboot_mmc_flash_read,
+	.erase = fastboot_mmc_erase,
+	.get_part = fastboot_mmc_get_part,
+	.get_block_size = fastboot_mmc_block_size,
+	.get_part_type = fastboot_mmc_get_part_type,
+	.get_fetch_size = fastboot_mmc_get_fetch_size,
+	.type_name = "mmc"
+};
+
+void fastboot_mmc_register(void)
+{
+	fastboot_storage_register(FLASH_TYPE_EMMC, &mmc_ops);
 }

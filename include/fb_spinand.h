@@ -7,34 +7,6 @@
 #ifndef _FB_SPINAND_H_
 #define _FB_SPINAND_H_
 
-#include <jffs2/load_kernel.h>
+void fastboot_spinand_register(void);
 
-/**
- * fastboot_spinand_get_part_info() - Lookup NAND partion by name
- *
- * @part_name: Named device to lookup
- * @part_info: Pointer to returned part_info pointer
- * @response: Pointer to fastboot response buffer
- */
-int fastboot_spinand_get_part_info(const char *part_name,
-		struct part_info **part_info, char *response);
-
-/**
- * fastboot_spinand_flash_write() - Write image to NAND for fastboot
- *
- * @cmd: Named device to write image to
- * @download_buffer: Pointer to image data
- * @download_bytes: Size of image data
- * @response: Pointer to fastboot response buffer
- */
-void fastboot_spinand_flash_write(const char *cmd, void *download_buffer,
-			       u32 download_bytes, char *response);
-
-/**
- * fastboot_spinand_erase() - Erase NAND for fastboot
- *
- * @cmd: Named device to erase
- * @response: Pointer to fastboot response buffer
- */
-void fastboot_spinand_erase(const char *cmd, char *response);
 #endif // _FB_SPINAND_H_
