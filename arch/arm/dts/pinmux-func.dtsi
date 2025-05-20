@@ -665,6 +665,12 @@ pinctrl_dsp_i2s1: i2s1grp {
 		>;
 	};
 
+	pinctrl_hsio_gpio0_23_output_normal: hsiogpio0grp3 {
+		horizon,pins = <
+			HSIO_SDIO_WP	HSIO_PINMUX_2	BIT_OFFSET8	MUX_ALT2	&pconf_output_normal
+		>;
+	};
+
 	pinctrl_hsio_gpio1_0_6: hsiogpio1grp0 {
 		horizon,pins = <
 			HSIO_QSPI_SSN0		HSIO_PINMUX_0	BIT_OFFSET24	MUX_ALT2	&pconf_input_en
