@@ -76,7 +76,7 @@
 /*#define CONFIG_BOOTCOMMAND "if sd_detect; then run distro_bootcmd; " \
 	"else echo SD card not detected; fi; " \
 	"echo Boot from eMMC or SD Card failed"*/
-#define CONFIG_BOOTCOMMAND "run img_update; run distro_bootcmd; "
+#define CONFIG_BOOTCOMMAND "run img_update; run distro_bootcmd; sleep 10; reset"
 
 #define RDK_UPDATE \
 	"img_update=" \
