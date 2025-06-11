@@ -12,6 +12,7 @@
 #include <part.h>
 #include <tee.h>
 #include <tee/optee_ta_avb.h>
+#include <asm/arch/hb_efuse.h>
 
 static unsigned char avb_root_pub[520] = {
 	0x00, 0x00, 0x08, 0x00, 0x15, 0xfa, 0xd8, 0x07,
@@ -679,7 +680,37 @@ static AvbIOResult read_rollback_index(AvbOps *ops,
 				       size_t rollback_index_slot,
 				       u64 *out_rollback_index)
 {
-#ifndef CONFIG_OPTEE_TA_AVB
+#ifdef CONFIG_X5_SUPPORT_CHECK_ROLLBACK
+	int ret = 0;
+
+	ret = get_anti_ver_from_efuse((uint32_t *)out_rollback_index);
+	if (ret) {
+		printf("get nosec antirollback version from efuse failed\n");
+		return ret;
+	}
+	return AVB_IO_RESULT_OK;
+
+// #elif defined(CONFIG_OPTEE_TA_AVB)
+// 	AvbIOResult rc;
+// 	struct tee_param param[2];
+
+// 	if (rollback_index_slot >= TA_AVB_MAX_ROLLBACK_LOCATIONS)
+// 		return AVB_IO_RESULT_ERROR_NO_SUCH_VALUE;
+
+// 	memset(param, 0, sizeof(param));
+// 	param[0].attr = TEE_PARAM_ATTR_TYPE_VALUE_INPUT;
+// 	param[0].u.value.a = rollback_index_slot;
+// 	param[1].attr = TEE_PARAM_ATTR_TYPE_VALUE_OUTPUT;
+
+// 	rc = invoke_func(ops->user_data, TA_AVB_CMD_READ_ROLLBACK_INDEX,
+// 			 ARRAY_SIZE(param), param);
+// 	if (rc)
+// 		return rc;
+
+// 	*out_rollback_index = (u64)param[1].u.value.a << 32 |
+// 			      (u32)param[1].u.value.b;
+// 	return AVB_IO_RESULT_OK;
+#else
 	/* For now we always return 0 as the stored rollback index. */
 	printf("%s not supported yet\n", __func__);
 
@@ -687,31 +718,6 @@ static AvbIOResult read_rollback_index(AvbOps *ops,
 		*out_rollback_index = 0;
 
 	return AVB_IO_RESULT_OK;
-#else
-#ifdef CONFIG_X5_SUPPORT_CHECK_ROLLBACK
-	AvbIOResult rc;
-	struct tee_param param[2];
-
-	if (rollback_index_slot >= TA_AVB_MAX_ROLLBACK_LOCATIONS)
-		return AVB_IO_RESULT_ERROR_NO_SUCH_VALUE;
-
-	memset(param, 0, sizeof(param));
-	param[0].attr = TEE_PARAM_ATTR_TYPE_VALUE_INPUT;
-	param[0].u.value.a = rollback_index_slot;
-	param[1].attr = TEE_PARAM_ATTR_TYPE_VALUE_OUTPUT;
-
-	rc = invoke_func(ops->user_data, TA_AVB_CMD_READ_ROLLBACK_INDEX,
-			 ARRAY_SIZE(param), param);
-	if (rc)
-		return rc;
-
-	*out_rollback_index = (u64)param[1].u.value.a << 32 |
-			      (u32)param[1].u.value.b;
-	return AVB_IO_RESULT_OK;
-#else
-	*out_rollback_index = 0;
-	return AVB_IO_RESULT_OK;
-#endif
 #endif
 }
 
@@ -730,12 +736,11 @@ static AvbIOResult write_rollback_index(AvbOps *ops,
 					size_t rollback_index_slot,
 					u64 rollback_index)
 {
-#ifndef CONFIG_OPTEE_TA_AVB
 	/* For now this is a no-op. */
+	/* Not support update avb antirollback version in uboot */
 	printf("%s not supported yet\n", __func__);
-
 	return AVB_IO_RESULT_OK;
-#else
+/*
 #ifdef CONFIG_X5_SUPPORT_CHECK_ROLLBACK
 	struct tee_param param[2];
 
@@ -754,7 +759,7 @@ static AvbIOResult write_rollback_index(AvbOps *ops,
 #else
 	return AVB_IO_RESULT_OK;
 #endif
-#endif
+*/
 }
 
 /**

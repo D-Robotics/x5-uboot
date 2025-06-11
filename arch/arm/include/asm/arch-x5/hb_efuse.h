@@ -55,6 +55,7 @@ int hb_get_socuid(uint32_t *socuid);
 int is_secure_boot(void);
 int get_sec_info(uint32_t *sec_info);
 int get_chip_type(uint32_t *chip_type);
+int get_anti_ver_from_efuse(uint32_t *nosec_anti_ver);
 
 enum efuse_type {
 	EFUSE_SECURE = 0,

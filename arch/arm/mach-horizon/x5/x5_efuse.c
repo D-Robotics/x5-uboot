@@ -20,6 +20,7 @@
 #define PTA_EFUSE_WRITE         1
 #define PTA_EFUSE_IS_SECURE     2
 #define PTA_EFUSE_DUMP_KEY_HASH_AND_SEC_BOOT     6
+#define PTA_EFUSE_GET_ANTIROLLBACK_NOSEC    10
 #define TEE_ERROR_ACCESS_DENIED 0xffff0001
 #define HASH_DATA_LEN 32
 
@@ -670,4 +671,56 @@ int get_chip_type(uint32_t *chip_type)
 	_chip_type &= EFUSE_CPU_OPPTABLE_MASK;
 	*chip_type = (_chip_type >> EFUSE_CPU_OPPTABLE_BIT);
 	return ret;
+}
+
+int get_anti_ver_from_efuse(uint32_t *nosec_anti_ver)
+{
+	int rc = CMD_RET_SUCCESS;
+	const struct tee_optee_ta_uuid uuid = PTA_EFUSE;
+	struct tee_open_session_arg session;
+	struct tee_invoke_arg invoke;
+	struct tee_param param[1];
+	struct udevice *tee_dev = NULL;
+
+	if (nosec_anti_ver == NULL) {
+		printf("data ptr is NULL, %s, %d\n", __func__, __LINE__);
+		return -1;
+	}
+
+	tee_dev = tee_find_device(NULL, NULL, NULL, NULL);
+	if (!tee_dev) {
+		rc = -ENODEV;
+		goto exit;
+	}
+
+	memset(&session, 0, sizeof(session));
+	tee_optee_ta_uuid_to_octets(session.uuid, &uuid);
+	if (tee_open_session(tee_dev, &session, 0, NULL)) {
+		rc = -ENXIO;
+		goto exit;
+	}
+
+	memset(param, 0, sizeof(param));
+	param[0].attr = TEE_PARAM_ATTR_TYPE_VALUE_OUTPUT;
+
+	memset(&invoke, 0, sizeof(invoke));
+	invoke.func    = PTA_EFUSE_GET_ANTIROLLBACK_NOSEC;
+	invoke.session = session.session;
+
+	rc = tee_invoke_func(tee_dev, &invoke, 1, param);
+	if (rc != 0) {
+		printf("tee_invoke_func failed with error [0x%x]\n", rc);
+		goto close_session;
+	}
+	if (invoke.ret) {
+		rc = invoke.ret;
+		printf("get nosec antirollback version failed with error [0x%x]\n", invoke.ret);
+		goto close_session;
+	}
+
+	*nosec_anti_ver = param[0].u.value.a;
+close_session:
+	tee_close_session(tee_dev, session.session);
+exit:
+	return rc;
 }

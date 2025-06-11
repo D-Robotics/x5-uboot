@@ -751,6 +751,9 @@ config AVB_VERIFY_BLK
 	    * Helpers to access NVME deivce, similar to drivers/nvme/nvme.c.
 		* Helpers to alloc/init/free avb ops.
 
+config X5_SUPPORT_CHECK_ROLLBACK
+	bool "Check Antirollback Version Of Vbmeta"
+	depends on TARGET_X5
 
 endif # AVB_VERIFY
 
