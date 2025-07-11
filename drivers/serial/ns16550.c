@@ -440,6 +440,8 @@ static int ns16550_serial_setbrg(struct udevice *dev, int baudrate)
 		baudrate = 921600;
 	else
 		baudrate = 115200;
+
+	gd->baudrate = baudrate;
 #endif
 
 	clock_divisor = ns16550_calc_divisor(com_port, plat->clock, baudrate);
