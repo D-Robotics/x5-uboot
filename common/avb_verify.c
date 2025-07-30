@@ -683,6 +683,7 @@ static AvbIOResult read_rollback_index(AvbOps *ops,
 #ifdef CONFIG_X5_SUPPORT_CHECK_ROLLBACK
 	int ret = 0;
 
+	*out_rollback_index = 0;
 	ret = get_anti_ver_from_efuse((uint32_t *)out_rollback_index);
 	if (ret) {
 		printf("get nosec antirollback version from efuse failed\n");
