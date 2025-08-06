@@ -72,21 +72,24 @@ int mtd_write_image(struct fs_dirent *dent, const char *dirname, int flag)
 	return 0;
 }
 
-static struct disk_partition get_mmc_partition_info(const char *name, struct disk_partition info, const char *mmcparts)
+static int get_mmc_partition_info(const char *name, struct disk_partition *info)
 {
-	struct disk_partition ret = {0};
+	int ret;
 	struct blk_desc *dev_desc = NULL;
-	char response[FASTBOOT_RESPONSE_LEN] = {0};
-
-	if(fastboot_mmc_get_part_info(name, &dev_desc, &info, response)  < 0) {
-		if(strcmp(mmcparts, "addr:0x0") != 0){
-			printf("cannot find partition: '%s'\n", name);
-		}
-		return ret;
+	int mmc_dev = 0;
+	dev_desc = blk_get_dev("mmc", mmc_dev);
+	if (!dev_desc) {
+		printf("blk_get_dev: mmc-%d failed\n", mmc_dev);
+		return -1;
 	}
-	ret.start = info.start;
 
-	return ret;
+	ret = part_get_info_by_name(dev_desc, name, info);
+	if (ret < 0) {
+		printf("Can't find partition '%s'\n", name);
+		return -ENODEV;
+	}
+
+	return 0;
 }
 
 static struct mmc *init_mmc_device(int dev, bool force_init,
@@ -143,13 +146,12 @@ int mmc_write_image(struct fs_dirent *dent, const char *dirname, int flag)
 	printf("load %s to mmcparts %s\n", dent->name, mmcparts);
 	memset(buffer, 0, sizeof(buffer));
 
-	part_info = get_mmc_partition_info(token, part_info, mmcparts);
-	if(part_info.start == 0 && token != NULL){
-		printf("get mmc %s partition info faild\n", token);
-		return -1;
-	}
-
 	if(token != NULL){
+		ret = get_mmc_partition_info(token, &part_info);
+		if (ret != 0) {
+			printf("get mmc [%s] partition info faild\n", token);
+			return -1;
+		}
 		start_blk = part_info.start;
 		printf("token %s, start_blk 0x%llx\n", token, start_blk);
 	}
