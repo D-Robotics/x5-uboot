@@ -60,6 +60,30 @@
 		board_version = "1_A", "1_B", "V1P2", "V1P3", "V0P1", "V2P0";
 	};
 
+	aon_gpio: gpio@31000000 {
+		compatible = "snps,dw-apb-gpio";
+		status = "okay";
+		reg = <0x31000000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		aon_gpio_porta: gpio@0 {
+			compatible = "snps,dw-apb-gpio-port";
+			gpio-controller;
+			snps,nr-gpios = <8>;
+			reg = <0>;
+			#gpio-cells = <2>;
+			gpio-ranges = <&aon_iomuxc 0 0 8>;
+			gpio-base = <498>;
+		};
+	};
+
+	aon_iomuxc: aon_iomuxc@31040000 {
+		compatible = "d-robotics,x5-aon-iomuxc";
+		reg = <0x31040000 0x14>;
+		horizon,gpio-banks = <&aon_gpio>;
+	};
+
 	ls_gpio0: gpio@34120000 {
 		compatible = "snps,dw-apb-gpio";
 		status = "okay";

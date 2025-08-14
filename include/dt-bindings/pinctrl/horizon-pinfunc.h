@@ -44,4 +44,5 @@
 #define HSIO_GPIO0_NUM  31
 #define HSIO_GPIO1_NUM  18
 #define DSP_GPIO_NUM    23
+#define AON_GPIO_NUM    8
 #endif /* __HORIZON_PINFUNC_H */

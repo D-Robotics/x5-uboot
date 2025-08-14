@@ -9,6 +9,7 @@
 #include <dt-bindings/pinctrl/horizon-lsio-pinfunc.h>
 #include <dt-bindings/pinctrl/horizon-hsio-pinfunc.h>
 #include <dt-bindings/pinctrl/horizon-dsp-pinfunc.h>
+#include <dt-bindings/pinctrl/horizon-aon-pinfunc.h>
 /*
  * The horizon,pins defined in each group is a tuple of
  * <pin_id, mux_reg_offset, mux_reg_bit, mux mode, pinconf_attributes>
@@ -696,6 +697,14 @@ pinctrl_dsp_i2s1: i2s1grp {
 			HSIO_EMMC_DATA6	HSIO_PINMUX_0	BIT_OFFSET2		MUX_ALT2	&pconf_input_en
 			HSIO_EMMC_DATA7	HSIO_PINMUX_0	BIT_OFFSET0		MUX_ALT2	&pconf_input_en
 			HSIO_EMMC_RSTN	HSIO_PINMUX_3	BIT_OFFSET0		MUX_ALT2	&pconf_input_en
+		>;
+	};
+};
+
+&aon_iomuxc {
+	pinctrl_aon_gpio_1: aon_gpio_1 {
+		horizon,pins = <
+			AON_GPIO0_PIN1	INVALID_PINMUX	BIT_OFFSET0		MUX_ALT0	&pconf_output_normal
 		>;
 	};
 };
