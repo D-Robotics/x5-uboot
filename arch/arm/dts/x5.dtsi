@@ -79,7 +79,7 @@
 	};
 
 	aon_iomuxc: aon_iomuxc@31040000 {
-		compatible = "d-robotics,x5-aon-iomuxc";
+		compatible = "d-robotics,horizon-aon-iomuxc";
 		reg = <0x31040000 0x14>;
 		horizon,gpio-banks = <&aon_gpio>;
 	};
