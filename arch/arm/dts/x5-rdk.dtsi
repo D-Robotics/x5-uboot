@@ -18,6 +18,7 @@
 			HOBOT_X5_MD_V0P3_ID
 			HOBOT_X5_MD_V1P0_ID
 			HOBOT_X5_MD_V1P1_ID
+			HOBOT_X5_MD_V1P2_ID
 			>;
 
 		x5_rdk_uart1: serial@34070000 {
