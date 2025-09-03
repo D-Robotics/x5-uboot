@@ -430,7 +430,7 @@ err:
 	if (ret)
 		env_set_default(errmsg, 0);
 	else{
-		env_set_default("", H_EXTERNAL | H_INTERACTIVE | H_NOCLEAR);
+		env_set_default("", H_EXTERNAL | H_NOCLEAR);
 		ret = env_import(buf, 0, H_EXTERNAL | H_NOCLEAR);
 		if (!ret) {
 			ep = (env_t *)buf;
