@@ -7,35 +7,60 @@
 #include <fat.h>
 #include <fs.h>
 #include <string.h>
-#include <fastboot.h>
 #include <asm/arch/hb_board.h>
 #include <linux/mtd/mtd.h>
 #include <mtd.h>
-#include <jffs2/load_kernel.h>
 #include <linux/ctype.h>
 #include <blk.h>
 #include <part.h>
-#include <fb_mmc.h>
 #include <linux/types.h>
 #include <mmc.h>
+#include <linux/delay.h>
+#include <image-sparse.h>
 
-#define UPDATE_MODE 2
-#define RECOVERY_MODE 0x010000
-#define FASTBOOT_RESPONSE_LEN	(64 + 1)
-#define BLKSIZE 0x10000
+#define WR_BLK_NUM		0x10000
+#define BLK_SIZE		512
+#define USB_UPDATE_FOLDER				"/update_img/"
+#define USB_UPDATE_SPARSE_SZ_ONESHOT	(128 * 1024 * 1024)
 
 #ifdef CONFIG_USB_STORAGE
 static int usb_stor_curr_dev = -1; /* current device */
 #endif
 
-enum {
+enum USB_UPDATE_TYPE_E{
 	NAND_DISK,
 	NAND_SINGLE_PART,
 	EMMC_DISK,
 	EMMC_SINGLE_PART,
 };
 
-int mtd_write_image(struct fs_dirent *dent, const char *dirname, int flag)
+static int usb_update_mmc_raw_image(struct fs_dirent *dent, int flag);
+static int usb_udpate_mmc_sparse_image(struct fs_dirent *dent, int flag);
+static int usb_update_mtd_image(struct fs_dirent *dent, int flag);
+
+typedef int (*USB_UPDATE_IMAGE_CALLBACK)(struct fs_dirent *dent, int flag);
+
+typedef struct {
+	char *image_name;
+	char *boot_device;
+	USB_UPDATE_IMAGE_CALLBACK callback;
+	int flag;
+} USB_UPDATE_IMAGE_LIST_T;
+
+static USB_UPDATE_IMAGE_LIST_T update_image_list[] = {
+	{"emmc_disk.img",  "emmc", usb_update_mmc_raw_image,    EMMC_DISK},
+	{"emmc_disk.simg", "emmc", usb_udpate_mmc_sparse_image, EMMC_DISK},
+	{"nand_disk.img",  "nand", usb_update_mtd_image,        NAND_DISK},
+};
+
+struct fb_mmc_sparse {
+	struct blk_desc	*dev_desc;
+};
+
+#define FASTBOOT_MAX_BLK_WRITE 16384
+#define FASTBOOT_MAX_BLK_READ 16384
+
+static int usb_update_mtd_image(struct fs_dirent *dent, int flag)
 {
 	char *token = NULL;
 	char buffer[128] = {0};
@@ -50,7 +75,7 @@ int mtd_write_image(struct fs_dirent *dent, const char *dirname, int flag)
 	}
 	printf("load %s to mtdparts %s\n", dent->name, mtdparts);
 	memset(buffer, 0, sizeof(buffer));
-	snprintf(buffer, sizeof(buffer), "fatload usb 0 ${kernel_addr} %s%s", dirname, dent->name);
+	snprintf(buffer, sizeof(buffer), "fatload usb 0 ${kernel_addr} %s%s", USB_UPDATE_FOLDER, dent->name);
 	ret = run_command(buffer, 1);	if (ret) {
 		printf("fatload %s from usb failed\n", dent->name);
 		return -1;
@@ -122,13 +147,233 @@ static struct mmc *init_mmc_device(int dev, bool force_init,
 	return mmc;
 }
 
-int mmc_write_image(struct fs_dirent *dent, const char *dirname, int flag)
+static lbaint_t usb_mmc_blk_write(struct blk_desc *block_dev, lbaint_t start,
+				 lbaint_t blkcnt, const void *buffer)
+{
+	lbaint_t blk = start;
+	lbaint_t blks_written;
+	lbaint_t cur_blkcnt;
+	lbaint_t blks = 0;
+	int32_t i;
+
+	for (i = 0; i < blkcnt; i += FASTBOOT_MAX_BLK_WRITE) {
+		cur_blkcnt = min((int)blkcnt - i, FASTBOOT_MAX_BLK_WRITE);
+		if (buffer) {
+			blks_written = blk_dwrite(block_dev, blk, cur_blkcnt,
+						  buffer + (i * block_dev->blksz));
+		} else {
+			blks_written = blk_derase(block_dev, blk, cur_blkcnt);
+		}
+		blk += blks_written;
+		blks += blks_written;
+	}
+	return blks;
+}
+
+static lbaint_t usb_mmc_sparse_write(struct sparse_storage *info,
+		lbaint_t blk, lbaint_t blkcnt, const void *buffer)
+{
+	struct fb_mmc_sparse *sparse = info->priv;
+	struct blk_desc *dev_desc = sparse->dev_desc;
+
+	return usb_mmc_blk_write(dev_desc, blk, blkcnt, buffer);
+}
+
+static lbaint_t usb_mmc_sparse_reserve(struct sparse_storage *info,
+		lbaint_t blk, lbaint_t blkcnt)
+{
+	return blkcnt;
+}
+
+
+static int usb_udpate_load_image(char *filepath, void *load_addr, uint64_t load_sz, uint64_t load_offset)
+{
+	int ret;
+	char cmd[256] = {0};
+
+	snprintf(cmd, sizeof(cmd), "fatload usb 0 0x%p %s %llx %llx", load_addr, filepath, load_sz, load_offset);
+	// printf("Load:  %s\n", cmd);
+	ret = run_command(cmd, 1);
+	if (ret) {
+		printf("fatload %s from usb failed\n", filepath);
+		return -1;
+	}
+	return 0;
+}
+
+void print_sparse_header(sparse_header_t *sparse_header)
+{
+	printf("=== Sparse Image Header ===\n");
+	printf("magic: 0x%x\n", sparse_header->magic);
+	printf("major_version: 0x%x\n", sparse_header->major_version);
+	printf("minor_version: 0x%x\n", sparse_header->minor_version);
+	printf("file_hdr_sz: %d\n", sparse_header->file_hdr_sz);
+	printf("chunk_hdr_sz: %d\n", sparse_header->chunk_hdr_sz);
+	printf("blk_sz: %d\n", sparse_header->blk_sz);
+	printf("total_blks: %d\n", sparse_header->total_blks);
+	printf("total_chunks: %d\n", sparse_header->total_chunks);
+}
+
+void print_sparse_chunk_header(int i, chunk_header_t *chunk_header)
+{
+	printf("Chunk %3u: ", i);
+	switch (chunk_header->chunk_type) {
+        case CHUNK_TYPE_RAW:
+            printf("CHUNK_TYPE_RAW");
+            break;
+        case CHUNK_TYPE_FILL:
+            printf("CHUNK_TYPE_FILL");
+            break;
+        case CHUNK_TYPE_DONT_CARE:
+            printf("CHUNK_TYPE_DONT_CARE");
+            break;
+        case CHUNK_TYPE_CRC32:
+            printf("CHUNK_TYPE_CRC32");
+            break;
+        default:
+            printf("Unknown (0x%04X)", chunk_header->chunk_type);
+            break;
+    }
+	printf(", Blocks: %u", chunk_header->chunk_sz);
+	printf(", Total Size: %u bytes ", chunk_header->total_sz);
+	printf(" [%d]\n", chunk_header->chunk_sz * 4096);
+}
+
+int check_sparse_chunk_header(chunk_header_t *chunk_header)
+{
+	if (chunk_header->chunk_type != CHUNK_TYPE_RAW && \
+		chunk_header->chunk_type != CHUNK_TYPE_FILL && \
+		chunk_header->chunk_type != CHUNK_TYPE_DONT_CARE && \
+		chunk_header->chunk_type != CHUNK_TYPE_CRC32) {
+		return -1;
+	}
+	return 0;
+}
+
+static int usb_udpate_mmc_sparse_image(struct fs_dirent *dent, int flag)
+{
+	struct fb_mmc_sparse sparse_priv;
+	struct sparse_storage sparse;
+	sparse_header_t *sparse_header = NULL;
+	chunk_header_t *chunk_header = NULL;
+	void *chunk_data = NULL;
+	int err = -1;
+
+	void *buffer_addr = (void *)env_get_ulong("kernel_addr", 16, 0x90000000);;
+	char image_full_path[64] = {0};
+
+	// uint64_t raw_wr_sz = 0;
+	uint64_t raw_total_size = 0;
+	uint64_t raw_total_chunk = 0;
+	uint64_t raw_offset = 0;
+	int raw_blk_cnt = 0;
+
+	int chunk_cnt = 0;
+	int chunk_remain = 0;
+	uint64_t sparse_offset = 0;
+	uint64_t sparse_rd_sz = 0;
+	uint64_t raw_flash_size = 0;
+	uint64_t raw_flash_size_total = 0;
+
+	struct blk_desc *dev_desc = NULL;
+	dev_desc = blk_get_dev("mmc", 0);
+	if (!dev_desc) {
+		printf("blk_get_dev: mmc-%d failed\n", 0);
+		return -1;
+	}
+
+	snprintf(image_full_path, sizeof(image_full_path), "%s/%s", USB_UPDATE_FOLDER, dent->name);
+	printf("[USB update] Raw image path: %s\n", image_full_path);
+
+	sparse_header = (sparse_header_t *)buffer_addr;
+	if (0 != usb_udpate_load_image(image_full_path, sparse_header, sizeof(sparse_header_t), 0)) {
+		printf("usb_udpate_load_image failed\n");
+		return -1;
+	}
+
+	// debug
+	print_sparse_header(sparse_header);
+
+	chunk_header = buffer_addr + sparse_header->file_hdr_sz;
+	chunk_data = chunk_header;
+	sparse_offset += sparse_header->file_hdr_sz;
+	raw_total_size = sparse_header->total_blks * sparse_header->blk_sz;
+	raw_total_chunk = sparse_header->total_chunks;
+	printf("=== Raw Image Info ===\n");
+	printf("Raw total size: %lld\n", raw_total_size);
+	printf("Raw total chunk: %lld\n", raw_total_chunk);
+
+	chunk_remain = raw_total_chunk;
+	while (chunk_remain > 0) {
+
+		// Get Chunk Header
+		if (0 != usb_udpate_load_image(image_full_path, chunk_header, sizeof(chunk_header_t), sparse_offset)) {
+			printf("usb_udpate_load_image failed\n");
+			return -1;
+		}
+
+		print_sparse_chunk_header(raw_total_chunk - chunk_remain, chunk_header);
+		if (0 != check_sparse_chunk_header(chunk_header)) {
+			printf("Chunk Header Error\n");
+			return -1;
+		}
+
+		raw_flash_size = chunk_header->chunk_sz * sparse_header->blk_sz;
+		raw_flash_size_total += raw_flash_size;
+		sparse_rd_sz += chunk_header->total_sz;
+		sparse_offset += chunk_header->total_sz;
+		raw_blk_cnt += chunk_header->chunk_sz;
+		chunk_remain--;
+		chunk_cnt++;
+		if (raw_flash_size_total < USB_UPDATE_SPARSE_SZ_ONESHOT) {
+			if (chunk_remain > 0) {
+				continue;
+			}
+		}
+
+		// Get Total Chunk
+		printf("[USB update] Loading [%s] size[0x%llx] offset[0x%llx]\n", image_full_path, sparse_rd_sz, sparse_offset - sparse_rd_sz);
+		if (0 != usb_udpate_load_image(image_full_path, chunk_data, sparse_rd_sz, sparse_offset - sparse_rd_sz)) {
+			printf("usb_udpate_load_image failed\n");
+			return -1;
+		}
+
+		sparse_header->total_chunks = chunk_cnt;
+		sparse_header->total_blks = raw_blk_cnt;
+
+		sparse_priv.dev_desc = dev_desc;
+		sparse.blksz = dev_desc->blksz;
+		sparse.start = DIV_ROUND_UP_ULL(raw_offset, dev_desc->blksz);
+		sparse.size  = DIV_ROUND_UP_ULL(raw_flash_size_total, dev_desc->blksz);
+		sparse.write = usb_mmc_sparse_write;
+		sparse.reserve = usb_mmc_sparse_reserve;
+		sparse.mssg = NULL;
+
+		printf("Flashing sparse image: offset[%ld] size[%ld]\n",
+				sparse.start, sparse.size);
+
+		sparse.priv = &sparse_priv;
+		err = write_sparse_image(&sparse, "addr:0x0", buffer_addr,
+						"USB-update");
+
+		raw_offset += raw_flash_size_total;
+		sparse_rd_sz = 0;
+		raw_flash_size_total = 0;
+		chunk_cnt = 0;
+		raw_blk_cnt = 0;
+	}
+
+	return err;
+}
+
+
+static int usb_update_mmc_raw_image(struct fs_dirent *dent, int flag)
 {
 	int32_t ret = 0;
 	char *token = NULL;
 	char mmcparts[20];
 	char buffer[128] = {0};
-	loff_t bytes = BLKSIZE * 512;
+	loff_t bytes = WR_BLK_NUM * BLK_SIZE;
 	loff_t pos = 0;
 	loff_t load_size = dent->size;
 	loff_t start_blk = 0;
@@ -155,16 +400,16 @@ int mmc_write_image(struct fs_dirent *dent, const char *dirname, int flag)
 		start_blk = part_info.start;
 		printf("token %s, start_blk 0x%llx\n", token, start_blk);
 	}
-	cnt = (load_size + 511) / 512;
+	cnt = (load_size + BLK_SIZE - 1) / BLK_SIZE;
 
 	while(load_size > bytes){
-		snprintf(buffer, sizeof(buffer), "fatload usb 0 ${kernel_addr} %s%s %llx %llx", dirname, dent->name, bytes, pos);
+		snprintf(buffer, sizeof(buffer), "fatload usb 0 ${kernel_addr} %s%s %llx %llx", USB_UPDATE_FOLDER, dent->name, bytes, pos);
 		ret = run_command(buffer, 1);	if (ret) {
 			printf("fatload %s from usb failed\n", dent->name);
 			return -1;
 		}
 		memset(buffer, 0, sizeof(buffer));
-		snprintf(buffer, sizeof(buffer), "mmc write ${kernel_addr} 0x%llx 0x%x", start_blk, BLKSIZE);
+		snprintf(buffer, sizeof(buffer), "mmc write ${kernel_addr} 0x%llx 0x%x", start_blk, WR_BLK_NUM);
 		ret = run_command(buffer, 1);	if (ret) {
 			printf("fatload %s from usb failed\n", dent->name);
 			return -1;
@@ -172,13 +417,13 @@ int mmc_write_image(struct fs_dirent *dent, const char *dirname, int flag)
 
 		pos += bytes;
 		load_size -= bytes;
-		start_blk += BLKSIZE;
-		cnt -= BLKSIZE;
+		start_blk += WR_BLK_NUM;
+		cnt -= WR_BLK_NUM;
 		memset(buffer, 0, sizeof(buffer));
 	}
 	if(load_size > 0){
 		printf("finally load %s to %s partition start, %lld, pos %lld, size %lld\n", dent->name, mmcparts, bytes, pos, load_size);
-		snprintf(buffer, sizeof(buffer), "fatload usb 0 ${kernel_addr} %s%s %llx %llx", dirname, dent->name, load_size, pos);
+		snprintf(buffer, sizeof(buffer), "fatload usb 0 ${kernel_addr} %s%s %llx %llx", USB_UPDATE_FOLDER, dent->name, load_size, pos);
 		ret = run_command(buffer, 1);	if (ret) {
 			printf("fatload %s from usb failed\n", dent->name);
 			return -1;
@@ -197,14 +442,61 @@ int mmc_write_image(struct fs_dirent *dent, const char *dirname, int flag)
 	return 0;
 }
 
-int fs_read_image(const char *dirname, struct fs_dir_stream *dirs)
+static int get_prefix(const char *filename, char *prefix, int maxsize)
 {
-	struct fs_dirent *dent;
-	const char *nand_device = "nand";
-	const char *emmc_device = "emmc";
+
+	const char *last_dot = strrchr(filename, '.');
+
+	if (last_dot == NULL || last_dot == filename) {
+		return -1;
+	}
+
+	size_t prefix_len = last_dot - filename;
+	if (prefix_len >= maxsize) {
+		return -1;
+	}
+
+	strncpy(prefix, filename, prefix_len);
+	prefix[prefix_len] = '\0';
+
+	return 0;
+}
+
+static int check_full_image(char *image_name)
+{
+	int i;
+	for (i = 0; i < ARRAY_SIZE(update_image_list); i++) {
+		if (0 == strcmp(image_name, update_image_list[i].image_name)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static int check_part_image(char *image_name)
+{
+	char partname[32] = {0};
+	struct disk_partition part_info = {0};
+
+	if (0 != get_prefix(image_name, partname, 32)) {
+		printf("[USB update] can not get prefix [%s]\n", image_name);
+		return -1;
+	}
+
+	if (0 != get_mmc_partition_info(partname, &part_info)) {
+		printf("[USB update] Can not found part[%s]\n", partname);
+		return -1;
+	}
+	return 0;
+}
+
+static int usb_update_process(const char *dirname)
+{
+	struct fs_dir_stream *dirs = NULL;
+	struct fs_dirent *dent = NULL;
 	int32_t ret = -1;
 	struct mmc *mmc;
-	char buffer[128] = {0};
+	int image_idx;
 
 	dirs = fs_opendir(dirname);
 	if (!dirs){
@@ -212,73 +504,65 @@ int fs_read_image(const char *dirname, struct fs_dir_stream *dirs)
 		return -errno;
 	}
 
-	if(0 == strcmp(env_get("boot_device"), emmc_device)){
+	/* Init Flash */
+	if(0 == strcmp(env_get("boot_device"), "emmc")){
 		mmc = init_mmc_device(0, false, MMC_MODES_END);
 		if (!mmc){
 			printf("mmc init faild\n");
 			return -1;
 		}
 	}
-	printf("start update partition\n");
+
+	/* USB update Start Process */
+	printf("[USB update] Start...\n");
 	while ((dent = fs_readdir(dirs))) {
-		if(0 == strcmp(dent->name, "boot.img")
-			|| 0 == strcmp(dent->name, "system.img")
-			|| 0 == strcmp(dent->name, "hbre.img")
-			|| 0 == strcmp(dent->name, "app.img")
-			|| 0 == strcmp(dent->name, "userdata.img"))
-			{
-				if(0 == strcmp(env_get("boot_device"), nand_device)){
-					printf("nand write %s\n", dent->name);
-					ret = mtd_write_image(dent, dirname, NAND_SINGLE_PART);
-					if(-1 == ret){
-						printf("mtd write %s faild\n", dent->name);
-						fs_closedir(dirs);
-						return ret;
-					}
-				}else if(0 == strcmp(env_get("boot_device"), emmc_device)){
-					printf("emmc load %s, size %lld\n", dent->name, dent->size);
-					ret = mmc_write_image(dent, dirname, EMMC_SINGLE_PART);
-					if(-1 == ret){
-						printf("emmc write %s faild\n", dent->name);
-						fs_closedir(dirs);
-						return ret;
-					}
-				}
-			}else if((0 == strcmp(dent->name, "nand_disk.img")) || (0 == strcmp(dent->name, "emmc_disk.img"))){
-				if(0 == strcmp(env_get("boot_device"), nand_device)){
-					ret = mtd_write_image(dent, dirname, NAND_DISK);
-					if(-1 == ret){
-						printf("mtd write %s faild\n", dent->name);
-						fs_closedir(dirs);
-						return ret;
-					}
-				}else if(0 == strcmp(env_get("boot_device"), emmc_device)){
-					ret = mmc_write_image(dent, dirname, EMMC_DISK);
-					if(-1 == ret){
-						printf("emmc write %s faild\n", dent->name);
-						fs_closedir(dirs);
-						return ret;
-					}
-				}
-				 goto finally;
+		if ((image_idx = check_full_image(dent->name)) != -1)		// Full Image Update
+		{
+			if (0 != strcmp(update_image_list[image_idx].boot_device, env_get("boot_device"))) {
+				printf("[usb_udpate] boot_device [%s] error, should be [%s]", \
+							env_get("boot_device"), update_image_list[image_idx].boot_device);
+				continue;
 			}
+			if (NULL != update_image_list[image_idx].callback) {
+				ret = update_image_list[image_idx].callback(dent, update_image_list[image_idx].flag);
+				if (0 != ret) {
+					printf("USB update: [%s] failed\n", update_image_list[image_idx].image_name);
+				}
+				goto usb_update_process_out;
+			}
+		}
+		else if(0 == check_part_image(dent->name))			// Part Image Update
+		{
+			if(0 == strcmp(env_get("boot_device"), "nand")) {
+				printf("[USB update] MTD update part image: %s\n", dent->name);
+				if(0 != usb_update_mtd_image(dent, NAND_SINGLE_PART)){
+					printf("[USB update] usb_update_mtd_image [%s] faild\n", dent->name);
+					ret = -1;
+					goto usb_update_process_out;
+				}
+			}else if(0 == strcmp(env_get("boot_device"), "emmc")) {
+				printf("[USB update] EMMC update part image: %s\n", dent->name);
+				if(0 != usb_update_mmc_raw_image(dent, EMMC_SINGLE_PART)){
+					printf("[USB update] usb_update_mmc_raw_image [%s] faild\n", dent->name);
+					ret = -1;
+					goto usb_update_process_out;
+				}
+			}
+		}
 	}
-finally:
+	ret = 0;
+usb_update_process_out:
 	fs_closedir(dirs);
-	fs_close();
-	snprintf(buffer, sizeof(buffer), "reset");
-	ret = run_command(buffer, 1);	if (ret) {
-		printf("reset faild\n");
-		return -1;
-	}
-	return 0;
+	printf("[USB update] Finish...\n");
+
+	return ret;
 }
 
 static int do_usb_update(struct cmd_tbl *cmdtp, int flag, int argc,
 			char *const argv[])
 {
+	int ret;
 	char *reset_reason = "COLD_BOOT";
-	struct fs_dir_stream *dirs = NULL;
 
 	if(0 == strcmp(env_get("reset_reason"), reset_reason)){
 		bootstage_mark_name(BOOTSTAGE_ID_USB_START, "usb_start");
@@ -293,7 +577,16 @@ static int do_usb_update(struct cmd_tbl *cmdtp, int flag, int argc,
 			if(fs_set_blk_dev("usb", "0", FS_TYPE_FAT)){
 				return -1;
 			}
-			fs_read_image("/update_img/", dirs);
+
+			ret = usb_update_process(USB_UPDATE_FOLDER);
+			printf("USB Update: %s ..............\n\n\n", (ret==0)? "Success" : "Fail");
+			udelay(300000);
+			printf("Now Reset Uboot\n");
+			/* Reset */
+			if (0 != run_command("reset", 1)) {
+				printf("reset faild\n");
+				return -1;
+			}
 		}
 	}
 	return 0;
