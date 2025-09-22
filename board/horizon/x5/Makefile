@@ -4,3 +4,4 @@
 #
 
 obj-y := x5.o spi.o
+obj-y += x5_set_pin.o
