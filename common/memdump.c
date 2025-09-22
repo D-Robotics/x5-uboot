@@ -325,7 +325,7 @@ int memdump_dump_ext4(char *intf, int dev, int part, char *directory)
 		for (j = 0, count = 0; j < gd->bd->bi_dram[i].size; j += len) {
 			char *buf = (char *)(gd->bd->bi_dram[i].start + j);
 
-			snprintf(filename, sizeof(filename), "%sDDRCS%d-%d.bin", directory, i, count++);
+			snprintf(filename, sizeof(filename), "%s/DDRCS%d-%d.bin", directory, i, count++);
 			if ((ulong)buf >= MMC_SDMA_HIGEST_ADDR) {
 				if ((gd->bd->bi_dram[i].size - j) > TEMP_TRANSFER_MEMORY_SIZE) {
 					length = TEMP_TRANSFER_MEMORY_SIZE;
@@ -350,16 +350,16 @@ int memdump_dump_ext4(char *intf, int dev, int part, char *directory)
 				snprintf(filename, sizeof(filename), "memdump_test.bin");
 				length = EXT4_TEST_FILE_LENGTH;
 			}
-			printf("-> dumpfile = /%s/%s, from memory 0x%llx, length=%lu\n",
-				RAMDUMP_USERDATA_PART_NAME, filename, gd->bd->bi_dram[i].start + j, length);
+			printf("-> dumpfile = %s, from memory 0x%llx, length=%lu\n",
+				filename, gd->bd->bi_dram[i].start + j, length);
 			if (fs_set_blk_dev(intf, dev_part_str, FS_TYPE_EXT))
 				return 1;
 			time = get_timer(0);
 			ret = fs_write(filename, (ulong)buf, 0, length, &len);
 			time = get_timer(time);
 			if (ret < 0) {
-				printf("Fail to write ramdump to /%s/%s,ret=%d,len=%lld\n",
-					RAMDUMP_USERDATA_PART_NAME, filename, ret, len);
+				printf("Fail to write ramdump to %s,ret=%d,len=%lld\n",
+				filename, ret, len);
 				return 1;
 			}
 			printf("%llu bytes written in %lu ms\n", len, time);
