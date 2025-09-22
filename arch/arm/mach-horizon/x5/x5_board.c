@@ -209,12 +209,12 @@ static void board_env_setup(void)
 	char *recovery_mode = env_get("recovery_mode");
 	char hex_socuid[32];
 
-	env_set("bootcmd",
+	/*env_set("bootcmd",
 #ifdef CONFIG_USB_UPDATE
 		"usbupdate;"
 #endif
 		"run ab_select_cmd;"
-		"run avb_boot;");
+		"run avb_boot;");*/
 	set_bootdev();
 
 	hb_board_id_get(&board_id);
