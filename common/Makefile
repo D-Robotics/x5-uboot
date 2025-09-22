@@ -11,6 +11,7 @@ obj-y += exports.o
 obj-$(CONFIG_HUSH_PARSER) += cli_hush.o
 obj-$(CONFIG_AUTOBOOT) += autoboot.o
 
+obj-y += hb_utils.o
 # # boards
 obj-y += board_f.o
 obj-y += board_r.o
