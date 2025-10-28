@@ -357,9 +357,6 @@ static int hb_set_soc_name(int offset)
 
 	memcpy(node_data, ptmp, len);
 
-	/* set hw_name */
-	len = strlen(node_data) + 1;
-
 	ret = get_chip_type(&chip_type);
 	if (ret) {
 		printf("read efuse chip type failed\n");
@@ -373,8 +370,10 @@ static int hb_set_soc_name(int offset)
 	} else if (chip_type == CHIP_X5_B) {
 		strncpy(node_data, "X5B", strlen("X5B") + 1);
 	} else {
-		strncpy(node_data, "UKNOWN", strlen("UKNOWN") + 1);
+		strncpy(node_data, "X5U", strlen("X5U") + 1);
 	}
+
+	len = strlen(node_data) + 1;
 
 	ret = fdt_setprop(hb_dtb, offset, prop, node_data, len);
 	if (ret < 0) {

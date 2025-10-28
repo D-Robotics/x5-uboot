@@ -39,7 +39,7 @@ enum {
 };
 
 enum {
-    CHIP_X5_UKNOWN = 0,
+    CHIP_X5_U = 0,
     CHIP_X5_H,
     CHIP_X5_M,
     CHIP_X5_B,
