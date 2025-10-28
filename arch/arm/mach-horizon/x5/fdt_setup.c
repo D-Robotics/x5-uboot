@@ -187,7 +187,7 @@ static void check_cpu_1_8g_support(void *fdt)
         }
 
         /* update pll table if 1.8G supported */
-        if (enable && ((chip_type == CHIP_X5_H) || (chip_type == CHIP_X5_UKNOWN))) {
+        if (enable && ((chip_type == CHIP_X5_H) || (chip_type == CHIP_X5_U))) {
                 /* enable corresponding opp table */
                 offs = fdt_path_offset(fdt, "/cpu-opp-table-0/");
                 if (offs < 0) {
