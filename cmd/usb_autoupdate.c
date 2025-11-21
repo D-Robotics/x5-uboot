@@ -32,7 +32,11 @@ enum USB_UPDATE_TYPE_E{
 	NAND_SINGLE_PART,
 	EMMC_DISK,
 	EMMC_SINGLE_PART,
+	EMMC_AB_PART,
 };
+
+#define A_PART_SUFFIX	"_a"
+#define B_PART_SUFFIX	"_b"
 
 static int usb_update_mmc_raw_image(struct fs_dirent *dent, int flag);
 static int usb_udpate_mmc_sparse_image(struct fs_dirent *dent, int flag);
@@ -367,81 +371,6 @@ static int usb_udpate_mmc_sparse_image(struct fs_dirent *dent, int flag)
 }
 
 
-static int usb_update_mmc_raw_image(struct fs_dirent *dent, int flag)
-{
-	int32_t ret = 0;
-	char *token = NULL;
-	char mmcparts[20];
-	char buffer[128] = {0};
-	loff_t bytes = WR_BLK_NUM * BLK_SIZE;
-	loff_t pos = 0;
-	loff_t load_size = dent->size;
-	loff_t start_blk = 0;
-	loff_t cnt = 0;
-
-	struct disk_partition part_info = {0};
-
-	if(flag == EMMC_SINGLE_PART){
-		strcpy(mmcparts, dent->name);
-		token = strtok(mmcparts, ".");
-	} else if(flag == EMMC_DISK){
-		strcpy(mmcparts, "addr:0x0");
-		start_blk = 0;
-	}
-	printf("load %s to mmcparts %s\n", dent->name, mmcparts);
-	memset(buffer, 0, sizeof(buffer));
-
-	if(token != NULL){
-		ret = get_mmc_partition_info(token, &part_info);
-		if (ret != 0) {
-			printf("get mmc [%s] partition info faild\n", token);
-			return -1;
-		}
-		start_blk = part_info.start;
-		printf("token %s, start_blk 0x%llx\n", token, start_blk);
-	}
-	cnt = (load_size + BLK_SIZE - 1) / BLK_SIZE;
-
-	while(load_size > bytes){
-		snprintf(buffer, sizeof(buffer), "fatload usb 0 ${kernel_addr} %s%s %llx %llx", USB_UPDATE_FOLDER, dent->name, bytes, pos);
-		ret = run_command(buffer, 1);	if (ret) {
-			printf("fatload %s from usb failed\n", dent->name);
-			return -1;
-		}
-		memset(buffer, 0, sizeof(buffer));
-		snprintf(buffer, sizeof(buffer), "mmc write ${kernel_addr} 0x%llx 0x%x", start_blk, WR_BLK_NUM);
-		ret = run_command(buffer, 1);	if (ret) {
-			printf("fatload %s from usb failed\n", dent->name);
-			return -1;
-		}
-
-		pos += bytes;
-		load_size -= bytes;
-		start_blk += WR_BLK_NUM;
-		cnt -= WR_BLK_NUM;
-		memset(buffer, 0, sizeof(buffer));
-	}
-	if(load_size > 0){
-		printf("finally load %s to %s partition start, %lld, pos %lld, size %lld\n", dent->name, mmcparts, bytes, pos, load_size);
-		snprintf(buffer, sizeof(buffer), "fatload usb 0 ${kernel_addr} %s%s %llx %llx", USB_UPDATE_FOLDER, dent->name, load_size, pos);
-		ret = run_command(buffer, 1);	if (ret) {
-			printf("fatload %s from usb failed\n", dent->name);
-			return -1;
-		}
-
-		memset(buffer, 0, sizeof(buffer));
-		snprintf(buffer, sizeof(buffer), "mmc write ${kernel_addr} 0x%llx 0x%llx", start_blk, cnt);
-		ret = run_command(buffer, 1);	if (ret) {
-			printf("fatload %s from usb failed\n", dent->name);
-			return -1;
-		}
-	}
-
-	printf("load %s to %s partition success\n", dent->name, mmcparts);
-	memset(buffer, 0, sizeof(buffer));
-	return 0;
-}
-
 static int get_prefix(const char *filename, char *prefix, int maxsize)
 {
 
@@ -473,9 +402,11 @@ static int check_full_image(char *image_name)
 	return -1;
 }
 
-static int check_part_image(char *image_name)
+static int check_part_image(char *image_name, int *isABpart)
 {
 	char partname[32] = {0};
+	char a_partname[32] = {0};
+	char b_partname[32] = {0};
 	struct disk_partition part_info = {0};
 
 	if (0 != get_prefix(image_name, partname, 32)) {
@@ -484,10 +415,108 @@ static int check_part_image(char *image_name)
 	}
 
 	if (0 != get_mmc_partition_info(partname, &part_info)) {
-		printf("[USB update] Can not found part[%s]\n", partname);
+		// printf("[USB update] Can not found part[%s]\n", partname);
+
+		snprintf(a_partname, 32, "%s%s", partname, A_PART_SUFFIX);
+		if (0 != get_mmc_partition_info(a_partname, &part_info)) {
+			// printf("[USB update] Can not found part[%s]\n", a_partname);
+			return -1;
+		}
+		snprintf(b_partname, 32, "%s%s", partname, B_PART_SUFFIX);
+		if (0 != get_mmc_partition_info(b_partname, &part_info)) {
+			// printf("[USB update] Can not found part[%s]\n", b_partname);
+			return -1;
+		}
+		*isABpart = 1;
+		printf("[USB update] found AB part[%s] [%s]\n", a_partname, b_partname);
+		return 0;
+	}
+	isABpart = 0;
+	return 0;
+}
+
+static int _update_mmc_raw_part(char *part_name, char *image_name, loff_t image_size)
+{
+	int ret;
+	struct disk_partition part_info = {0};
+
+	loff_t remain_size = image_size;
+	loff_t read_size = 0;
+	loff_t oneshot_read_size = WR_BLK_NUM * BLK_SIZE;
+	loff_t offset = 0;
+	loff_t start_blk = 0, write_blk = 0;
+
+	char command[128] = {0};
+
+	if(0 != strcmp(part_name, "addr:0x0")){
+		ret = get_mmc_partition_info(part_name, &part_info);
+		if (ret != 0) {
+			printf("[USB Update] get mmc [%s] partition info faild\n", part_name);
+			return -1;
+		}
+		start_blk = part_info.start;
+	}
+
+	printf("\n\n[USB Update] Part[%s] Bgn: image_name[%s] image_size[%lld] start_blk[0x%llx]\n", part_name, image_name, image_size, start_blk);
+
+	while (remain_size > 0) {
+		read_size = (remain_size >= oneshot_read_size)? oneshot_read_size : remain_size;
+		write_blk = (read_size + BLK_SIZE - 1) / BLK_SIZE;
+
+		/* Read blocks from usb */
+		memset(command, 0, sizeof(command));
+		snprintf(command, sizeof(command), "fatload usb 0 ${kernel_addr} %s%s %llx %llx", USB_UPDATE_FOLDER, image_name, read_size, offset);
+		if (0 != run_command(command, 1)) {
+			printf("[USB Update] fatload %s from usb error: read_size[%lld] offset[%lld]\n", image_name, read_size, offset);
+			return -1;
+		}
+		/* Write blocks into emmc */
+		memset(command, 0, sizeof(command));
+		snprintf(command, sizeof(command), "mmc write ${kernel_addr} 0x%llx 0x%llx", start_blk, write_blk);
+		if (0 != run_command(command, 1)) {
+			printf("[USB Update] mmc write part[%s] error: start_blk[0x%llx] write_blk[%lld]\n", part_name, start_blk, write_blk);
+			return -1;
+		}
+		printf("[USB Update] Part[%s]: start_blk[0x%llx] read_size[%lld]\n", part_name, start_blk, read_size);
+
+		remain_size -= read_size;
+		offset += read_size;
+		start_blk += write_blk;
+	}
+
+	printf("[USB Update] Image[%s] to Part[%s] success\n\n\n", image_name, part_name);
+	return 0;
+}
+
+static int usb_update_mmc_raw_image(struct fs_dirent *dent, int flag)
+{
+	int32_t ret = 0;
+	char partname[32] = {0};
+	char a_partname[32] = {0};
+	char b_partname[32] = {0};
+
+	if (flag == EMMC_DISK) {
+		ret = _update_mmc_raw_part("addr:0x0", dent->name, dent->size);
+	}
+	else if (flag == EMMC_SINGLE_PART) {
+		get_prefix(dent->name, partname, 32);
+		ret = _update_mmc_raw_part(partname, dent->name, dent->size);
+	}
+	else if (flag == EMMC_AB_PART) {
+		get_prefix(dent->name, partname, 32);
+		snprintf(a_partname, 32, "%s%s", partname, A_PART_SUFFIX);
+		snprintf(b_partname, 32, "%s%s", partname, B_PART_SUFFIX);
+		if ((0 != _update_mmc_raw_part(a_partname, dent->name, dent->size)) || \
+			(0 != _update_mmc_raw_part(b_partname, dent->name, dent->size))) {
+			return -1;
+		}
+	}
+	else {
+		printf("[USB Update] Unknow part update flag[%d]\n", flag);
 		return -1;
 	}
-	return 0;
+
+	return ret;
 }
 
 static int usb_update_process(const char *dirname)
@@ -497,6 +526,7 @@ static int usb_update_process(const char *dirname)
 	int32_t ret = -1;
 	struct mmc *mmc;
 	int image_idx;
+	int isABpart = 0;
 
 	dirs = fs_opendir(dirname);
 	if (!dirs){
@@ -516,7 +546,10 @@ static int usb_update_process(const char *dirname)
 	/* USB update Start Process */
 	printf("[USB update] Start...\n");
 	while ((dent = fs_readdir(dirs))) {
-		if ((image_idx = check_full_image(dent->name)) != -1)		// Full Image Update
+		if (0 == strcmp(dent->name, ".") || 0 == strcmp(dent->name, "..")) {
+			continue;
+		}
+		else if ((image_idx = check_full_image(dent->name)) != -1)		// Full Image Update
 		{
 			if (0 != strcmp(update_image_list[image_idx].boot_device, env_get("boot_device"))) {
 				printf("[usb_udpate] boot_device [%s] error, should be [%s]", \
@@ -531,7 +564,7 @@ static int usb_update_process(const char *dirname)
 				goto usb_update_process_out;
 			}
 		}
-		else if(0 == check_part_image(dent->name))			// Part Image Update
+		else if(0 == check_part_image(dent->name, &isABpart))			// Part Image Update
 		{
 			if(0 == strcmp(env_get("boot_device"), "nand")) {
 				printf("[USB update] MTD update part image: %s\n", dent->name);
@@ -541,8 +574,8 @@ static int usb_update_process(const char *dirname)
 					goto usb_update_process_out;
 				}
 			}else if(0 == strcmp(env_get("boot_device"), "emmc")) {
-				printf("[USB update] EMMC update part image: %s\n", dent->name);
-				if(0 != usb_update_mmc_raw_image(dent, EMMC_SINGLE_PART)){
+				printf("[USB update] EMMC update part image: %s [%s]\n", dent->name, (0 == isABpart)?"Single":"AB");
+				if(0 != usb_update_mmc_raw_image(dent, (0 == isABpart)? EMMC_SINGLE_PART : EMMC_AB_PART)){
 					printf("[USB update] usb_update_mmc_raw_image [%s] faild\n", dent->name);
 					ret = -1;
 					goto usb_update_process_out;
