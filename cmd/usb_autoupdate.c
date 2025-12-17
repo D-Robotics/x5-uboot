@@ -415,23 +415,19 @@ static int check_part_image(char *image_name, int *isABpart)
 	}
 
 	if (0 != get_mmc_partition_info(partname, &part_info)) {
-		// printf("[USB update] Can not found part[%s]\n", partname);
-
 		snprintf(a_partname, 32, "%s%s", partname, A_PART_SUFFIX);
 		if (0 != get_mmc_partition_info(a_partname, &part_info)) {
-			// printf("[USB update] Can not found part[%s]\n", a_partname);
 			return -1;
 		}
 		snprintf(b_partname, 32, "%s%s", partname, B_PART_SUFFIX);
 		if (0 != get_mmc_partition_info(b_partname, &part_info)) {
-			// printf("[USB update] Can not found part[%s]\n", b_partname);
 			return -1;
 		}
 		*isABpart = 1;
 		printf("[USB update] found AB part[%s] [%s]\n", a_partname, b_partname);
 		return 0;
 	}
-	isABpart = 0;
+	*isABpart = 0;
 	return 0;
 }
 
