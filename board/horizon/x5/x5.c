@@ -79,6 +79,7 @@ static const struct ddr_size ddr_size_mapping[] = {
 	{.info = 2, .size = 4},
 	{.info = 3, .size = 8},
 	{.info = 4, .size = 6}, /* 6GB, Compatible with old versions*/
+	{.info = 5, .size = 3}, /* 3GB, Compatible with old versions*/
 };
 
 static u32 get_mapping_size(u32 info)
