@@ -97,6 +97,8 @@
 #define	CTRLR0_SPI_FRF_DUAL		0x1
 #define	CTRLR0_SPI_FRF_QUAD		0x2
 
+#define DW_HSSI_CTRLR0_MST		BIT(31)
+
 /* Bit fields in CTRLR0 based on DWC_ssi_databook.pdf v1.01a */
 #define DWC_SSI_CTRLR0_DFS_MASK		GENMASK(4, 0)
 #define DWC_SSI_CTRLR0_FRF_MASK		GENMASK(7, 6)
@@ -193,6 +195,8 @@
 } while (0)
 
 #ifdef CONFIG_TARGET_X5
+/* Sunrise5 QSPI controller base */
+#define X5_QSPI_BASE (0x35000000)
 /* Sunrise5 SoC reset registers */
 #define X5_QSPI_NOC_IDLE_CTRL (0x31032004)
 #define X5_QSPI_NOC_IDLE_CTRL_IDLE (BIT(6))
@@ -301,6 +305,59 @@ static inline u32 dw_spi_update_cr0(struct dw_spi_priv *priv)
 	return cr0;
 }
 
+static inline u32 dw_lsio_spi_update_cr0(struct dw_spi_priv *priv)
+{
+	u32 cr0;
+	u32 current_cr0;
+	u32 enabled;
+	if (priv->caps & DW_SPI_CAP_DWC_SSI) {
+		cr0 = FIELD_PREP(DWC_SSI_CTRLR0_DFS_MASK,
+				 priv->bits_per_word - 1)
+		    | FIELD_PREP(DWC_SSI_CTRLR0_FRF_MASK, priv->type)
+		    | FIELD_PREP(DWC_SSI_CTRLR0_TMOD_MASK, priv->tmode)
+		    | FIELD_PREP(DWC_SSI_CTRLR0_SPI_FRF_MASK, priv->spi_frf);
+	} else {
+		if (priv->caps & DW_SPI_CAP_DFS32)
+			cr0 = FIELD_PREP(CTRLR0_DFS_32_MASK,
+					 priv->bits_per_word - 1);
+		else
+			cr0 = FIELD_PREP(CTRLR0_DFS_MASK,
+					 priv->bits_per_word - 1);
+
+ 		cr0 |= FIELD_PREP(CTRLR0_FRF_MASK, priv->type)
+		    |  FIELD_PREP(CTRLR0_TMOD_MASK, priv->tmode)
+		    |  FIELD_PREP(CTRLR0_SPI_FRF_MASK, priv->spi_frf);
+	}
+
+	if (priv->mode & SPI_CPOL)
+		cr0 |= DW_HSSI_CTRLR0_SCPOL;
+	if (priv->mode & SPI_CPHA)
+		cr0 |= DW_HSSI_CTRLR0_SCPHA;
+
+	/* CTRLR0[31] MST */
+	cr0 |= DW_HSSI_CTRLR0_MST;
+
+	current_cr0 = dw_read(priv, DW_SPI_CTRLR0);
+	enabled = dw_read(priv, DW_SPI_SSIENR);
+	enabled &= BIT(0);
+	if ((cr0 & DW_HSSI_CTRLR0_SCPOL) != (current_cr0 & DW_HSSI_CTRLR0_SCPOL)){
+		if (cr0 & DW_HSSI_CTRLR0_SCPOL)
+			current_cr0 |= DW_HSSI_CTRLR0_SCPOL;
+		else
+			current_cr0 &= ~DW_HSSI_CTRLR0_SCPOL;
+
+		if (enabled)
+			dw_write(priv, DW_SPI_SSIENR, 0);
+
+		dw_write(priv, DW_SPI_CTRLR0, current_cr0);
+
+		if (enabled)
+			dw_write(priv, DW_SPI_SSIENR, 1);
+	}
+
+	return cr0;
+}
+
 static inline u32 dw_spi_update_spi_cr0(const struct spi_mem_op *op)
 {
 	uint trans_type, wait_cycles;
@@ -386,48 +443,50 @@ static int dw_ssi_hw_reset_x5(struct udevice *bus)
 	u32 reg_val;
 	s32 idle_timeout = X5_QSPI_IDLE_TIMEOUT_MS;
 
-	/* QSPI assert idle */
-	reg_val = (readl(X5_QSPI_NOC_IDLE_CTRL) | X5_QSPI_NOC_IDLE_CTRL_IDLE);
-	writel(reg_val, X5_QSPI_NOC_IDLE_CTRL);
-	while (idle_timeout) {
-		if (!(readl(X5_QSPI_NOC_IDLE_STAT) & X5_QSPI_NOC_IDLE_STAT_BIT)){
-			idle_timeout--;
-			mdelay(1);
-		} else {
-			break;
+	if (dev_read_addr(bus) == X5_QSPI_BASE) {
+		/* QSPI assert idle */
+		reg_val = (readl(X5_QSPI_NOC_IDLE_CTRL) | X5_QSPI_NOC_IDLE_CTRL_IDLE);
+		writel(reg_val, X5_QSPI_NOC_IDLE_CTRL);
+		while (idle_timeout) {
+			if (!(readl(X5_QSPI_NOC_IDLE_STAT) & X5_QSPI_NOC_IDLE_STAT_BIT)){
+				idle_timeout--;
+				mdelay(1);
+			} else {
+				break;
+			}
 		}
-	}
 
-	if (idle_timeout <= 0) {
-		dev_err(bus, "%s: QSPI request idle timeout!\n", __func__);
-		ret = -1;
-		goto exit;
-	}
-
-	/* Assert qspi sw rst, wait 10us and deassert */
-	reg_val = (readl(X5_QSPI_SW_RST_CTRL) | X5_QSPI_SW_RST_CTRL_ASSERT);
-	writel(reg_val, X5_QSPI_SW_RST_CTRL);
-	udelay(X5_QSPI_SW_RST_DELAY_US);
-	reg_val = (readl(X5_QSPI_SW_RST_CTRL) & ~X5_QSPI_SW_RST_CTRL_ASSERT);
-	writel(reg_val, X5_QSPI_SW_RST_CTRL);
-
-	/* QSPI deassert idle */
-	idle_timeout = X5_QSPI_IDLE_TIMEOUT_MS;
-	reg_val = (readl(X5_QSPI_NOC_IDLE_CTRL) & ~X5_QSPI_NOC_IDLE_CTRL_IDLE);
-	writel(reg_val, X5_QSPI_NOC_IDLE_CTRL);
-	while (idle_timeout) {
-		if ((readl(X5_QSPI_NOC_IDLE_STAT) & X5_QSPI_NOC_IDLE_STAT_BIT)){
-			idle_timeout--;
-			mdelay(1);
-		} else {
-			break;
+		if (idle_timeout <= 0) {
+			dev_err(bus, "%s: QSPI request idle timeout!\n", __func__);
+			ret = -1;
+			goto exit;
 		}
-	}
 
-	if (idle_timeout <= 0) {
-		dev_err(bus, "%s: QSPI release idle timeout!\n", __func__);
-		ret = -1;
-		goto exit;
+		/* Assert qspi sw rst, wait 10us and deassert */
+		reg_val = (readl(X5_QSPI_SW_RST_CTRL) | X5_QSPI_SW_RST_CTRL_ASSERT);
+		writel(reg_val, X5_QSPI_SW_RST_CTRL);
+		udelay(X5_QSPI_SW_RST_DELAY_US);
+		reg_val = (readl(X5_QSPI_SW_RST_CTRL) & ~X5_QSPI_SW_RST_CTRL_ASSERT);
+		writel(reg_val, X5_QSPI_SW_RST_CTRL);
+
+		/* QSPI deassert idle */
+		idle_timeout = X5_QSPI_IDLE_TIMEOUT_MS;
+		reg_val = (readl(X5_QSPI_NOC_IDLE_CTRL) & ~X5_QSPI_NOC_IDLE_CTRL_IDLE);
+		writel(reg_val, X5_QSPI_NOC_IDLE_CTRL);
+		while (idle_timeout) {
+			if ((readl(X5_QSPI_NOC_IDLE_STAT) & X5_QSPI_NOC_IDLE_STAT_BIT)){
+				idle_timeout--;
+				mdelay(1);
+			} else {
+				break;
+			}
+		}
+
+		if (idle_timeout <= 0) {
+			dev_err(bus, "%s: QSPI release idle timeout!\n", __func__);
+			ret = -1;
+			goto exit;
+		}
 	}
 
 exit:
@@ -937,7 +996,7 @@ static int dw_spi_xfer(struct udevice *dev, unsigned int bitlen,
 		 */
 		priv->tmode = CTRLR0_TMOD_TR;
 
-	cr0 = priv->update_cr0(priv);
+	cr0 = dw_lsio_spi_update_cr0(priv);
 
 	priv->len = bitlen >> 3;
 
