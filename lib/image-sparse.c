@@ -298,9 +298,14 @@ int write_sparse_image(struct sparse_storage *info,
 				if (j > fill_buf_num_blks)
 					j = fill_buf_num_blks;
 
-				/* Handle eMMC writes with empty chunks */
+				/* Handle eMMC writes with empty chunks.
+				 * Skip erase optimization for SD cards
+				 * as their erase operations can be very
+				 * slow and cause SDHCI timeouts.
+				 */
 				if ((fill_val == 0) &&
-					(fastboot_get_flash_type() == FLASH_TYPE_EMMC)) {
+					(fastboot_get_flash_type() == FLASH_TYPE_EMMC) &&
+					mmc && !IS_SD(mmc)) {
 					if (blkend > last_erased_blk) {
 						new_wbbuf_sz = ROUNDUP(
 							info->blksz * fill_buf_num_blks * 2,
