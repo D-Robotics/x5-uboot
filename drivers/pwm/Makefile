@@ -24,3 +24,5 @@ obj-$(CONFIG_PWM_SIFIVE)	+= pwm-sifive.o
 obj-$(CONFIG_PWM_TEGRA)		+= tegra_pwm.o
 obj-$(CONFIG_PWM_SUNXI)		+= sunxi_pwm.o
 obj-$(CONFIG_PWM_TI_EHRPWM)	+= pwm-ti-ehrpwm.o
+obj-$(CONFIG_PWM_HOBOT_LPWM)	+= hobot_lpwm.o
+obj-$(CONFIG_PWM_HOBOT)		+= hobot_pwm.o

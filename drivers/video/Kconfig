@@ -694,6 +694,8 @@ config VIDEO_ZYNQMP_DPSUB
 
 source "drivers/video/nexell/Kconfig"
 
+source "drivers/video/d-robotics/Kconfig"
+
 config VIDEO
 	bool "Enable legacy video support"
 	depends on !DM_VIDEO
