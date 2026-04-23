@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0+
+#
+# X5 HDMI path (BT1120 + LT8618)
+
+obj-$(CONFIG_X5_SEAMLESS_DISPLAY) += x5_bt1120.o
+obj-$(CONFIG_X5_HDMI_BRIDGE_LT8618) += x5_lt8618.o
+obj-$(CONFIG_X5_HDMI_BRIDGE_SII9022) += x5_sii902x.o

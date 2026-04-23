@@ -342,4 +342,23 @@ int edid_get_timing_validate(u8 *buf, int buf_size,
 int edid_get_timing(u8 *buf, int buf_size, struct display_timing *timing,
 		    int *panel_bits_per_colourp);
 
+/**
+ * edid_decode_detailed_timing() - One 18-byte EDID detailed timing descriptor
+ *
+ * @dtd18:	Detailed timing record (18 bytes, packed)
+ * @timing:	Filled display_timing (.typ fields)
+ */
+void edid_decode_detailed_timing(const u8 *dtd18, struct display_timing *timing);
+
+/**
+ * edid_get_first_valid_timing() - First non-zero detailed timing in base/CEA
+ *
+ * Does not require EDID "preferred timing" flag. Skips interlaced modes.
+ *
+ * Return: 0 on success, -errno otherwise
+ */
+int edid_get_first_valid_timing(const u8 *buf, int buf_size,
+				struct display_timing *timing,
+				int *panel_bits_per_colourp);
+
 #endif /* __EDID_H_ */
