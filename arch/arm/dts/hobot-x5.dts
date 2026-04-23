@@ -11,4 +11,44 @@
 
 / {
 	model = "Horizon X5";
+
+	/*
+	 * LSIO I2C3 @ 0x340e0000
+	 */
+	i2c3: i2c@340e0000 {
+		compatible = "snps,designware-i2c";
+		status = "okay";
+		reg = <0x340e0000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&i2cclk>;
+		clock-names = "i2c-clk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_i2c3>;
+	};
+};
+
+
+/*
+ * EVB: JC-050HD134 + LPWM; per-panel timing strings on the slot (x5.dtsi defaults):
+ *   d-robotics,jc050-timing, d-robotics,wh-cm480-timing, d-robotics,st77031-timing
+ *   (each driver reads only its own; legacy timing-name still a fallback where implemented).
+ * Waveshare WH: setenv x5_lcd_panel wh480 (or wh-cm480); saveenv only.
+ * d-robotics,hb-bl-i2c on this slot is WH-CM480 only (JC/ST77031 ignore it).
+ * If hb-bl-i2c is omitted, WH still probes hb_bl on /i2c@340e0000 when &i2c3 is enabled.
+ * EVB must use x5_lcd_panel jc050.
+ */
+&dsi_panel {
+	compatible = "d-robotics,x5-dsi-panel", "jc-050hd134";
+	x5,default-panel = "jc050";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lsio_gpio0_14>;
+	reset-gpios = <&ls_gpio0_porta 14 GPIO_ACTIVE_HIGH>;
+	backlight = <&dsi_backlight>;
+	/* WH-CM480 only: jc050 / st77031 do not read these properties. */
+	d-robotics,hb-bl-i2c = <&i2c3>;
+	d-robotics,jc050-timing = "720x1280@60";
+	d-robotics,wh-cm480-timing = "800x480@60";
+	d-robotics,st77031-timing = "600x1280@56";
+	x5,lpwm-params = <24 999 750>;
 };

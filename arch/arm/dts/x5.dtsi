@@ -16,6 +16,28 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 
+	/* Reserved memory for display framebuffer */
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		/*
+		 * Framebuffer memory: 32MB at fixed address
+		 * Supports up to 4K (3840x2160) ARGB32 = 31.64MB
+		 *
+		 * IMPORTANT: Must NOT overlap with kernel reserved regions!
+		 * Kernel isp_cma: 0x88000000 - 0x9FE00000 (382MB)
+		 * Kernel adsp_ddr: 0x9FE80000 - 0xA2080000 (34MB)
+		 *
+		 * Safe region: 0xA2080000 - 0xA4080000 (32MB gap before ramoops)
+		 */
+		display_reserved: framebuffer@A2080000 {
+			reg = <0xa2080000 0x2000000>;  /* 32MB for 4K support */
+			no-map;
+		};
+	};
+
 	chosen {
 		stdout-path = &dsp_uart;
 		initial-devices = &board_type;
@@ -305,6 +327,18 @@
 		pinctrl-0 = <&pinctrl_i2c2>;
 	};
 
+	i2c4: i2c@340f0000 {
+		compatible = "snps,designware-i2c";
+		status = "disabled";
+		reg = <0x340f0000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&i2cclk>;
+		#clock-names = "i2c-clk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_i2c4>;
+	};
+
 	i2c5: i2c@341c0000 {
 		compatible = "snps,designware-i2c";
 		status = "okay";
@@ -321,6 +355,23 @@
 			compatible = "hobot,es8156";
 			#sound-dai-cells = <0>;
 		};
+	};
+
+	/*
+	 * DSP I2C7 (reg matches kernel SoC); RDK hangs SII902x here.
+	 * CRM: DSP_CLK_ENB bit 21 + DSP SW reset bit 19 (x5_crm_dsp_i2c_pclk_enable).
+	 */
+	i2c7: i2c@320a0000 {
+		compatible = "snps,designware-i2c";
+		status = "disabled";
+		reg = <0x320a0000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&i2cclk>;
+		#clock-names = "i2c-clk";
+		clock-frequency = <100000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_dsp_i2c7>;
 	};
 
 	board_dts: board_dts {
@@ -364,6 +415,104 @@
 		codec {
 			sound-dai = <&es8156>;
 		};
+	};
+
+	/* Display Subsystem */
+
+	/* LPWM blocks (reg addresses match kernel arch/arm64 hobot/x5.dtsi) */
+	lpwm0: pwm@34100000 {
+		compatible = "hobot,x5-lpwm";
+		reg = <0x34100000 0x100>;
+		#pwm-cells = <2>;
+		clock-divider = <599>;
+		status = "disabled";
+	};
+
+	lpwm1: pwm@34110000 {
+		compatible = "hobot,x5-lpwm";
+		reg = <0x34110000 0x100>;
+		#pwm-cells = <2>;
+		clock-divider = <599>;
+		status = "disabled";
+	};
+
+	disp_sys_con: syscon@3e0a0000 {
+		compatible = "syscon";
+		reg = <0x3e0a0000 0x200>;
+	};
+
+	disp_iomuxc: disp_iomuxc@3e0a0054 {
+		compatible = "d-robotics,x5-disp-iomuxc";
+		reg = <0x3e0a0054 0x4c>;
+	};
+
+	dphy0: phy@3e0a0028 {
+		compatible = "snps,mipi-dphy";
+		reg = <0x3e0a0028 0x2c>;
+		#phy-cells = <0>;
+		status = "okay";
+	};
+
+	mipi_dsi0: mipi_dsi0@3e060000 {
+		compatible = "verisilicon,dw-mipi-dsi";
+		reg = <0x3e060000 0x20000>;
+		phys = <&dphy0>;
+		phy-names = "dphy";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+	};
+
+	dc8000_nano: dc8000@3e000000 {
+		compatible = "horizon,dc8000";
+		reg = <0x3e000000 0x10000>;
+		/* Framebuffer in safe region between adsp_ddr and ramoops */
+		framebuffer-base = <0xa2080000>;
+		framebuffer-size = <0x2000000>;  /* 32MB for 4K support */
+		u-boot,dm-pre-reloc;
+		status = "okay";
+	};
+
+	dsi_backlight: backlight {
+		compatible = "pwm-backlight";
+		/* EVB: same as kernel x5-evb.dtsi (&dsi_backlight pwms) */
+		pwms = <&lpwm1 1 1000000>;
+		brightness-levels = <0 1023>;
+		default-brightness-level = <768>;
+		status = "okay";
+	};
+
+	dsi_panel: panel {
+		compatible = "jc-050hd134";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lsio_gpio0_14>;
+		reset-gpios = <&ls_gpio0_porta 14 GPIO_ACTIVE_HIGH>;
+		backlight = <&dsi_backlight>;
+		/* U-Boot: per-driver timing strings + legacy timing-name fallback */
+		d-robotics,jc050-timing = "720x1280@60";
+		d-robotics,wh-cm480-timing = "800x480@60";
+		d-robotics,st77031-timing = "600x1280@56";
+		/*
+		 * U-Boot x5_backlight LPWM path uses tick fields (see panel driver).
+		 * Optional override: <div period duty> matching prior hardcoded defaults.
+		 */
+		x5,lpwm-params = <24 999 750>;
+		status = "okay";
+	};
+
+	/*
+	 * HDMI: BT1120 (SoC) + bridge nodes in x5-soc.dtsi (lontium,lt8618, sil,sii9022).
+	 * U-Boot picks the bridge by I2C chip ID on enabled nodes (LT8618 first).
+	 * SII902x: sil,tmds-mode = "hdmi" | "dvi" (TMDS packet mode; EDID is kernel-only).
+	 * U-Boot timing: EDID when available, else bridge default;
+	 * setenv x5_hdmi_edid off to skip EDID and use bridge default.
+	 */
+	bt1120_hdmi: bt1120@3e010000 {
+		compatible = "verisilicon,bt1120";
+		reg = <0x3e010000 0x10000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_bt1120_data>;
+		status = "disabled";
 	};
 
 };

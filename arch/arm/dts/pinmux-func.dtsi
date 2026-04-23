@@ -10,6 +10,7 @@
 #include <dt-bindings/pinctrl/horizon-hsio-pinfunc.h>
 #include <dt-bindings/pinctrl/horizon-dsp-pinfunc.h>
 #include <dt-bindings/pinctrl/horizon-aon-pinfunc.h>
+#include <dt-bindings/pinctrl/horizon-disp-pinfunc.h>
 /*
  * The horizon,pins defined in each group is a tuple of
  * <pin_id, mux_reg_offset, mux_reg_bit, mux mode, pinconf_attributes>
@@ -135,6 +136,17 @@
 		drive-strength = <6>;
 	};
 
+	/* PWM LPWM pad configs: same as kernel pinmux-func.dtsi (not Kconfig-gated). */
+	pconf_pwm_3v3: pconf-pwm-3v3 {
+		drive-strength = <1>;
+		power-source = <HORIZON_IO_PAD_VOLTAGE_3V3>;
+	};
+
+	pconf_pwm_1v8: pconf-pwm-1v8 {
+		drive-strength = <1>;
+		power-source = <HORIZON_IO_PAD_VOLTAGE_1V8>;
+	};
+
 	pconf_output_low: pconf-output-low {
 		output-low;
 		drive-strength = <3>;
@@ -235,47 +247,47 @@
 
 	pinctrl_pwm0: pwm0grp {
 		horizon,pins = <
-			LSIO_SPI2_SCLK  LSIO_PINMUX_1 BIT_OFFSET16  MUX_ALT3 &pconf_drv_pu_max
-			LSIO_SPI2_SSN   LSIO_PINMUX_1 BIT_OFFSET18  MUX_ALT3 &pconf_drv_pu_max
+			LSIO_SPI2_SCLK  LSIO_PINMUX_1 BIT_OFFSET16  MUX_ALT3 &pconf_pwm_3v3
+			LSIO_SPI2_SSN   LSIO_PINMUX_1 BIT_OFFSET18  MUX_ALT3 &pconf_pwm_3v3
 		>;
 	};
 
 	pinctrl_pwm1: pwm1grp {
 		horizon,pins = <
-			LSIO_SPI2_MISO	LSIO_PINMUX_1 BIT_OFFSET20  MUX_ALT3 &pconf_drv_pu_max
-			LSIO_SPI2_MOSI	LSIO_PINMUX_1 BIT_OFFSET22  MUX_ALT3 &pconf_drv_pu_max
+			LSIO_SPI2_MISO	LSIO_PINMUX_1 BIT_OFFSET20  MUX_ALT3 &pconf_pwm_3v3
+			LSIO_SPI2_MOSI	LSIO_PINMUX_1 BIT_OFFSET22  MUX_ALT3 &pconf_pwm_3v3
 		>;
 	};
 
 	pinctrl_pwm2: pwm2grp {
 		horizon,pins = <
-			LSIO_I2C0_SCL   LSIO_PINMUX_2 BIT_OFFSET16  MUX_ALT3 &pconf_drv_pu_max
-			LSIO_I2C0_SDA   LSIO_PINMUX_2 BIT_OFFSET18  MUX_ALT3 &pconf_drv_pu_max
+			LSIO_I2C0_SCL   LSIO_PINMUX_2 BIT_OFFSET16  MUX_ALT3 &pconf_pwm_3v3
+			LSIO_I2C0_SDA   LSIO_PINMUX_2 BIT_OFFSET18  MUX_ALT3 &pconf_pwm_3v3
 		>;
 	};
 
 	pinctrl_pwm3: pwm3grp {
 		horizon,pins = <
-			LSIO_I2C1_SCL  	LSIO_PINMUX_2 BIT_OFFSET20  MUX_ALT3 &pconf_drv_pu_max
-			LSIO_I2C1_SDA  	LSIO_PINMUX_2 BIT_OFFSET22  MUX_ALT3 &pconf_drv_pu_max
+			LSIO_I2C1_SCL  	LSIO_PINMUX_2 BIT_OFFSET20  MUX_ALT3 &pconf_pwm_3v3
+			LSIO_I2C1_SDA  	LSIO_PINMUX_2 BIT_OFFSET22  MUX_ALT3 &pconf_pwm_3v3
 		>;
 	};
 
 	pinctrl_lpwm0: lpwm0grp {
 		horizon,pins = <
-			LSIO_SPI5_SCLK	LSIO_PINMUX_2	BIT_OFFSET8		MUX_ALT2	&pconf_drv_pu_max
-			LSIO_SPI5_SSN	LSIO_PINMUX_2	BIT_OFFSET10	MUX_ALT2	&pconf_drv_pu_max
-			LSIO_SPI5_MISO	LSIO_PINMUX_2	BIT_OFFSET12	MUX_ALT2	&pconf_drv_pu_max
-			LSIO_SPI5_MOSI	LSIO_PINMUX_2	BIT_OFFSET14	MUX_ALT2	&pconf_drv_pu_max
+			LSIO_SPI5_SCLK	LSIO_PINMUX_2	BIT_OFFSET8		MUX_ALT2	&pconf_pwm_1v8
+			LSIO_SPI5_SSN	LSIO_PINMUX_2	BIT_OFFSET10	MUX_ALT2	&pconf_pwm_1v8
+			LSIO_SPI5_MISO	LSIO_PINMUX_2	BIT_OFFSET12	MUX_ALT2	&pconf_pwm_1v8
+			LSIO_SPI5_MOSI	LSIO_PINMUX_2	BIT_OFFSET14	MUX_ALT2	&pconf_pwm_1v8
 		>;
 	};
 
 	pinctrl_lpwm1: lpwm1grp {
 		horizon,pins = <
-			LSIO_SPI3_SCLK	LSIO_PINMUX_1	BIT_OFFSET24	MUX_ALT2	&pconf_drv_pu_max
-			LSIO_SPI3_SSN	LSIO_PINMUX_1	BIT_OFFSET26	MUX_ALT2	&pconf_drv_pu_max
-			LSIO_SPI3_MISO	LSIO_PINMUX_1	BIT_OFFSET28	MUX_ALT2	&pconf_drv_pu_max
-			LSIO_SPI3_MOSI	LSIO_PINMUX_1	BIT_OFFSET30	MUX_ALT2	&pconf_drv_pu_max
+			LSIO_SPI3_SCLK	LSIO_PINMUX_1	BIT_OFFSET24	MUX_ALT2	&pconf_pwm_1v8
+			LSIO_SPI3_SSN	LSIO_PINMUX_1	BIT_OFFSET26	MUX_ALT2	&pconf_pwm_1v8
+			LSIO_SPI3_MISO	LSIO_PINMUX_1	BIT_OFFSET28	MUX_ALT2	&pconf_pwm_1v8
+			LSIO_SPI3_MOSI	LSIO_PINMUX_1	BIT_OFFSET30	MUX_ALT2	&pconf_pwm_1v8
 		>;
 	};
 
@@ -507,6 +519,13 @@
 };
 
 &dsp_iomuxc {
+	pinctrl_dsp_i2c7: dsp_i2c7grp {
+		horizon,pins = <
+			DSP_I2C7_SDA  DSP_PINMUX_0  BIT_OFFSET0  MUX_ALT0 &pconf_drv_pu_ds2_1v8
+			DSP_I2C7_SCL  DSP_PINMUX_0  BIT_OFFSET2  MUX_ALT0 &pconf_drv_pu_ds2_1v8
+		>;
+	};
+
 	pinctrl_dsp_i2s0: i2s0grp {
 	horizon,pins = <
 			DSP_I2S0_DI  DSP_PINMUX_0  BIT_OFFSET4  MUX_ALT0 &pconf_drv_pd_ds2_1v8
@@ -697,6 +716,36 @@ pinctrl_dsp_i2s1: i2s1grp {
 			HSIO_EMMC_DATA6	HSIO_PINMUX_0	BIT_OFFSET2		MUX_ALT2	&pconf_input_en
 			HSIO_EMMC_DATA7	HSIO_PINMUX_0	BIT_OFFSET0		MUX_ALT2	&pconf_input_en
 			HSIO_EMMC_RSTN	HSIO_PINMUX_3	BIT_OFFSET0		MUX_ALT2	&pconf_input_en
+		>;
+	};
+};
+
+/*
+ * BT1120 for HDMI: kernel &disp_iomuxc defines bootstrapgrp (data ALT0, PCLK
+ * DISP_PINMUX_1+ALT0) and bt1120datagrp (data ALT1, PCLK DISP_PINMUX_0+ALT1).
+ * U-Boot uses the same data rows as bt1120datagrp but PCLK as DISP_PINMUX_1+ALT1
+ * (hybrid vs both kernel groups — verify against HW/pinctrl driver if issues).
+ */
+&disp_iomuxc {
+	pinctrl_bt1120_data: bt1120datagrp {
+		horizon,pins = <
+			DISP_BT1120_DATA0		DISP_PINMUX_0	BIT_OFFSET0		MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA1		DISP_PINMUX_0	BIT_OFFSET2		MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA2		DISP_PINMUX_0	BIT_OFFSET4		MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA3		DISP_PINMUX_0	BIT_OFFSET6		MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA4		DISP_PINMUX_0	BIT_OFFSET8		MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA5		DISP_PINMUX_0	BIT_OFFSET10	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA6		DISP_PINMUX_0	BIT_OFFSET12	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA7		DISP_PINMUX_0	BIT_OFFSET14	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA8		DISP_PINMUX_0	BIT_OFFSET16	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA9		DISP_PINMUX_0	BIT_OFFSET18	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA10		DISP_PINMUX_0	BIT_OFFSET20	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA11		DISP_PINMUX_0	BIT_OFFSET22	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA12		DISP_PINMUX_0	BIT_OFFSET24	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA13		DISP_PINMUX_0	BIT_OFFSET26	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA14		DISP_PINMUX_0	BIT_OFFSET28	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_DATA15		DISP_PINMUX_0	BIT_OFFSET30	MUX_ALT1	&pconf_drv_pu_ds2_1v8
+			DISP_BT1120_O_PIXELCLK	DISP_PINMUX_1	BIT_OFFSET0		MUX_ALT1	&pconf_drv_pu_ds2_1v8
 		>;
 	};
 };

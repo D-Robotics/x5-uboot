@@ -1,0 +1,113 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * X5 display subsystem pinctrl (BT1120 pads + mux), ported from
+ * kernel/drivers/pinctrl/hobot/display.c
+ */
+#include <common.h>
+#include <dm.h>
+#include <dm/pinctrl.h>
+#include <dt-bindings/pinctrl/horizon-disp-pinfunc.h>
+
+#include "common.h"
+
+#define DS_DISP_BT1120 0
+
+#define ST_DISP_BT1120 BIT(6)
+#define PU_DISP_BT1120 BIT(4)
+#define PD_DISP_BT1120 BIT(5)
+#define MS_DISP_BT1120_DATA0_3	     BIT(0)
+#define MS_DISP_BT1120_DATA4_7	     BIT(1)
+#define MS_DISP_BT1120_DATA8_11	     BIT(2)
+#define MS_DISP_BT1120_DATA12_15_CLK BIT(3)
+
+static const struct horizon_pin_desc horizon_disp_pins_desc[] = {
+	_PIN(DISP_BT1120_DATA0, "disp_bt1120_data0", DISP_IORING_SDIO_BT1120_DATA0,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA0_3),
+	_PIN(DISP_BT1120_DATA1, "disp_bt1120_data1", DISP_IORING_SDIO_BT1120_DATA1,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA0_3),
+	_PIN(DISP_BT1120_DATA2, "disp_bt1120_data2", DISP_IORING_SDIO_BT1120_DATA2,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA0_3),
+	_PIN(DISP_BT1120_DATA3, "disp_bt1120_data3", DISP_IORING_SDIO_BT1120_DATA3,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA0_3),
+	_PIN(DISP_BT1120_DATA4, "disp_bt1120_data4", DISP_IORING_SDIO_BT1120_DATA4,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA4_7),
+	_PIN(DISP_BT1120_DATA5, "disp_bt1120_data5", DISP_IORING_SDIO_BT1120_DATA5,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA4_7),
+	_PIN(DISP_BT1120_DATA6, "disp_bt1120_data6", DISP_IORING_SDIO_BT1120_DATA6,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA4_7),
+	_PIN(DISP_BT1120_DATA7, "disp_bt1120_data7", DISP_IORING_SDIO_BT1120_DATA7,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA4_7),
+	_PIN(DISP_BT1120_DATA8, "disp_bt1120_data8", DISP_IORING_SDIO_BT1120_DATA8,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA8_11),
+	_PIN(DISP_BT1120_DATA9, "disp_bt1120_data9", DISP_IORING_SDIO_BT1120_DATA9,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA8_11),
+	_PIN(DISP_BT1120_DATA10, "disp_bt1120_data10", DISP_IORING_SDIO_BT1120_DATA10,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA8_11),
+	_PIN(DISP_BT1120_DATA11, "disp_bt1120_data11", DISP_IORING_SDIO_BT1120_DATA11,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA8_11),
+	_PIN(DISP_BT1120_DATA12, "disp_bt1120_data12", DISP_IORING_SDIO_BT1120_DATA12,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA12_15_CLK),
+	_PIN(DISP_BT1120_DATA13, "disp_bt1120_data13", DISP_IORING_SDIO_BT1120_DATA13,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA12_15_CLK),
+	_PIN(DISP_BT1120_DATA14, "disp_bt1120_data14", DISP_IORING_SDIO_BT1120_DATA14,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA12_15_CLK),
+	_PIN(DISP_BT1120_DATA15, "disp_bt1120_data15", DISP_IORING_SDIO_BT1120_DATA15,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA12_15_CLK),
+	_PIN(DISP_BT1120_O_PIXELCLK, "disp_bt1120_o_pixelclk", DISP_IORING_SDIO_BT1120_CLK,
+	     DISP_IORING_SDIO_BT1120_MS, DS_DISP_BT1120, INVALID_PULL_BIT, INVALID_PULL_BIT,
+	     PU_DISP_BT1120, PD_DISP_BT1120, ST_DISP_BT1120, MS_DISP_BT1120_DATA12_15_CLK),
+};
+
+static const struct horizon_pinctrl_priv horizon_disp_pinctrl_info = {
+	.pins  = horizon_disp_pins_desc,
+	.npins = ARRAY_SIZE(horizon_disp_pins_desc),
+};
+
+static int horizon_disp_pinctrl_set_state(struct udevice *dev, struct udevice *config)
+{
+	return horizon_pinctrl_set_state(dev, config, &horizon_disp_pinctrl_info);
+}
+
+static int horizon_disp_pinctrl_probe(struct udevice *dev)
+{
+	return horizon_pinctrl_probe(dev, &horizon_disp_pinctrl_info);
+}
+
+static const struct pinctrl_ops horizon_pinctrl_disp_ops = {
+	.set_state		= horizon_disp_pinctrl_set_state,
+};
+
+/*
+ * DM matches the DT node by .compatible only. The pin table is not taken from
+ * .data here: probe/set_state pass &horizon_disp_pinctrl_info explicitly (same
+ * pattern as dsp/lsio horizon drivers; .data is unused).
+ */
+static const struct udevice_id horizon_disp_pinctrl_of_match[] = {
+	{ .compatible = "d-robotics,x5-disp-iomuxc" },
+	{ }
+};
+
+U_BOOT_DRIVER(horizon_disp_pinctrl) = {
+	.name		= "horizon_disp_pinctrl",
+	.id		= UCLASS_PINCTRL,
+	.of_match	= of_match_ptr(horizon_disp_pinctrl_of_match),
+	.priv_auto	= sizeof(struct horizon_pinctrl_priv),
+	.ops		= &horizon_pinctrl_disp_ops,
+	.probe		= horizon_disp_pinctrl_probe,
+};
