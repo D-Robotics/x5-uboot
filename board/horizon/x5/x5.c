@@ -10,8 +10,13 @@
 #include <asm/arch/hardware.h>
 #include <asm/io.h>
 #include <linux/delay.h>
+#include <log.h>
 #include <asm/arch/hb_aon.h>
 #include <asm/arch/hb_hsio.h>
+#include <env.h>
+#if defined(CONFIG_X5_SEAMLESS_DISPLAY)
+#include "hb_display.h"
+#endif
 
 #define HPS_CRM_CLK_GENERATOR_REG   (0x34211000)
 #define HSIO_ENET_AXI_CLK_GEN       (HPS_CRM_CLK_GENERATOR_REG + 0x6a0)
@@ -185,6 +190,23 @@ int board_init(void)
 	init_io_vol();
 	return 0;
 }
+
+#ifdef CONFIG_BOARD_LATE_INIT
+int board_late_init(void)
+{
+#if defined(CONFIG_X5_SEAMLESS_DISPLAY)
+	x5_display_boot_board_late();
+#else
+	/* Headless: force serial-only stdio (RAM env, no saveenv). */
+	if (gd->flags & GD_FLG_DEVINIT) {
+		env_set("stdin", "serial");
+		env_set("stdout", "serial");
+		env_set("stderr", "serial");
+	}
+#endif
+	return 0;
+}
+#endif /* CONFIG_BOARD_LATE_INIT */
 
 #ifdef X5_USABLE_RAM_TOP
 ulong board_get_usable_ram_top(ulong total_size)

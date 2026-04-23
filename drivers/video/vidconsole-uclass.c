@@ -33,6 +33,9 @@ struct vid_rgb {
 #define CONFIG_CONSOLE_SCROLL_LINES 1
 #endif
 
+/* X8R8G8B8 / ARGB: opaque alpha in bits 31–24 */
+#define VID_CONSOLE_COLOR_ALPHA_OPAQUE	0xff000000U
+
 int vidconsole_putc_xy(struct udevice *dev, uint x, uint y, char ch)
 {
 	struct vidconsole_ops *ops = vidconsole_get_ops(dev);
@@ -155,14 +158,24 @@ u32 vid_console_color(struct video_priv *priv, unsigned int idx)
 		break;
 	case VIDEO_BPP32:
 		if (CONFIG_IS_ENABLED(VIDEO_BPP32)) {
+			u32 v;
+
 			if (priv->format == VIDEO_X2R10G10B10)
 				return (colors[idx].r << 22) |
 				       (colors[idx].g << 12) |
 				       (colors[idx].b <<  2);
-			else
-				return (colors[idx].r << 16) |
-				       (colors[idx].g <<  8) |
-				       (colors[idx].b <<  0);
+			v = (colors[idx].r << 16) |
+			    (colors[idx].g <<  8) |
+			    (colors[idx].b <<  0);
+			/*
+			 * DC8000 / A8R8G8B8 uses per-pixel alpha with premultiplied
+			 * blend. 0x00RRGGBB (A=0) reads as fully transparent and
+			 * shows garbage chroma (often green). Opaque console colors
+			 * need A=0xff when format is VIDEO_X8R8G8B8 (see x5_display).
+			 */
+			if (priv->format == VIDEO_X8R8G8B8)
+				v |= VID_CONSOLE_COLOR_ALPHA_OPAQUE;
+			return v;
 		}
 		break;
 	default:
