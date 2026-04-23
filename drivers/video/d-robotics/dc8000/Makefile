@@ -1,0 +1,1 @@
+obj-$(CONFIG_X5_SEAMLESS_DISPLAY) += x5_dc8000.o
