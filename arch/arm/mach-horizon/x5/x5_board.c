@@ -23,6 +23,9 @@
 #include <asm/arch/hb_aon.h>
 #include <hb_info.h>
 #include <wdt.h>
+#ifdef CONFIG_VIDEO_X5_BOOT_UI
+#include <hb_display.h>
+#endif
 #ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
 #include <asm/arch/hb_rpmb.h>
 #include <image.h>
@@ -331,10 +334,23 @@ void board_bootargs_setup(void)
 	char console_args[64] = { 0 };
 	char mtd_args[512] = {0};
 	char *cmdline = env_get("bootargs");
-	uint32_t uart_baud = hb_get_uart_baud();
+	// uint32_t uart_baud = hb_get_uart_baud();
+	/*
+	 * Use gd->baudrate (determined at serial init, before display pin mux)
+	 * instead of re-reading BOOT_STRAP_PIN_REG. After BT1120 pin mux is
+	 * applied, BOOT_STRAP pins become BT1120 data outputs and the register
+	 * returns incorrect values.
+	 */
+	uint32_t uart_baud = gd->baudrate;
+
+	if (uart_baud == 0) {
+		uart_baud = CONFIG_BAUDRATE;
+		pr_warn("gd->baudrate is 0, using default %u\n", uart_baud);
+	}
 	uint32_t len;
 	char *console, *slot;
 	char *dev_name = env_get("dev_name");
+	const char *cmdline_header_fmt;
 
 	slot = env_get("bootslot");
 	if (slot == NULL || strlen(slot) > 1) {
@@ -360,17 +376,49 @@ void board_bootargs_setup(void)
 		}
 	}
 	hb_get_rootfs();
-	snprintf(boot_args, sizeof(boot_args),
-		"console=%s "
-		"%s "
-		"hobotboot.slot_suffix=%s "
-		"hobotboot.reason=%s "
-		"hobotboot.medium=%s "
-		"hobotboot.mode=%s "
-		"hobotboot.ab_switch_reason=%s "
-		"hobotboot.pmic_type=%s "
-		" %s"
-		" %s",
+	/*
+	 * Kernel bootargs: console= ordering and fbcon (see #if branches below).
+	 *
+	 * Multiple console= tokens: printk goes to each; the *last* console=
+	 * becomes /dev/console (SysV getty). HDMI-only login: add tty1 getty in
+	 * /etc/inittab if needed.
+	 *
+	 * VIDEO_X5_BOOT_UI && X5_SEAMLESS_DISPLAY && x5_boot_ui_is_fbcon():
+	 *   "console=tty0 console=%s ..." — tty0 then UART so /dev/console stays
+	 *   serial; early messages on framebuffer + UART.
+	 *
+	 * VIDEO_X5_BOOT_UI && X5_SEAMLESS_DISPLAY && !x5_boot_ui_is_fbcon():
+	 *   "console=%s fbcon=map:1 ..." — UART console plus fbcon map (no tty0
+	 *   prefix); use when boot UI path is not fbcon-based.
+	 *
+	 * X5_SEAMLESS_DISPLAY only (no BOOT_UI):
+	 *   "console=%s fbcon=map:1 ..." — seamless display stack with framebuffer
+	 *   mapped as secondary console.
+	 *
+	 * Neither option:
+	 *   "console=%s ..." — UART-only (typical headless).
+	 */
+#define X5_BOOTARGS_TAIL_FMT \
+	"%s " \
+	"hobotboot.slot_suffix=%s " \
+	"hobotboot.reason=%s " \
+	"hobotboot.medium=%s " \
+	"hobotboot.mode=%s " \
+	"hobotboot.ab_switch_reason=%s " \
+	"hobotboot.pmic_type=%s " \
+	" %s" \
+	" %s"
+#if CONFIG_IS_ENABLED(X5_SEAMLESS_DISPLAY) && CONFIG_IS_ENABLED(VIDEO_X5_BOOT_UI)
+	if (x5_boot_ui_is_fbcon())
+		cmdline_header_fmt = "console=tty0 console=%s " X5_BOOTARGS_TAIL_FMT;
+	else
+		cmdline_header_fmt = "console=%s fbcon=map:1 " X5_BOOTARGS_TAIL_FMT;
+#elif CONFIG_IS_ENABLED(X5_SEAMLESS_DISPLAY)
+	cmdline_header_fmt = "console=%s fbcon=map:1 " X5_BOOTARGS_TAIL_FMT;
+#else
+	cmdline_header_fmt = "console=%s " X5_BOOTARGS_TAIL_FMT;
+#endif
+	snprintf(boot_args, sizeof(boot_args), cmdline_header_fmt,
 		console_args,
 		env_get("rootfs_args"),
 		slot_suffix,
@@ -381,6 +429,7 @@ void board_bootargs_setup(void)
 		hb_pmic_type_get(),
 		X5_DEFAULT_BOOTARGS,
 		cmdline ? cmdline : "");
+#undef X5_BOOTARGS_TAIL_FMT
 
 	if (! strncmp(dev_name, "mtd", 3)) {
 		snprintf(mtd_args, sizeof(mtd_args),
