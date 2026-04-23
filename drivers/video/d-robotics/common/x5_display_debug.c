@@ -60,10 +60,8 @@
 /* SYSCON Bridge */
 #define X5_SYSCON_BASE 0x3e0a0000
 
-/* DPHY */
+/* DPHY / DSI — addresses must match x5.dtsi (dphy0, mipi_dsi0) */
 #define X5_DPHY_BASE 0x3e0a0028
-
-/* DSI Host */
 #define X5_DSI_BASE 0x3e060000
 
 /* DC8000 - registers start at offset 0x2000 */
