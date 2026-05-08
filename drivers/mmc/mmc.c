@@ -3093,7 +3093,9 @@ int mmc_initialize(struct bd_info *bis)
 		return ret;
 
 #ifndef CONFIG_SPL_BUILD
+#ifndef CONFIG_QUICKSTART
 	print_mmc_devices(',');
+#endif
 #endif
 
 	mmc_do_preinit();

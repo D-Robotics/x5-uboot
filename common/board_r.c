@@ -85,7 +85,7 @@ __weak int cpu_secondary_init_r(void)
 	return 0;
 }
 
-static int initr_trace(void)
+int initr_trace(void)
 {
 #ifdef CONFIG_TRACE
 	trace_init(gd->trace_buff, CONFIG_TRACE_BUFFER_SIZE);
@@ -94,7 +94,7 @@ static int initr_trace(void)
 	return 0;
 }
 
-static int initr_reloc(void)
+int initr_reloc(void)
 {
 	/* tell others: relocation done */
 	gd->flags |= GD_FLG_RELOC | GD_FLG_FULL_MALLOC_INIT;
@@ -107,7 +107,7 @@ static int initr_reloc(void)
  * Some of these functions are needed purely because the functions they
  * call return void. If we change them to return 0, these stubs can go away.
  */
-static int initr_caches(void)
+int initr_caches(void)
 {
 	/* Enable caches */
 	enable_caches();
@@ -120,7 +120,7 @@ __weak int fixup_cpu(void)
 	return 0;
 }
 
-static int initr_reloc_global_data(void)
+int initr_reloc_global_data(void)
 {
 #ifdef __ARM__
 	monitor_flash_len = _end - __image_copy_start;
@@ -193,7 +193,7 @@ static int initr_barrier(void)
 	return 0;
 }
 
-static int initr_malloc(void)
+int initr_malloc(void)
 {
 	ulong malloc_start;
 
@@ -229,7 +229,7 @@ static int initr_of_live(void)
 }
 
 #ifdef CONFIG_DM
-static int initr_dm(void)
+int initr_dm(void)
 {
 	int ret;
 
@@ -396,7 +396,7 @@ static int initr_onenand(void)
 #endif
 
 #ifdef CONFIG_MMC
-static int initr_mmc(void)
+int initr_mmc(void)
 {
 	puts("MMC:   ");
 	mmc_initialize(gd->bd);

@@ -1,5 +1,47 @@
 menu "Boot options"
 
+config QUICKSTART
+	bool "Enable quick start mode"
+	default n
+	help
+	 Enable quick start mode
+
+if QUICKSTART
+
+config QUICKSTART_KERNEL_ADDR
+	hex "Quickstart fixed kernel load address"
+	default 0x90000000
+	help
+	 Fixed kernel load address used in quickstart path.
+
+config QUICKSTART_BOARD_ID
+	hex "Quickstart fixed board id"
+	depends on QUICKSTART
+	default 0x0205
+	help
+	  Fixed board id used to compose bootm config selector.
+
+	  Supported values:
+		0x0201 X5-EVB-LP4-1_A
+		0x0202 X5-EVB-LP4-1_B
+		0x0203 X5-EVB-LP4-V1P2
+		0x0204 X5-EVB-LP4-V1P3
+		0x0205 X5-EVB-LP4-V2P0
+		0x0401 X5-EVB-LP4X-V0P1
+		0x0501 X5-MD-V0P1
+		0x0502 X5-MD-V0P2
+		0x0503 X5-MD-V0P3
+
+config QUICKSTART_ABORT_DELAY_MS
+	int "Quickstart: delay (ms) for Space-to-interrupt"
+	depends on QUICKSTART
+	range 0 5000
+	default 0
+	help
+	  How long to poll the console for Space before continuing. Zero removes
+	  the fixed wait entirely.
+endif
+
 menu "Boot images"
 
 config ANDROID_BOOT_IMAGE

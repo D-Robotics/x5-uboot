@@ -116,7 +116,7 @@ static void fdt_set_status_by_env(void *fdt_blob)
 	}
 }
 
-static void fdt_rm_by_env(void *fdt_blob)
+void fdt_rm_by_env(void *fdt_blob)
 {
 	int nodeoffset, err;
 	char *rm_list = env_get("fdt_remove");
@@ -359,7 +359,7 @@ static void update_boot_mode(void *fdt)
 	}
 }
 
-int ft_board_setup(void *blob, struct bd_info *bd)
+__weak int ft_board_setup(void *blob, struct bd_info *bd)
 {
 	/*
 	 * Add a subnode(membuff) under the soc node

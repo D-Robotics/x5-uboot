@@ -167,12 +167,16 @@ clear_loop:
 	cmp	x0, x1
 	b.lo	clear_loop
 
-	/* call board_init_r(gd_t *id, ulong dest_addr) */
+	/* call board_init_r(gd_t *id, ulong dest_addr) — quickstart: hb_quickstart_board_init_r */
 	mov	x0, x18				/* gd_t */
 	ldr	x1, [x18, #GD_RELOCADDR]	/* dest_addr */
+#if defined(CONFIG_QUICKSTART)
+	b	hb_quickstart_board_init_r
+#else
 	b	board_init_r			/* PC relative jump */
+#endif
 
-	/* NOTREACHED - board_init_r() does not return */
+	/* NOTREACHED */
 #endif
 
 ENDPROC(_main)

@@ -91,7 +91,7 @@ int env_get_id(void)
  *
  * Returns 0 in case of error, or length of printed string
  */
-static int env_print(char *name, int flag)
+__weak int env_print(char *name, int flag)
 {
 	char *res = NULL;
 	ssize_t len;
@@ -304,7 +304,7 @@ static int _do_env_set(int flag, int argc, char *const argv[], int env_flag)
 	return 0;
 }
 
-int env_set(const char *varname, const char *varvalue)
+__weak int env_set(const char *varname, const char *varvalue)
 {
 	const char * const argv[4] = { "setenv", varname, varvalue, NULL };
 

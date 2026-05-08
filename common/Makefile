@@ -14,6 +14,7 @@ obj-$(CONFIG_AUTOBOOT) += autoboot.o
 # # boards
 obj-y += board_f.o
 obj-y += board_r.o
+obj-$(CONFIG_QUICKSTART) += hb_quickstart.o
 obj-$(CONFIG_DISPLAY_BOARDINFO) += board_info.o
 obj-$(CONFIG_DISPLAY_BOARDINFO_LATE) += board_info.o
 

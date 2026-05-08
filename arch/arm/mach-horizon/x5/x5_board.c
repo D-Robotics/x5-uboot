@@ -182,7 +182,7 @@ static void set_bootdev(void)
 	env_set("boot_device", boot_mode);
 }
 
-static char *hb_bootmedium_for_udev(void)
+char *hb_bootmedium_for_udev(void)
 {
 	char *boot_mode = env_get("boot_device");
 	if (boot_mode == NULL) {
@@ -256,7 +256,7 @@ int board_early_init_r(void)
 }
 #endif
 
-static char *hb_bootmode(void)
+char *hb_bootmode(void)
 {
 	char *recovery_mode = env_get("recovery_mode");
 
@@ -294,7 +294,7 @@ uint32_t hb_get_uart_baud(void)
     return 115200;
 }
 
-static char *hb_get_ab_switch_reason(void)
+char *hb_get_ab_switch_reason(void)
 {
 	int32_t value = 0;
 	int32_t reason = 0;
