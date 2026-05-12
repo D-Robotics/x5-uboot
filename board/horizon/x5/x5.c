@@ -20,6 +20,43 @@
 #define HSIO_ENET_REF_CLK_GEN       (HPS_CRM_CLK_GENERATOR_REG + 0x700)
 
 #define HSIO_SYS_REG_BASE 0x35050000
+
+#ifdef CONFIG_HOBOT_TEST_IN_SRAM
+#include "test_in_sram_hex.h"
+
+typedef struct result{
+       int ret_val;
+}result_t;
+
+int test_in_sram(void)
+{
+	#define TEST_IN_SRAM_ADDR      0x1FF00000
+	#define TEST_RESULT            0x1FF80100
+	uint8_t *test_hex = (uint8_t *)test_in_sram_hex;
+	result_t *ret = (result_t*)TEST_RESULT;
+	printf("************ Test in sram start ************ \n");
+	int i = 0;
+	for (i = 0; i < sizeof(test_in_sram_hex); i++) {
+		printf("%02x ", *(test_hex + i));
+		if((i+1)%16 == 0)
+			printf("\n");
+	}
+	printf("\n");
+
+	#define TEST_DDR_ADDR	0xf0000000
+	#define TEST_DDR_SIZE	0xffff
+
+	printf("Addr: 0x%x, Size: 0x%x\n", TEST_DDR_ADDR, TEST_DDR_SIZE);
+	memcpy((void *)TEST_IN_SRAM_ADDR, test_in_sram_hex, sizeof(test_in_sram_hex));
+	((void(*)(unsigned int, unsigned int))TEST_IN_SRAM_ADDR)(TEST_DDR_ADDR, TEST_DDR_SIZE);
+	printf("Test in sram: result = %d\n", ret->ret_val);
+	printf("************ Test in sram Finish ************ \n");
+	return 0;
+}
+#endif /* CONFIG_HOBOT_TEST_IN_SRAM */
+
+
+
 /**
  * @brief Initialize all pin voltage here, the actual configuration
  * should be board specific.
@@ -121,6 +158,11 @@ static u64 get_ddr_size(void)
 int dram_init(void)
 {
 	gd->ram_size = get_ddr_size();
+
+#ifdef CONFIG_HOBOT_TEST_IN_SRAM
+	test_in_sram();
+#endif
+
 	return 0;
 }
 
