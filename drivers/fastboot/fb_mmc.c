@@ -267,16 +267,22 @@ static void write_raw_image(struct blk_desc *dev_desc,
 	fastboot_okay(NULL, response);
 }
 
-static int read_raw_image(struct blk_desc *dev_desc, struct disk_partition *info,
-		const char *part_name, void *buffer,
-		u32 size, u32 offset, char *response)
+/*
+ * size/offset must be 64-bit so that partitions or in-partition offsets
+ * larger than 4 GiB (e.g. fastboot fetch of a 5 GiB system_a slot) do
+ * not get silently truncated when handed to fb_mmc_blk_read().
+ */
+static int64_t read_raw_image(struct blk_desc *dev_desc,
+			      struct disk_partition *info,
+			      const char *part_name, void *buffer,
+			      u64 size, u64 offset, char *response)
 {
 	lbaint_t blkcnt;
 	lbaint_t blks;
 	lbaint_t blks_offset;
 
-	/* determine number of blocks to write */
-	blkcnt = ((size + (info->blksz - 1)) & ~(info->blksz - 1));
+	/* determine number of blocks to read */
+	blkcnt = ((size + (info->blksz - 1)) & ~((u64)info->blksz - 1));
 	blkcnt = lldiv(blkcnt, info->blksz);
 
 	if (blkcnt > info->size) {
@@ -285,37 +291,41 @@ static int read_raw_image(struct blk_desc *dev_desc, struct disk_partition *info
 		return -1;
 	}
 
-	blks_offset = ((offset + (info->blksz - 1)) & ~(info->blksz - 1));
+	blks_offset = ((offset + (info->blksz - 1)) & ~((u64)info->blksz - 1));
 	blks_offset = lldiv(blks_offset, info->blksz);
 
 	if (blkcnt + blks_offset > info->size) {
-		pr_err("Partition overflow: '%s' (available=0x%lx, requested=0x%lx)\n"
-			"  Block details: offset=0x%lx, count=0x%lx (total blocks=0x%lx)\n",
-			part_name, info->size * info->blksz,
-			(blkcnt + blks_offset) * info->blksz,
-			blks_offset * info->blksz,
-			blkcnt * info->blksz,
-			info->size * info->blksz);
+		pr_err("Partition overflow: '%s' (available=0x%llx, requested=0x%llx)\n"
+			"  Block details: offset=0x%llx, count=0x%llx (total blocks=0x%llx)\n",
+			part_name,
+			(unsigned long long)(info->size * info->blksz),
+			(unsigned long long)((blkcnt + blks_offset) * info->blksz),
+			(unsigned long long)(blks_offset * info->blksz),
+			(unsigned long long)(blkcnt * info->blksz),
+			(unsigned long long)(info->size * info->blksz));
 		fastboot_fail("partition too small for read operation", response);
 		return -1;
 	}
 
-	printf("Loading data from mmc partition: dev=%d, part='%s', blks=0x%lx (offset=0x%lx, size=0x%x)\n",
-		dev_desc->devnum, part_name, blkcnt, blks_offset, size);
+	printf("Loading data from mmc partition: dev=%d, part='%s', blks=0x%lx (offset_blk=0x%lx, offset=0x%llx, size=0x%llx)\n",
+		dev_desc->devnum, part_name,
+		(ulong)blkcnt, (ulong)blks_offset,
+		(unsigned long long)offset, (unsigned long long)size);
 
 	blks = fb_mmc_blk_read(dev_desc, info->start + blks_offset, blkcnt, buffer);
 
 	if (blks != blkcnt) {
 		pr_err("failed to read from device %d\n", dev_desc->devnum);
 		fastboot_fail("failed to read from device", response);
-		return blks * info->blksz;
+		return (int64_t)blks * info->blksz;
 	}
 
-	printf("Read 0x%lx bytes from partition '%s' (dev %d)\n",
-		blkcnt * info->blksz, part_name, dev_desc->devnum);
+	printf("Read 0x%llx bytes from partition '%s' (dev %d)\n",
+		(unsigned long long)((u64)blkcnt * info->blksz),
+		part_name, dev_desc->devnum);
 	fastboot_okay(NULL, response);
 
-	return blks * info->blksz;
+	return (int64_t)blks * info->blksz;
 }
 
 /**
@@ -999,7 +1009,7 @@ int64_t fastboot_mmc_flash_read(struct fetch_info *info, void *upload_buffer,
 {
 	struct blk_desc *dev_desc;
 	struct disk_partition part_info;
-	int ret = -1;
+	int64_t ret = -1;
 
 	if (!info || !upload_buffer || buffer_size == 0) {
 		fastboot_fail("invalid parameters", response);

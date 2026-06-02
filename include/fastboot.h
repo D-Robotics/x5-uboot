@@ -185,7 +185,7 @@ void fastboot_set_progress_callback(void (*progress)(const char *msg));
  * @medium_devnum: Medium device number(eg. mmc 0 or 1)
  * @flash_type: User selected flash type, eg. mmc/nand/spinand/ram
  */
-void fastboot_init(void *buf_addr, u32 buf_size, fb_flash_type flash_type,
+void fastboot_init(void *buf_addr, u64 buf_size, fb_flash_type flash_type,
 		s32 medium_devnum);
 
 /**
@@ -222,7 +222,7 @@ u32 fastboot_download_remaining(void);
  *
  * Return: Number of bytes left in the current upload
  */
-u32 fastboot_upload_remaining(void);
+u64 fastboot_upload_remaining(void);
 
 /**
  * fastboot_data_download() - Copy image data to fastboot_buf_addr.

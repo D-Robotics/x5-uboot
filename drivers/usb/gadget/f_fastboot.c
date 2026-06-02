@@ -559,7 +559,8 @@ static void tx_handler_ul_image(struct usb_ep *ep, struct usb_request *req)
 	static void *src_buf = NULL;  // static value, following loop still use it.
 	char response[FASTBOOT_RESPONSE_LEN] = {0};
 	struct usb_request *in_req = fastboot_func->in_req;
-	unsigned int transfer_size = fastboot_upload_remaining();
+	u64 remaining  = fastboot_upload_remaining();
+	unsigned int transfer_size = remaining > EP_BUFFER_SIZE ? EP_BUFFER_SIZE : (unsigned int)remaining;
 	void *buffer = in_req->buf;
 	struct fetch_info *info = NULL;
 	int ret;

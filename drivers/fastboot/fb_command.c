@@ -36,12 +36,12 @@ static u32 fastboot_bytes_received;
 /**
  * fastboot_bytes_send - number of bytes received in the current upload
  */
-static u32 fastboot_bytes_send;
+static u64 fastboot_bytes_send;
 
 /**
  * fastboot_bytes_expected - number of bytes expected in the current download
  */
-static u32 fastboot_bytes_expected;
+static u64 fastboot_bytes_expected;
 
 /**
  * fastboot_bytes_loaded - number of bytes for current fastboot loaded
@@ -293,7 +293,7 @@ static void download(char *cmd_parameter, char *response)
 	if (fastboot_bytes_expected > fastboot_buf_size) {
 		fastboot_fail(cmd_parameter, response);
 	} else {
-		printf("Starting download of %d bytes\n",
+		printf("Starting download of %llu bytes\n",
 		       fastboot_bytes_expected);
 		fastboot_response("DATA", response, "%s", cmd_parameter);
 	}
@@ -364,7 +364,7 @@ void fastboot_download_complete(char *response)
 {
 	/* Download complete. Respond with "OKAY" */
 	fastboot_okay(NULL, response);
-	printf("\ndownloading of %d bytes finished\n", fastboot_bytes_received);
+	printf("\ndownloading of %u bytes finished\n", fastboot_bytes_received);
 	image_size = fastboot_bytes_received;
 	env_set_hex("filesize", image_size);
 	fastboot_bytes_expected = 0;
@@ -382,7 +382,7 @@ void fastboot_upload_complete(char *response)
 {
 	/* Upload complete. Respond with "OKAY" */
 	fastboot_okay(NULL, response);
-	printf("\nuploading 0x%x bytes completed\n", fastboot_bytes_send);
+	printf("\nuploading 0x%llx bytes completed\n", fastboot_bytes_send);
 	fastboot_bytes_expected = 0;
 	fastboot_bytes_send = 0;
 }
@@ -498,7 +498,7 @@ static void fetch(char *cmd_parameter, char *response)
 		offset_size = simple_strtoul(p, NULL, 16);
 
 		fastboot_bytes_expected = offset_size;
-		if (fastboot_bytes_expected <= 0) {
+		if (fastboot_bytes_expected == 0) {
 			fastboot_fail("Invalid image size", response);
 			return;
 		}
@@ -531,7 +531,7 @@ static void fetch(char *cmd_parameter, char *response)
 		}
 	}
 
-	fastboot_response("DATA", response, "%08x", fastboot_bytes_expected);
+	fastboot_response("DATA", response, "%08llx", fastboot_bytes_expected);
 	fastboot_tx_write_more(response);
 
 	fastboot_bytes_loaded = 0;
@@ -547,7 +547,7 @@ static void fetch(char *cmd_parameter, char *response)
  *
  * Return: Number of bytes left in the current upload
  */
-u32 fastboot_upload_remaining(void)
+u64 fastboot_upload_remaining(void)
 {
 	return fastboot_bytes_expected - fastboot_bytes_send;
 }
