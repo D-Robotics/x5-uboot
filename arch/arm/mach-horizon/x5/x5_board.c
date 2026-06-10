@@ -93,8 +93,8 @@ int chip_last_stage_init(void)
 			printf("boot action: UART\n");
 		break;
 		case BOOT_DEVICE_USB3:
-			printf("boot action: FASTBOOT USB3.0\n");
-			env_set("preboot", "fastboot 1");
+			printf("boot action: FASTSYSTEM emmc\n");
+			env_set("preboot", "ums 0 mmc 0");
 		break;
 		case BOOT_DEVICE_USB2:
 			printf("boot action: FASTBOOT USB2.0\n");
@@ -105,8 +105,8 @@ int chip_last_stage_init(void)
 			env_set("recovery_mode", "yes");
 		break;
 		case BOOT_DFU:
-			printf("boot action: DFU USB2.0\n");
-			env_set("preboot", "dfu 0");
+			printf("boot action: FASTSYSTEM sd\n");
+			env_set("preboot", "ums 0 mmc 1");
 	}
 	writel(clear_mode, AON_STATUS_REG1);
 #ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
