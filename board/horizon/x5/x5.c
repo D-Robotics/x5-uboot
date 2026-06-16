@@ -26,6 +26,9 @@
 
 #define HSIO_SYS_REG_BASE 0x35050000
 
+#define Gb_TO_MB(x) ((x) * 1024U / 8)
+#define MB_TO_BYTES_SHIFT 20
+
 #ifdef CONFIG_HOBOT_TEST_IN_SRAM
 #include "test_in_sram_hex.h"
 
@@ -112,16 +115,17 @@ int board_early_init_f(void)
 
 struct ddr_size {
 	u32 info;
-	u32 size; /* ddr size in GB */
+	u32 size; /* ddr size in MB */
 };
 
 static const struct ddr_size ddr_size_mapping[] = {
-	{.info = 0, .size = 1},
-	{.info = 1, .size = 2},
-	{.info = 2, .size = 4},
-	{.info = 3, .size = 8},
-	{.info = 4, .size = 6}, /* 6GB, Compatible with old versions*/
-	{.info = 5, .size = 3}, /* 3GB, Compatible with old versions*/
+	{.info = 0, .size = Gb_TO_MB(8)},
+	{.info = 1, .size = Gb_TO_MB(16)},
+	{.info = 2, .size = Gb_TO_MB(32)},
+	{.info = 3, .size = Gb_TO_MB(64)},
+	{.info = 4, .size = Gb_TO_MB(48)}, /* 6GB, Compatible with old versions*/
+	{.info = 5, .size = Gb_TO_MB(24)}, /* 3GB, Compatible with old versions*/
+	{.info = 6, .size = Gb_TO_MB(12)}, /* 1.5GB, Compatible with old versions*/
 };
 
 static u32 get_mapping_size(u32 info)
@@ -148,7 +152,7 @@ static u64 get_ddr_size(void)
     ddr_size = get_mapping_size(ddr_size);
     // printf("ddr_size: %llx GB\n", ddr_size);
 
-    ddr_size = (ddr_size << 30);
+    ddr_size = (ddr_size << MB_TO_BYTES_SHIFT);
     // printf("ddr_size: %llx\n", ddr_size);
 
     /* check ecc enabled */
