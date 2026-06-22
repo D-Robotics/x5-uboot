@@ -14,6 +14,39 @@
 #include <asm/arch/hb_aon.h>
 //#include <hb_info.h>
 
+#ifdef CONFIG_QUICKSTART
+struct device_attribute { int i; };
+ __weak struct mtd_info *get_mtd_device(struct mtd_info *mtd, int num)
+{
+	return 0;
+}
+__weak int mtd_read(struct mtd_info *mtd, loff_t from, size_t len,
+		size_t *retlen,u_char *buf)
+{
+	return 0;
+}
+
+__weak ssize_t mtd_erasesize_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return 0;
+}
+
+__weak void put_mtd_device(struct mtd_info *mtd)
+{
+	return;
+}
+__weak int mtd_erase(struct mtd_info *mtd, struct erase_info *instr)
+{
+	return 0;
+}
+__weak int mtd_write(struct mtd_info *mtd, loff_t to, size_t len, size_t *retlen,
+		const u_char *buf)
+{
+	return 0;
+}
+#endif
+
 static int do_ab_select_mtd(struct cmd_tbl *cmdtp, int flag, int argc,
 			char *const argv[]);
 static int do_ab_select(struct cmd_tbl *cmdtp, int flag, int argc,

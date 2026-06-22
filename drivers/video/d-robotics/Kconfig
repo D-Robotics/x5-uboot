@@ -1,0 +1,150 @@
+config X5_SEAMLESS_DISPLAY
+	bool "Enable X5 seamless display"
+	select DM_VIDEO
+	select VIDEO_DROBOTICS
+	select BOARD_LATE_INIT
+	select BMP_16BPP
+	select BMP_24BPP
+	select BMP_32BPP
+	select DM_GPIO
+	select DM_I2C
+	select VIDEO_DW_MIPI_DSI
+	select DM_PWM
+	select PWM_HOBOT_LPWM
+	select BACKLIGHT_PWM
+	select SYS_WHITE_ON_BLACK
+	select VIDEO_X5_BOOT_UI
+	help
+	  Enable the D-Robotics X5 display stack in U-Boot: DC8000, DSI
+	  host, panel and HDMI bridge drivers, backlight, and seamless
+	  framebuffer handoff to Linux (FDT memory reservation, /chosen
+	  d-robotics,seamless-display-state, and board env hooks).
+
+	  When disabled, no indented options below are available and the
+	  d-robotics display drivers are not linked.
+
+	  Boot-time UI is always enabled with this option. U-Boot brings
+	  up the display from board_late_init(): by default a splash logo
+	  is shown and standard I/O stays on the serial port only. Set
+	  environment variable x5_boot_ui to console for a framebuffer
+	  text console on serial and vidconsole (CONSOLE_RECORD replay
+	  when enabled). If x5_boot_ui is unset or empty, board code sets
+	  it to logo. Only the value console selects framebuffer console;
+	  any other value is treated as logo. Kernel boot arguments follow
+	  the same variable: logo mode uses console=<uart> and
+	  fbcon=map:1; console mode adds console=tty0 before the UART
+	  console for early framebuffer output while keeping /dev/console
+	  on serial.
+
+config VIDEO_X5_PANEL_DSI
+	bool "X5 Generic DSI Panel Support"
+	depends on X5_SEAMLESS_DISPLAY
+	default y
+	help
+	  Generic DSI panel drivers for the X5 platform. Enable one or
+	  more panel drivers below and pick a build-time default when
+	  environment variable x5_lcd_panel is unset.
+
+config X5_PANEL_JC050HD134
+	bool "JC-050HD134 (720x1280, 4 lanes) for X5 EVB"
+	depends on VIDEO_X5_PANEL_DSI
+	default y
+	help
+	  Enable the JC-050HD134 LCD panel driver (Himax HX8394-F).
+	  Resolution: 720x1280, MIPI DSI 4 lanes. Enable for EVB / unified
+	  images; runtime selection follows Device Tree compatible.
+
+config X5_PANEL_WH_CM480
+	bool "WH-CM480 (DSI; multi-mode timing table)"
+	depends on VIDEO_X5_PANEL_DSI
+	default y
+	help
+	  Enable U-Boot DSI timings for compatible "wh-cm480".
+	  Default mode matches kernel drivers/gpu/drm/panel/panel-wh-cm480.c
+	  (800x480, 1 lane).
+
+config X5_PANEL_ST77031
+	bool "ST77031 (600x1280, 2 lanes) for RDK Module"
+	depends on VIDEO_X5_PANEL_DSI
+	default y
+	help
+	  Enable the ST77031 LCD panel driver. Resolution: 600x1280,
+	  MIPI DSI 2 lanes. Enable for RDK/MD / unified images; runtime
+	  selection follows Device Tree compatible.
+
+choice
+	prompt "Default LCD panel when env x5_lcd_panel is unset"
+	depends on VIDEO_X5_PANEL_DSI
+	default X5_DEFAULT_LCD_JC050 if X5_PANEL_JC050HD134
+	default X5_DEFAULT_LCD_WH480 if !X5_PANEL_JC050HD134 && X5_PANEL_WH_CM480
+	default X5_DEFAULT_LCD_ST77031 if !X5_PANEL_JC050HD134 && !X5_PANEL_WH_CM480 && X5_PANEL_ST77031
+	help
+	  Build-time default equivalent to setenv x5_lcd_panel <alias>.
+	  Used only when U-Boot environment variable x5_lcd_panel is unset
+	  or empty. Runtime setenv x5_lcd_panel still overrides this.
+	  After that, selection continues with DT x5,default-panel on the
+	  slot node, legacy compatible match, then first compiled driver.
+
+config X5_DEFAULT_LCD_JC050
+	bool "jc050 (JC-050HD134)"
+	depends on X5_PANEL_JC050HD134
+
+config X5_DEFAULT_LCD_WH480
+	bool "wh480 (WH-CM480)"
+	depends on X5_PANEL_WH_CM480
+
+config X5_DEFAULT_LCD_ST77031
+	bool "st77031"
+	depends on X5_PANEL_ST77031
+
+endchoice
+
+config VIDEO_X5_HDMI
+	bool "X5 HDMI Output Support (via BT1120)"
+	depends on X5_SEAMLESS_DISPLAY
+	select I2C_EDID
+	default y
+	help
+	  Enable HDMI output support for X5 platform.
+	  X5 outputs HDMI through the BT1120 IP (YUV422 parallel)
+	  connected to an external HDMI transmitter chip via I2C.
+	  Supports up to 4K@30fps.
+
+config X5_HDMI_BRIDGE_LT8618
+	bool "Lontium LT8618 HDMI bridge"
+	depends on VIDEO_X5_HDMI
+	default y
+	help
+	  Link the LT8618 driver (EDID via LT8618, pattern boot, default bridge).
+
+config X5_HDMI_BRIDGE_SII9022
+	bool "Silicon Image SII9022 HDMI bridge"
+	depends on VIDEO_X5_HDMI
+	default y
+	help
+	  Link the SII902x driver. At least one of LT8618 / SII9022 should stay
+	  enabled for boards using that transmitter.
+
+config VIDEO_X5_HDMI_PATTERN_BOOT
+	bool "Boot with LT8618 internal HDMI color-bar pattern (debug)"
+	depends on VIDEO_X5_HDMI && X5_HDMI_BRIDGE_LT8618
+	default n
+	help
+	  At x5_display_enable(), skip DC8000 and BT1120; output 1920x1080
+	  color bars from the LT8618 internal generator only. Use to verify
+	  TMDS timing and the panel/bridge independent of SoC pixel pipe.
+	  Disable for one boot with env: x5_hdmi_pattern=0
+	  When this option is off, enable the same path with: x5_hdmi_pattern=1
+
+config VIDEO_X5_BOOT_UI
+	bool
+	depends on X5_SEAMLESS_DISPLAY
+	select VIDEO_LOGO
+	select CONSOLE_MUX
+	select SYS_CONSOLE_IS_IN_ENV
+
+config VIDEO_DROBOTICS
+	bool
+	help
+	  Internal symbol: D-Robotics X5 video drivers under
+	  drivers/video/d-robotics/. Selected by X5_SEAMLESS_DISPLAY.

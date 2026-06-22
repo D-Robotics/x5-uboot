@@ -75,17 +75,22 @@ static void set_entry(struct timing_entry *entry, u32 value)
 }
 
 /**
- * decode_timing() - Decoding an 18-byte detailed timing record
+ * edid_decode_detailed_timing() - Decoding an 18-byte detailed timing record
  *
- * @buf:	Pointer to EDID detailed timing record
+ * @dtd18:	Pointer to EDID detailed timing record
  * @timing:	Place to put timing
  */
-static void decode_timing(u8 *buf, struct display_timing *timing)
+void edid_decode_detailed_timing(const u8 *buf, struct display_timing *timing)
 {
 	uint x_mm, y_mm;
 	unsigned int ha, hbl, hso, hspw, hborder;
 	unsigned int va, vbl, vso, vspw, vborder;
-	struct edid_detailed_timing *t = (struct edid_detailed_timing *)buf;
+	struct edid_detailed_timing *dt;
+
+	if (!buf || !timing)
+		return;
+
+	dt = (struct edid_detailed_timing *)buf;
 
 	/* Edid contains pixel clock in terms of 10KHz */
 	set_entry(&timing->pixelclock, (buf[0] + (buf[1] << 8)) * 10000);
@@ -113,16 +118,16 @@ static void decode_timing(u8 *buf, struct display_timing *timing)
 	set_entry(&timing->vsync_len, vspw);
 
 	timing->flags = 0;
-	if (EDID_DETAILED_TIMING_FLAG_HSYNC_POLARITY(*t))
+	if (EDID_DETAILED_TIMING_FLAG_HSYNC_POLARITY(*dt))
 		timing->flags |= DISPLAY_FLAGS_HSYNC_HIGH;
 	else
 		timing->flags |= DISPLAY_FLAGS_HSYNC_LOW;
-	if (EDID_DETAILED_TIMING_FLAG_VSYNC_POLARITY(*t))
+	if (EDID_DETAILED_TIMING_FLAG_VSYNC_POLARITY(*dt))
 		timing->flags |= DISPLAY_FLAGS_VSYNC_HIGH;
 	else
 		timing->flags |= DISPLAY_FLAGS_VSYNC_LOW;
 
-	if (EDID_DETAILED_TIMING_FLAG_INTERLACED(*t))
+	if (EDID_DETAILED_TIMING_FLAG_INTERLACED(*dt))
 		timing->flags = DISPLAY_FLAGS_INTERLACED;
 
 	debug("Detailed mode clock %u Hz, %d mm x %d mm\n"
@@ -181,7 +186,9 @@ static bool edid_find_valid_timing(void *buf, int count,
 
 	for (i = 0; i < count && !found; i++, t++)
 		if (EDID_DETAILED_TIMING_PIXEL_CLOCK(*t) != 0) {
-			decode_timing((u8 *)t, timing);
+			if (EDID_DETAILED_TIMING_FLAG_INTERLACED(*t))
+				continue;
+			edid_decode_detailed_timing((u8 *)t, timing);
 			if (mode_valid)
 				found = mode_valid(mode_valid_priv,
 						   timing);
@@ -267,6 +274,69 @@ int edid_get_timing(u8 *buf, int buf_size, struct display_timing *timing,
 {
 	return edid_get_timing_validate(buf, buf_size, timing,
 					panel_bits_per_colourp, NULL, NULL);
+}
+
+int edid_get_first_valid_timing(const u8 *buf, int buf_size,
+				struct display_timing *timing,
+				int *panel_bits_per_colourp)
+{
+	struct edid1_info *edid = (struct edid1_info *)buf;
+	bool found;
+
+	if (!buf || !timing || !panel_bits_per_colourp)
+		return -EINVAL;
+
+	if (buf_size < sizeof(*edid) || edid_check_info(edid)) {
+		debug("%s: Invalid buffer\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!EDID1_INFO_VIDEO_INPUT_DIGITAL(*edid)) {
+		debug("%s: Not a digital display\n", __func__);
+		return -ENOSYS;
+	}
+
+	found = edid_find_valid_timing(edid->monitor_details.descriptor, 4,
+				       timing, NULL, NULL);
+
+	if (!found && edid->extension_flag && buf_size >= EDID_EXT_SIZE) {
+		struct edid_cea861_info *info =
+			(struct edid_cea861_info *)(buf + sizeof(*edid));
+
+		if (info->extension_tag == EDID_CEA861_EXTENSION_TAG) {
+			int count = EDID_CEA861_DTD_COUNT(*info);
+			int offset = info->dtd_offset;
+			int size = count * sizeof(struct edid_detailed_timing);
+
+			if (offset >= 4 && offset + size < EDID_SIZE)
+				found = edid_find_valid_timing(
+					(u8 *)info + offset, count, timing,
+					NULL, NULL);
+		}
+	}
+
+	if (!found)
+		return -EINVAL;
+
+	if (edid->version != 1 || edid->revision < 4) {
+		debug("%s: EDID version %d.%d does not have required info\n",
+		      __func__, edid->version, edid->revision);
+		*panel_bits_per_colourp = -1;
+	} else {
+		*panel_bits_per_colourp =
+			((edid->video_input_definition & 0x70) >> 3) + 4;
+	}
+
+	timing->hdmi_monitor = false;
+	if (edid->extension_flag && (buf_size >= EDID_EXT_SIZE)) {
+		struct edid_cea861_info *info =
+			(struct edid_cea861_info *)(buf + sizeof(*edid));
+
+		if (info->extension_tag == EDID_CEA861_EXTENSION_TAG)
+			timing->hdmi_monitor = cea_is_hdmi_vsdb_present(info);
+	}
+
+	return 0;
 }
 
 

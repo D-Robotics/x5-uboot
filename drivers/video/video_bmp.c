@@ -378,7 +378,7 @@ int video_bmp_display(struct udevice *dev, ulong bmp_image, int x, int y,
 						*fb++ = *bmap++;
 						*fb++ = *bmap++;
 						*fb++ = *bmap++;
-						*fb++ = 0;
+						*fb++ = 0xff; /* opaque alpha for ARGB8888 */
 					}
 				}
 				fb -= priv->line_length + width * (bpix / 8);

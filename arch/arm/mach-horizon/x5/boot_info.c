@@ -93,17 +93,25 @@ char *hb_board_version_get(void)
 
 int32_t hb_board_id_get(uint32_t *board_id)
 {
+#ifdef CONFIG_QUICKSTART
+	*board_id = CONFIG_QUICKSTART_BOARD_ID;
+#else
 	if (hb_board_id == 0) {
 		pr_err("board id is not set\n");
 		return -1;
 	}
 	*board_id = hb_board_id;
+#endif
 	return 0;
 }
 
 int32_t hb_board_id_set(uint32_t board_id)
 {
+#ifdef CONFIG_QUICKSTART
+	hb_board_id = CONFIG_QUICKSTART_BOARD_ID;
+#else
 	hb_board_id = board_id;
+#endif
 	debug("hb_board_id=0x%x\n", hb_board_id);
 	return 0;
 }

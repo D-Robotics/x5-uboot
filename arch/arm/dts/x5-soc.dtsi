@@ -201,3 +201,75 @@
 		};
 	};
 };
+
+/ {
+	model = "Horizon X5";
+	chosen {
+		/*x5,display-output = "dsi";*/
+		x5,display-output = "hdmi";
+	};
+};
+
+/* Enable display subsystem */
+&lpwm0 {
+	status = "okay";
+};
+
+&lpwm1 {
+	status = "okay";
+};
+
+&dphy0 {
+	status = "okay";
+};
+
+&mipi_dsi0 {
+	status = "okay";
+};
+
+&dc8000_nano {
+	status = "okay";
+};
+
+&dsi_backlight {
+	status = "okay";
+};
+
+&dsi_panel {
+	status = "okay";
+};
+
+/*
+ * HDMI: LT8618 (LS I2C4) and SII902x (DSP I2C7) are both described here; U-Boot
+ * enables I2C clocks then probes chip ID on each enabled node (LT first, then SII).
+ */
+&i2c4 {
+	status = "okay";
+
+	lt8618: lt8618@3b {
+		compatible = "lontium,lt8618";
+		reg = <0x3b>;
+		reset-gpios = <&ls_gpio1_porta 13 GPIO_ACTIVE_LOW>;
+		status = "okay";
+	};
+};
+
+&i2c7 {
+	status = "okay";
+
+	hdmi_bridge@3b {
+		compatible = "sil,sii9022";
+		reg = <0x3b>;
+		reset-gpios = <&dsp_gpio_porta 20 GPIO_ACTIVE_LOW>;
+		sil,tmds-mode = "hdmi";
+		status = "okay";
+	};
+};
+
+/*
+ * BT1120 + bridge: bridge type comes from I2C chip ID on enabled nodes above.
+ */
+&bt1120_hdmi {
+	status = "okay";
+};
+

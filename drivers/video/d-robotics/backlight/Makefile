@@ -1,0 +1,1 @@
+obj-$(CONFIG_X5_SEAMLESS_DISPLAY) += x5_backlight_core.o x5_backlight_lpwm.o x5_backlight_pwm.o

@@ -118,3 +118,21 @@ config PWM_TI_EHRPWM
 	default y
 	help
 	  PWM driver support for the EHRPWM controller found on TI SOCs.
+
+config PWM_HOBOT_LPWM
+	bool "Enable support for Hobot X5 LPWM"
+	depends on DM_PWM
+	help
+	  This PWM is found on Hobot X5 SoCs. It supports a programmable
+	  period and duty cycle with 4 independent channels. The LPWM
+	  (Low Power PWM) is commonly used for display backlight control
+	  and other low-frequency PWM applications.
+
+config PWM_HOBOT
+	bool "Enable support for Hobot X5 standard PWM"
+	depends on DM_PWM
+	help
+	  This PWM is found on Hobot X5 SoCs. It supports a programmable
+	  period and duty cycle with 2 channels per controller. There are
+	  4 PWM controllers (PWM0-PWM3) available. This is the standard
+	  PWM controller, different from LPWM.

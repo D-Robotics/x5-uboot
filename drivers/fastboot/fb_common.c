@@ -250,7 +250,7 @@ void fastboot_set_medium(fb_flash_type flash_type, unsigned long medium_devnum)
  * @medium_devnum: Medium device number(eg. mmc 0 or 1)
  * @flash_type: User selected flash type, eg. mmc/nand/spinand/ram
  */
-void fastboot_init(void *buf_addr, u32 buf_size, fb_flash_type flash_type,
+void fastboot_init(void *buf_addr, u64 buf_size, fb_flash_type flash_type,
 		s32 medium_devnum)
 {
 	fastboot_buf_addr = buf_addr ? buf_addr :

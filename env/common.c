@@ -110,7 +110,7 @@ int eth_env_set_enetaddr(const char *name, const uint8_t *enetaddr)
  * return address of storage for that variable,
  * or NULL if not found
  */
-char *env_get(const char *name)
+__weak char *env_get(const char *name)
 {
 	if (gd->flags & GD_FLG_ENV_READY) { /* after import into hashtable */
 		struct env_entry e, *ep;

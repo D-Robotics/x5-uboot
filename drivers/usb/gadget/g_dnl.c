@@ -19,6 +19,7 @@
 #include <dfu.h>
 #include <thor.h>
 
+#include <env.h>
 #include <env_callback.h>
 
 #include "gadget_chips.h"
@@ -259,6 +260,7 @@ static int g_dnl_bind(struct usb_composite_dev *cdev)
 	struct usb_gadget *gadget = cdev->gadget;
 	int id, ret;
 	int gcnum;
+	const char *s;
 
 	debug("%s: gadget: 0x%p cdev: 0x%p\n", __func__, gadget, cdev);
 
@@ -277,6 +279,16 @@ static int g_dnl_bind(struct usb_composite_dev *cdev)
 	device_desc.iProduct = id;
 
 	g_dnl_bind_fixup(&device_desc, cdev->driver->name);
+
+	/*
+	 * If the serial# env var is already present but the env callback
+	 * hasn't run yet, g_dnl_serial might still be empty during the
+	 * initial bind/enumeration. Populate it here so hosts can read
+	 * iSerialNumber immediately.
+	 */
+	s = env_get("serial#");
+	if (s && !strlen(g_dnl_serial))
+		g_dnl_set_serialnumber((char *)s);
 
 	if (strlen(g_dnl_serial)) {
 		id = usb_string_id(cdev);

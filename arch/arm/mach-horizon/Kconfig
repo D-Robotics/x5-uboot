@@ -27,6 +27,14 @@ config DROBOT_RECORD_UBOOT_RESET
 	help
 	  Support save boot key in rpmb in drobotic X5 SOC.
 
+config HOBOT_TEST_IN_SRAM
+	bool "Enable SRAM test"
+	depends on TARGET_X5
+	help
+	  Enable SRAM memory test during DRAM initialization.
+	  This will copy a test binary into SRAM and execute it
+	  to verify DDR functionality.
+
 source "arch/arm/mach-horizon/x5/Kconfig"
 
 endif
