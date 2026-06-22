@@ -135,12 +135,34 @@ static int do_memdump_to_userdata(struct cmd_tbl *cmdtp, int flag,
 }
 #endif
 
+static int do_memdump_to_rdk(struct cmd_tbl *cmdtp, int flag,
+	int argc, char * const argv[])
+{
+	int ret;
+	int mmc_dev = 0;
+
+	if (argc != 2)
+		return CMD_RET_USAGE;
+
+	mmc_dev = simple_strtol(argv[1], NULL, 10); 
+
+	printf("dev %d,part %d /userdata\n", mmc_dev, 2);
+	ret = memdump_dump_ext4("mmc", mmc_dev, 2, "/userdata");
+	if (ret) {
+		printf("memdump to userdata failed!ret=%d\n",ret);
+		return CMD_RET_FAILURE;
+	}
+
+	return CMD_RET_SUCCESS;
+}
+
 static struct cmd_tbl cmd_swinfo[] = {
 	U_BOOT_CMD_MKENT(init, 4, 0, do_memdump_init, "", ""),
 	U_BOOT_CMD_MKENT(dumpall, 2, 0, do_memdump_all, "", ""),
 #ifdef ENABLE_USERDATA_MEMDUMP
 	U_BOOT_CMD_MKENT(userdata, 1, 0, do_memdump_to_userdata, "", ""),
 #endif
+	U_BOOT_CMD_MKENT(rdk, 2, 0, do_memdump_to_rdk, "", ""),
 };
 
 static inline void set_memdump_test_false(void)
@@ -182,4 +204,5 @@ U_BOOT_CMD(
 #ifdef ENABLE_USERDATA_MEMDUMP
 	"memdump userdata - Dump all memory to /userdata/DDRCS*.bin of the dev <mmc 0>\n"
 #endif
+	"memdump rdk <mmc> - Dump all memory to /userdata/DDRCS*.bin mmc 0 use emmc mmc 1 use sdcard\n"
 	);

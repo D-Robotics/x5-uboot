@@ -96,8 +96,8 @@ int chip_last_stage_init(void)
 			printf("boot action: UART\n");
 		break;
 		case BOOT_DEVICE_USB3:
-			printf("boot action: FASTBOOT USB3.0\n");
-			env_set("preboot", "fastboot 1");
+			printf("boot action: FASTSYSTEM emmc\n");
+			env_set("preboot", "ums 0 mmc 0");
 		break;
 		case BOOT_DEVICE_USB2:
 			printf("boot action: FASTBOOT USB2.0\n");
@@ -108,8 +108,8 @@ int chip_last_stage_init(void)
 			env_set("recovery_mode", "yes");
 		break;
 		case BOOT_DFU:
-			printf("boot action: DFU USB2.0\n");
-			env_set("preboot", "dfu 0");
+			printf("boot action: FASTSYSTEM sd\n");
+			env_set("preboot", "ums 0 mmc 1");
 	}
 	writel(clear_mode, AON_STATUS_REG1);
 #ifdef CONFIG_DROBOT_BOOT_KEY_IN_RPMB
@@ -204,6 +204,44 @@ char *hb_bootmedium_for_udev(void)
 	}
 }
 
+//HSIO_SDIO_CDN HSIO_GPIO_26 TF VDD
+#define HSIO_GPIO_26_IOMUX  0x35050058 //27:26
+#define HSIO_GPIO_26_DIR 0x35060004
+#define HSIO_GPIO_26_IO 0x35060000
+#define HSIO_GPIO_26 26
+
+#define HSIO_SD_CMD_Pinctrl 0x35050034
+#define HSIO_SD_DATA_Pinctrl 0x35050030
+
+void tf_power(void)
+{
+	unsigned int value=0;
+
+	writel(0x46484646, (void *)HSIO_SD_CMD_Pinctrl);
+	writel(0x46464646, (void *)HSIO_SD_DATA_Pinctrl);
+
+	value = readl((void *)HSIO_GPIO_26_IOMUX);
+	value = value & (~(0x03 << HSIO_GPIO_26));
+	value = value | (0x02 << HSIO_GPIO_26);
+	writel(value, (void *)HSIO_GPIO_26_IOMUX);
+
+	value = readl((void *)HSIO_GPIO_26_DIR);
+	value = value | (0x01 << HSIO_GPIO_26);
+	writel(value, (void *)HSIO_GPIO_26_DIR);
+
+	value = readl((void *)HSIO_GPIO_26_IO);
+	value = value & (~(0x01 << HSIO_GPIO_26));
+	writel(value, (void *)HSIO_GPIO_26_IO);
+
+	udelay(50*1000);
+
+	value = readl((void *)HSIO_GPIO_26_IO);
+	value = value | (0x01 << HSIO_GPIO_26);
+	writel(value, (void *)HSIO_GPIO_26_IO);
+
+	udelay(100*1000);
+}
+
 static void board_env_setup(void)
 {
 	u32 board_id;
@@ -212,12 +250,12 @@ static void board_env_setup(void)
 	char *recovery_mode = env_get("recovery_mode");
 	char hex_socuid[32];
 
-	env_set("bootcmd",
+	/*env_set("bootcmd",
 #ifdef CONFIG_USB_UPDATE
 		"usbupdate;"
 #endif
 		"run ab_select_cmd;"
-		"run avb_boot;");
+		"run avb_boot;");*/
 	set_bootdev();
 
 	hb_board_id_get(&board_id);
@@ -237,6 +275,7 @@ static void board_env_setup(void)
 		hex_socuid[31] = '\0';
 		env_set("serial#", hex_socuid);
 	}
+	tf_power();
 }
 
 int last_stage_init(void)
