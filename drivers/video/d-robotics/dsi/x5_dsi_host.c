@@ -96,7 +96,9 @@
 #define VID_MODE_TYPE_BURST 0x02
 #define VID_MODE_TYPE_NON_BURST_SYNC_EVENTS 0x01
 #define VID_MODE_TYPE_NON_BURST_SYNC_PULSES 0x00
-#define ENABLE_LOW_POWER (0x3F << 8)
+#define LP_HFP_EN BIT(13)
+#define LP_HBP_EN BIT(12)
+#define ENABLE_LOW_POWER ((0x3F << 8) & ~LP_HBP_EN)
 
 /* DSI_LPCLK_CTRL bits */
 #define PHY_TXREQUESTCLKHS BIT(0)
@@ -363,12 +365,13 @@ static void dsi_video_mode_config(struct x5_dsi_host *dsi)
 	u32 val;
 
 	/*
-	 * Use burst mode with LP transitions enabled
-	 * Kernel value: 0x3F00 = ENABLE_LOW_POWER (bits 13:8) + burst mode (bits 1:0 = 0)
-	 * Note: bits 1:0 = 0 means non-burst sync pulses, not burst mode
-	 * Let's match kernel exactly: 0x3F00
+	 * LP entry/exit runs at the TX escape clock (lane byte clock / 5), so the
+	 * round trip overruns a short horizontal back porch, shifting the DPI
+	 * pixel FIFO by a byte and rotating the colour channels. The front porch
+	 * is long enough, and LP during blanking is only a power optimisation, so
+	 * leave LP_HBP_EN off.
 	 */
-	val = ENABLE_LOW_POWER; /* 0x3F00 - no burst mode bits set */
+	val = ENABLE_LOW_POWER; /* bits 1:0 = 0 -> non-burst sync pulses */
 
 	dsi_write(dsi, DSI_VID_MODE_CFG, val);
 }
