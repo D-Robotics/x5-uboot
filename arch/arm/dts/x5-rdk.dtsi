@@ -93,14 +93,23 @@
 			reg = <0x35020000 0x10000>,
 				  <0x35050078 0x10>;
 			clocks = <&sdclk>;
-			max-frequency = <52000000>;
-			no-1-8-v;
+			max-frequency = <200000000>;
 			no-sdio;
+			cap-sd-highspeed;
+			sd-uhs-sdr50;
+			sd-uhs-sdr104;
 			sd-socrst;
 			cd-inverted;
+			/* Physical high enables TF-card power. */
+			power-gpios = <&hs_gpio0_porta 26 GPIO_ACTIVE_HIGH>;
+			toggle-interval-us = <20000>;
+			/* Physical low selects the 1.8 V SD I/O rail. */
+			voltage-gpios = <&hs_gpio1_porta 1 GPIO_ACTIVE_LOW>;
 			status = "okay";
 			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_sd>;
+			pinctrl-0 = <&pinctrl_sd
+				     &pinctrl_hsio_gpio0_26_output_normal
+				     &pinctrl_hsio_gpio1_1_output_normal>;
 		};
 
 		x5_rdk_sdio_1: sdio-host@35030000 {

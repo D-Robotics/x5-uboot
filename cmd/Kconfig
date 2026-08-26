@@ -1510,6 +1510,54 @@ config CMD_USB_MASS_STORAGE
 	  export a block device: U-Boot, the USB device, acts as a simple
 	  external hard drive plugged on the host USB port.
 
+config USB_MASS_STORAGE_PROFILE
+	bool "Profile USB mass-storage writes"
+	depends on CMD_USB_MASS_STORAGE
+	help
+	  Measure the USB receive, backing-store write, and command wall-clock
+	  time.  A compact report is printed for every 64 MiB written and when
+	  the host issues SYNCHRONIZE CACHE.  This is intended to identify the
+	  actual bottleneck before changing buffer sizes or storage timings.
+
+config USB_MASS_STORAGE_NUM_BUFFERS
+	int "USB mass-storage transfer buffers"
+	depends on CMD_USB_MASS_STORAGE
+	range 2 8
+	default 2
+	help
+	  Number of 128 KiB USB requests which may be queued at once.  More
+	  buffers let DWC3 continue receiving while a previous cache block is
+	  written to the backing device.
+
+config USB_MASS_STORAGE_MMC_POLL
+	bool "Service USB events while waiting for MMC"
+	depends on CMD_USB_MASS_STORAGE && MMC
+	help
+	  Register a short UMS callback with the MMC core and invoke it from
+	  SDHCI polling loops.  This lets queued DWC3 OUT requests complete
+	  while MMC DMA or card busy handling is in progress.  The hook is
+	  installed only while the UMS command is active.
+
+config USB_MASS_STORAGE_WRITE_CACHE
+	bool "Coalesce USB mass-storage writes"
+	depends on CMD_USB_MASS_STORAGE
+	help
+	  Coalesce adjacent small SCSI writes in an aligned RAM buffer before
+	  writing the backing block device.  This reduces MMC command, STOP,
+	  busy-poll, and fixed controller-delay overhead.  Cached data is flushed
+	  before reads, for FUA writes, on SYNCHRONIZE CACHE, and when UMS exits.
+	  This does not make Bulk-Only Transport command queuing asynchronous.
+
+config USB_MASS_STORAGE_WRITE_CACHE_KB
+	int "USB mass-storage write-cache size in KiB"
+	depends on USB_MASS_STORAGE_WRITE_CACHE
+	range 128 4096
+	default 512
+	help
+	  Size of each LUN's coalescing buffer.  Keep this near the aggregate
+	  USB request-buffer capacity so that MMC command reduction does not
+	  sacrifice USB/backend overlap.
+
 config CMD_PVBLOCK
 	bool "Xen para-virtualized block device"
 	depends on XEN

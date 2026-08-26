@@ -13,17 +13,53 @@
 #include <errno.h>
 #include <g_dnl.h>
 #include <malloc.h>
+#include <mmc.h>
 #include <part.h>
 #include <usb.h>
 #include <usb_mass_storage.h>
 #include <watchdog.h>
+#include <asm/cache.h>
 #include <linux/delay.h>
+
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_WRITE_CACHE)
+#define UMS_WRITE_CACHE_BYTES	(CONFIG_USB_MASS_STORAGE_WRITE_CACHE_KB * 1024U)
+
+static int ums_flush(struct ums *ums_dev)
+{
+	struct blk_desc *block_dev = &ums_dev->block_dev;
+	lbaint_t written;
+
+	if (!ums_dev->write_cache_blocks)
+		return 0;
+
+	written = blk_dwrite(block_dev, ums_dev->write_cache_start,
+			     ums_dev->write_cache_blocks, ums_dev->write_cache);
+	if (written != ums_dev->write_cache_blocks) {
+		printf("UMS: cache flush failed at block " LBAFU
+		       " (" LBAFU "/" LBAFU " blocks)\n",
+		       ums_dev->write_cache_start, written,
+		       ums_dev->write_cache_blocks);
+		return -EIO;
+	}
+
+	ums_dev->write_cache_blocks = 0;
+	return 0;
+}
+#else
+static int ums_flush(struct ums *ums_dev)
+{
+	return 0;
+}
+#endif
 
 static int ums_read_sector(struct ums *ums_dev,
 			   ulong start, lbaint_t blkcnt, void *buf)
 {
 	struct blk_desc *block_dev = &ums_dev->block_dev;
 	lbaint_t blkstart = start + ums_dev->start_sector;
+
+	if (ums_flush(ums_dev))
+		return 0;
 
 	return blk_dread(block_dev, blkstart, blkcnt, buf);
 }
@@ -34,7 +70,36 @@ static int ums_write_sector(struct ums *ums_dev,
 	struct blk_desc *block_dev = &ums_dev->block_dev;
 	lbaint_t blkstart = start + ums_dev->start_sector;
 
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_WRITE_CACHE)
+	lbaint_t cache_capacity = UMS_WRITE_CACHE_BYTES / SECTOR_SIZE;
+	lbaint_t cache_end;
+
+	if (!ums_dev->write_cache || blkcnt > cache_capacity) {
+		if (ums_flush(ums_dev))
+			return 0;
+		return blk_dwrite(block_dev, blkstart, blkcnt, buf);
+	}
+
+	cache_end = ums_dev->write_cache_start + ums_dev->write_cache_blocks;
+	if (ums_dev->write_cache_blocks &&
+	    (blkstart != cache_end ||
+	     blkcnt > cache_capacity - ums_dev->write_cache_blocks)) {
+		if (ums_flush(ums_dev))
+			return 0;
+	}
+
+	if (!ums_dev->write_cache_blocks)
+		ums_dev->write_cache_start = blkstart;
+
+	memcpy((u8 *)ums_dev->write_cache +
+	       ums_dev->write_cache_blocks * SECTOR_SIZE,
+	       buf, blkcnt * SECTOR_SIZE);
+	ums_dev->write_cache_blocks += blkcnt;
+
+	return blkcnt;
+#else
 	return blk_dwrite(block_dev, blkstart, blkcnt, buf);
+#endif
 }
 
 static struct ums *ums;
@@ -44,8 +109,14 @@ static void ums_fini(void)
 {
 	int i;
 
-	for (i = 0; i < ums_count; i++)
+	for (i = 0; i < ums_count; i++) {
+		if (ums_flush(&ums[i]))
+			printf("UMS: WARNING: LUN %d has unflushed data\n", i);
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_WRITE_CACHE)
+		free(ums[i].write_cache);
+#endif
 		free((void *)ums[i].name);
+	}
 	free(ums);
 	ums = NULL;
 	ums_count = 0;
@@ -95,6 +166,7 @@ static int ums_init(const char *devtype, const char *devnums_part_str)
 		if (!ums_new)
 			goto cleanup;
 		ums = ums_new;
+		memset(&ums[ums_count], 0, sizeof(ums[ums_count]));
 
 		/* if partnum = 0, expose all partitions */
 		if (partnum == 0) {
@@ -107,10 +179,24 @@ static int ums_init(const char *devtype, const char *devnums_part_str)
 
 		ums[ums_count].read_sector = ums_read_sector;
 		ums[ums_count].write_sector = ums_write_sector;
+		ums[ums_count].flush = ums_flush;
+
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_WRITE_CACHE)
+		ums[ums_count].write_cache = memalign(ARCH_DMA_MINALIGN,
+						       UMS_WRITE_CACHE_BYTES);
+		if (!ums[ums_count].write_cache)
+			printf("UMS: LUN %d cache allocation failed; using synchronous writes\n",
+			       ums_count);
+#endif
 
 		name = malloc(UMS_NAME_LEN);
-		if (!name)
+		if (!name) {
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_WRITE_CACHE)
+			free(ums[ums_count].write_cache);
+			ums[ums_count].write_cache = NULL;
+#endif
 			goto cleanup;
+		}
 		snprintf(name, UMS_NAME_LEN, "UMS disk %d", ums_count);
 		ums[ums_count].name = name;
 		ums[ums_count].block_dev = *block_dev;
@@ -120,6 +206,21 @@ static int ums_init(const char *devtype, const char *devnums_part_str)
 		       ums[ums_count].block_dev.hwpart,
 		       ums[ums_count].start_sector,
 		       ums[ums_count].num_sectors);
+		if (!strcmp(devtype, "mmc")) {
+			struct mmc *mmc = find_mmc_device(block_dev->devnum);
+
+			if (mmc)
+				printf("UMS: MMC mode %s, clock %u Hz, bus width %u, signal %d mV\n",
+				       mmc_mode_name(mmc->selected_mode), mmc->clock,
+				       mmc->bus_width,
+				       mmc_voltage_to_mv(mmc->signal_voltage));
+		}
+
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_WRITE_CACHE)
+		if (ums[ums_count].write_cache)
+			printf("UMS: LUN %d write coalescing cache: %u KiB\n",
+			       ums_count, CONFIG_USB_MASS_STORAGE_WRITE_CACHE_KB);
+#endif
 
 		ums_count++;
 	}
@@ -174,14 +275,14 @@ static int do_usb_mass_storage(struct cmd_tbl *cmdtp, int flag,
 	if (rc) {
 		pr_err("fsg_init failed\n");
 		rc = CMD_RET_FAILURE;
-		goto cleanup_board;
+		goto cleanup_fsg;
 	}
 
 	rc = g_dnl_register("usb_dnl_ums", controller_index);
 	if (rc) {
 		pr_err("g_dnl_register failed\n");
 		rc = CMD_RET_FAILURE;
-		goto cleanup_board;
+		goto cleanup_fsg;
 	}
 
 	/* Timeout unit: seconds */
@@ -236,7 +337,8 @@ static int do_usb_mass_storage(struct cmd_tbl *cmdtp, int flag,
 
 cleanup_register:
 	g_dnl_unregister();
-cleanup_board:
+cleanup_fsg:
+	fsg_cleanup();
 	usb_gadget_release(controller_index);
 cleanup_ums_init:
 	ums_fini();

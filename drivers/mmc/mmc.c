@@ -29,6 +29,18 @@
 #define DEFAULT_CMD6_TIMEOUT_MS  500
 
 static int mmc_set_signal_voltage(struct mmc *mmc, uint signal_voltage);
+static void (*mmc_io_poll_hook)(void);
+
+void mmc_set_io_poll_hook(void (*poll)(void))
+{
+	mmc_io_poll_hook = poll;
+}
+
+void mmc_io_poll(void)
+{
+	if (mmc_io_poll_hook)
+		mmc_io_poll_hook();
+}
 
 #if !CONFIG_IS_ENABLED(DM_MMC)
 

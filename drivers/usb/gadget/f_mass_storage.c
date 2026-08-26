@@ -243,6 +243,7 @@
 #include <hexdump.h>
 #include <log.h>
 #include <malloc.h>
+#include <mmc.h>
 #include <common.h>
 #include <console.h>
 #include <g_dnl.h>
@@ -327,6 +328,17 @@ struct fsg_common {
 	unsigned int		short_packet_received:1;
 	unsigned int		bad_lun_okay:1;
 	unsigned int		running:1;
+
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+	u64			profile_bytes;
+	u64			profile_out_us;
+	u64			profile_backend_us;
+	u64			profile_wall_us;
+	u64			profile_out_completed_total;
+	u64			profile_overlap_bytes;
+	u32			profile_commands;
+	u32			profile_max_command_bytes;
+#endif
 
 	int			thread_wakeup_needed;
 	struct completion	thread_notifier;
@@ -437,6 +449,13 @@ static int ums_count;
 static struct fsg_common *the_fsg_common;
 static unsigned int controller_index;
 
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_MMC_POLL)
+static void fsg_mmc_io_poll(void)
+{
+	usb_gadget_handle_interrupts(controller_index);
+}
+#endif
+
 static int fsg_set_halt(struct fsg_dev *fsg, struct usb_ep *ep)
 {
 	const char	*name;
@@ -523,6 +542,11 @@ static void bulk_out_complete(struct usb_ep *ep, struct usb_request *req)
 				bh->bulk_out_intended_length);
 	if (req->status == -ECONNRESET)		/* Request was cancelled */
 		usb_ep_fifo_flush(ep);
+
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+	bh->bulk_out_end_us = get_timer_us(0);
+	common->profile_out_completed_total += req->actual;
+#endif
 
 	/* Hold the lock while we update the request and buffer states */
 	bh->outreq_busy = 0;
@@ -686,6 +710,55 @@ static int sleep_thread(struct fsg_common *common)
 	return rc;
 }
 
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+#define UMS_PROFILE_INTERVAL_BYTES	(64ULL * 1024 * 1024)
+
+static u64 ums_profile_mib_x10(u64 bytes, u64 elapsed_us)
+{
+	if (!elapsed_us)
+		return 0;
+
+	return bytes * 10000000ULL / elapsed_us / (1024 * 1024);
+}
+
+static void ums_profile_report(struct fsg_common *common, bool force)
+{
+	u64 out_rate, backend_rate, wall_rate;
+
+	if (!common->profile_bytes ||
+	    (!force && common->profile_bytes < UMS_PROFILE_INTERVAL_BYTES))
+		return;
+
+	out_rate = ums_profile_mib_x10(common->profile_bytes,
+				       common->profile_out_us);
+	backend_rate = ums_profile_mib_x10(common->profile_bytes,
+					   common->profile_backend_us);
+	wall_rate = ums_profile_mib_x10(common->profile_bytes,
+					common->profile_wall_us);
+
+	printf("\nUMS profile: %llu MiB, %u cmd, max %u KiB, %u buffers, "
+	       "overlap %llu MiB\n"
+	       "  OUT-span %llu.%llu MiB/s, backend %llu.%llu MiB/s, "
+	       "wall %llu.%llu MiB/s\n",
+	       common->profile_bytes / (1024 * 1024),
+	       common->profile_commands,
+	       common->profile_max_command_bytes / 1024,
+	       FSG_NUM_BUFFERS,
+	       common->profile_overlap_bytes / (1024 * 1024),
+	       out_rate / 10, out_rate % 10,
+	       backend_rate / 10, backend_rate % 10,
+	       wall_rate / 10, wall_rate % 10);
+
+	common->profile_bytes = 0;
+	common->profile_out_us = 0;
+	common->profile_backend_us = 0;
+	common->profile_wall_us = 0;
+	common->profile_overlap_bytes = 0;
+	common->profile_commands = 0;
+	common->profile_max_command_bytes = 0;
+}
+#endif
+
 /*-------------------------------------------------------------------------*/
 
 static int do_read(struct fsg_common *common)
@@ -827,6 +900,15 @@ static int do_write(struct fsg_common *common)
 	unsigned int		partial_page;
 	ssize_t			nwritten;
 	int			rc;
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+	u64			command_start_us = get_timer_us(0);
+	u64			backend_start_us;
+	u64			out_start_us = 0;
+	u64			out_end_us = 0;
+	u64			backend_us = 0;
+	u64			out_completed_before;
+	u32			written_bytes = 0;
+#endif
 
 	if (curlun->ro) {
 		curlun->sense_data = SS_WRITE_PROTECTED;
@@ -909,6 +991,11 @@ static int do_write(struct fsg_common *common)
 			bh->outreq->length = amount;
 			bh->bulk_out_intended_length = amount;
 			bh->outreq->short_not_ok = 1;
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+			if (!out_start_us)
+				out_start_us = get_timer_us(0);
+			bh->bulk_out_end_us = 0;
+#endif
 			START_TRANSFER_OR(common, bulk_out, bh->outreq,
 					  &bh->outreq_busy, &bh->state)
 				/* Don't know what to do if
@@ -935,11 +1022,24 @@ static int do_write(struct fsg_common *common)
 
 			amount = bh->outreq->actual;
 
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+			out_end_us = max(out_end_us, bh->bulk_out_end_us);
+			backend_start_us = get_timer_us(0);
+			out_completed_before =
+				common->profile_out_completed_total;
+#endif
+
 			/* Perform the write */
 			rc = ums[common->lun].write_sector(&ums[common->lun],
 					       file_offset / SECTOR_SIZE,
 					       amount / SECTOR_SIZE,
 					       (char __user *)bh->buf);
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+			backend_us += get_timer_us(backend_start_us);
+			common->profile_overlap_bytes +=
+				common->profile_out_completed_total -
+				out_completed_before;
+#endif
 			if (!rc)
 				return -EIO;
 			nwritten = rc * SECTOR_SIZE;
@@ -961,6 +1061,9 @@ static int do_write(struct fsg_common *common)
 			file_offset += nwritten;
 			amount_left_to_write -= nwritten;
 			common->residue -= nwritten;
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+			written_bytes += nwritten;
+#endif
 
 			/* If an error occurred, report it and its position */
 			if (nwritten < amount) {
@@ -985,6 +1088,38 @@ static int do_write(struct fsg_common *common)
 			return rc;
 	}
 
+	/* WRITE(10/12) bit 3 is FUA.  WRITE(6) has no FUA field. */
+	if (common->cmnd[0] != SC_WRITE_6 && (common->cmnd[1] & 0x08) &&
+	    ums[common->lun].flush) {
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+		backend_start_us = get_timer_us(0);
+		out_completed_before = common->profile_out_completed_total;
+#endif
+		rc = ums[common->lun].flush(&ums[common->lun]);
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+		backend_us += get_timer_us(backend_start_us);
+		common->profile_overlap_bytes +=
+			common->profile_out_completed_total -
+			out_completed_before;
+#endif
+		if (rc) {
+			curlun->sense_data = SS_WRITE_ERROR;
+			curlun->info_valid = 1;
+		}
+	}
+
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+	common->profile_bytes += written_bytes;
+	if (out_end_us > out_start_us)
+		common->profile_out_us += out_end_us - out_start_us;
+	common->profile_backend_us += backend_us;
+	common->profile_wall_us += get_timer_us(command_start_us);
+	common->profile_commands++;
+	common->profile_max_command_bytes =
+		max(common->profile_max_command_bytes, written_bytes);
+	ums_profile_report(common, false);
+#endif
+
 	return -EIO;		/* No default reply */
 }
 
@@ -992,6 +1127,29 @@ static int do_write(struct fsg_common *common)
 
 static int do_synchronize_cache(struct fsg_common *common)
 {
+	struct fsg_lun *curlun = &common->luns[common->lun];
+	int rc = 0;
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+	u64 start_us = get_timer_us(0);
+	u64 elapsed_us;
+#endif
+
+	if (ums[common->lun].flush)
+		rc = ums[common->lun].flush(&ums[common->lun]);
+
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+	elapsed_us = get_timer_us(start_us);
+	common->profile_backend_us += elapsed_us;
+	common->profile_wall_us += elapsed_us;
+	ums_profile_report(common, true);
+#endif
+
+	if (rc) {
+		curlun->sense_data = SS_WRITE_ERROR;
+		curlun->info_valid = 1;
+		return -EIO;
+	}
+
 	return 0;
 }
 
@@ -1318,12 +1476,21 @@ static int do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
 static int do_start_stop(struct fsg_common *common)
 {
 	struct fsg_lun	*curlun = &common->luns[common->lun];
+	int rc;
 
 	if (!curlun) {
 		return -EINVAL;
 	} else if (!curlun->removable) {
 		curlun->sense_data = SS_INVALID_COMMAND;
 		return -EINVAL;
+	}
+
+	rc = ums[common->lun].flush ?
+		ums[common->lun].flush(&ums[common->lun]) : 0;
+	if (rc) {
+		curlun->sense_data = SS_WRITE_ERROR;
+		curlun->info_valid = 1;
+		return -EIO;
 	}
 
 	return 0;
@@ -2355,6 +2522,12 @@ static void handle_exception(struct fsg_common *common)
 		break;
 
 	case FSG_STATE_RESET:
+		for (i = 0; i < common->nluns; ++i) {
+			if (ums[i].flush && ums[i].flush(&ums[i]))
+				printf("UMS: LUN %d flush failed during USB reset\n",
+				       i);
+		}
+
 		/* In case we were forced against our will to halt a
 		 * bulk endpoint, clear the halt now.  (The SuperH UDC
 		 * requires this.) */
@@ -2771,7 +2944,18 @@ int fsg_init(struct ums *ums_devs, int count, unsigned int controller_idx)
 	ums_count = count;
 	controller_index = controller_idx;
 
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_MMC_POLL)
+	mmc_set_io_poll_hook(fsg_mmc_io_poll);
+#endif
+
 	return 0;
+}
+
+void fsg_cleanup(void)
+{
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_MMC_POLL)
+	mmc_set_io_poll_hook(NULL);
+#endif
 }
 
 DECLARE_GADGET_BIND_CALLBACK(usb_dnl_ums, fsg_add);

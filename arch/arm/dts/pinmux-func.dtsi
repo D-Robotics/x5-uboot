@@ -72,6 +72,18 @@
 			drive-strength = <8>;
 	};
 
+	pconf_sd_pu_ds3_ipvol: pconf-sd-pu-ds3-ipvol {
+		bias-pull-up;
+		power-source = <HORIZON_IO_PAD_VOLTAGE_IP_CTRL>;
+		drive-strength = <3>;
+	};
+
+	pconf_sd_clk_pu_ds4_ipvol: pconf-sd-clk-pu-ds4-ipvol {
+		bias-pull-up;
+		power-source = <HORIZON_IO_PAD_VOLTAGE_IP_CTRL>;
+		drive-strength = <4>;
+	};
+
 	pconf_drv_pu_3v3_max: pconf-dev-pu-max-high {
 		bias-pull-up;
 		power-source = <HORIZON_IO_PAD_VOLTAGE_3V3>;
@@ -571,14 +583,14 @@ pinctrl_dsp_i2s1: i2s1grp {
 
 	pinctrl_sd: sdgrp {
 		horizon,pins = <
-			HSIO_SD_WP		HSIO_PINMUX_2	BIT_OFFSET24	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_CLK		HSIO_PINMUX_2	BIT_OFFSET22	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_CMD		HSIO_PINMUX_2	BIT_OFFSET20	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_CDN		HSIO_PINMUX_2	BIT_OFFSET18	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_DATA0	HSIO_PINMUX_2	BIT_OFFSET16	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_DATA1	HSIO_PINMUX_2	BIT_OFFSET14	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_DATA2	HSIO_PINMUX_2	BIT_OFFSET12	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_DATA3	HSIO_PINMUX_2	BIT_OFFSET10	MUX_ALT0	&pconf_drv_pu_ipvol
+			HSIO_SD_WP		HSIO_PINMUX_2	BIT_OFFSET24	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_CLK		HSIO_PINMUX_2	BIT_OFFSET22	MUX_ALT0	&pconf_sd_clk_pu_ds4_ipvol
+			HSIO_SD_CMD		HSIO_PINMUX_2	BIT_OFFSET20	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_CDN		HSIO_PINMUX_2	BIT_OFFSET18	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_DATA0	HSIO_PINMUX_2	BIT_OFFSET16	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_DATA1	HSIO_PINMUX_2	BIT_OFFSET14	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_DATA2	HSIO_PINMUX_2	BIT_OFFSET12	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_DATA3	HSIO_PINMUX_2	BIT_OFFSET10	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
 		>;
 	};
 	pinctrl_sdio: sdiogrp {
@@ -596,7 +608,6 @@ pinctrl_dsp_i2s1: i2s1grp {
 	pinctrl_qspi: qspigrp {
 		horizon,pins = <
 			HSIO_QSPI_SSN0	HSIO_PINMUX_0	BIT_OFFSET24	MUX_ALT0	&pconf_spi
-			HSIO_QSPI_SSN1	HSIO_PINMUX_0	BIT_OFFSET22	MUX_ALT0	&pconf_spi
 			HSIO_QSPI_SCLK	HSIO_PINMUX_0	BIT_OFFSET20	MUX_ALT0	&pconf_spi
 			HSIO_QSPI_DATA0	HSIO_PINMUX_2	BIT_OFFSET6	MUX_ALT0	&pconf_spi
 			HSIO_QSPI_DATA1	HSIO_PINMUX_2	BIT_OFFSET4	MUX_ALT0	&pconf_spi
@@ -672,6 +683,12 @@ pinctrl_dsp_i2s1: i2s1grp {
 		>;
 	};
 
+	pinctrl_hsio_gpio0_26_output_normal: hsiogpio0-26-output-normal {
+		horizon,pins = <
+			HSIO_SDIO_CDN	HSIO_PINMUX_0	BIT_OFFSET26	MUX_ALT2	&pconf_output_normal
+		>;
+	};
+
 	pinctrl_hsio_gpio1_0_6: hsiogpio1grp0 {
 		horizon,pins = <
 			HSIO_QSPI_SSN0		HSIO_PINMUX_0	BIT_OFFSET24	MUX_ALT2	&pconf_input_en
@@ -681,6 +698,12 @@ pinctrl_dsp_i2s1: i2s1grp {
 			HSIO_QSPI_DATA1		HSIO_PINMUX_2	BIT_OFFSET4	MUX_ALT2	&pconf_input_en
 			HSIO_QSPI_DATA2		HSIO_PINMUX_2	BIT_OFFSET2	MUX_ALT2	&pconf_input_en
 			HSIO_QSPI_DATA3		HSIO_PINMUX_2	BIT_OFFSET0	MUX_ALT2	&pconf_input_en
+		>;
+	};
+
+	pinctrl_hsio_gpio1_1_output_normal: hsiogpio1-1-output-normal {
+		horizon,pins = <
+			HSIO_QSPI_SSN1		HSIO_PINMUX_0	BIT_OFFSET22	MUX_ALT2	&pconf_output_normal
 		>;
 	};
 

@@ -22,6 +22,17 @@
 #include <phys2bus.h>
 #include <power/regulator.h>
 
+static void sdhci_delay_with_io_poll(unsigned int delay_us)
+{
+	while (delay_us) {
+		unsigned int slice_us = min(delay_us, 100U);
+
+		udelay(slice_us);
+		mmc_io_poll();
+		delay_us -= slice_us;
+	}
+}
+
 static void sdhci_reset(struct sdhci_host *host, u8 mask)
 {
 	unsigned long timeout;
@@ -169,6 +180,8 @@ static int sdhci_transfer_data(struct sdhci_host *host, struct mmc_data *data)
 				sdhci_writel(host, start_addr, SDHCI_DMA_ADDRESS);
 			}
 		}
+		if (!(timeout & 0xf))
+			mmc_io_poll();
 		if (timeout-- > 0)
 			udelay(10);
 		else {
@@ -242,7 +255,7 @@ static int sdhci_send_command(struct mmc *mmc, struct mmc_cmd *cmd,
 			}
 		}
 		time++;
-		udelay(1000);
+		sdhci_delay_with_io_poll(1000);
 	}
 
 	sdhci_writel(host, SDHCI_INT_ALL_MASK, SDHCI_INT_STATUS);
@@ -298,6 +311,7 @@ static int sdhci_send_command(struct mmc *mmc, struct mmc_cmd *cmd,
 	sdhci_writel(host, cmd->cmdarg, SDHCI_ARGUMENT);
 	sdhci_writew(host, SDHCI_MAKE_CMD(cmd->cmdidx, flags), SDHCI_COMMAND);
 	start = get_timer(0);
+	time = 0;
 	do {
 		stat = sdhci_readl(host, SDHCI_INT_STATUS);
 		if (stat & SDHCI_INT_ERROR)
@@ -312,6 +326,8 @@ static int sdhci_send_command(struct mmc *mmc, struct mmc_cmd *cmd,
 				return -ETIMEDOUT;
 			}
 		}
+		if (!(++time & 0x3ff))
+			mmc_io_poll();
 	} while ((stat & mask) != mask);
 
 	if ((stat & (SDHCI_INT_ERROR | mask)) == mask) {
@@ -324,7 +340,7 @@ static int sdhci_send_command(struct mmc *mmc, struct mmc_cmd *cmd,
 		ret = sdhci_transfer_data(host, data);
 
 	if (host->quirks & SDHCI_QUIRK_WAIT_SEND_CMD)
-		udelay(1000);
+		sdhci_delay_with_io_poll(1000);
 
 	stat = sdhci_readl(host, SDHCI_INT_STATUS);
 	sdhci_writel(host, SDHCI_INT_ALL_MASK, SDHCI_INT_STATUS);
@@ -759,6 +775,17 @@ static int sdhci_deferred_probe(struct udevice *dev)
 	return 0;
 }
 
+static int sdhci_host_power_cycle(struct udevice *dev)
+{
+	struct mmc *mmc = mmc_get_mmc_dev(dev);
+	struct sdhci_host *host = mmc->priv;
+
+	if (host->ops && host->ops->host_power_cycle)
+		return host->ops->host_power_cycle(host);
+
+	return 0;
+}
+
 static int sdhci_get_cd(struct udevice *dev)
 {
 	struct mmc *mmc = mmc_get_mmc_dev(dev);
@@ -793,6 +820,7 @@ static int sdhci_wait_dat0(struct udevice *dev, int state,
 			   int timeout_us)
 {
 	int tmp;
+	u32 poll_count = 0;
 	struct mmc *mmc = mmc_get_mmc_dev(dev);
 	struct sdhci_host *host = mmc->priv;
 	unsigned long timeout = timer_get_us() + timeout_us;
@@ -803,6 +831,8 @@ static int sdhci_wait_dat0(struct udevice *dev, int state,
 		tmp = sdhci_readl(host, SDHCI_PRESENT_STATE);
 		if (!!(tmp & SDHCI_DATA_0_LVL_MASK) == !!state)
 			return 0;
+		if (!(++poll_count & 0xff))
+			mmc_io_poll();
 	} while (!timeout_us || !time_after(timer_get_us(), timeout));
 
 	return -ETIMEDOUT;
@@ -826,6 +856,7 @@ const struct dm_mmc_ops sdhci_ops = {
 	.set_ios	= sdhci_set_ios,
 	.get_cd		= sdhci_get_cd,
 	.deferred_probe	= sdhci_deferred_probe,
+	.host_power_cycle = sdhci_host_power_cycle,
 #ifdef MMC_SUPPORTS_TUNING
 	.execute_tuning	= sdhci_execute_tuning,
 #endif
