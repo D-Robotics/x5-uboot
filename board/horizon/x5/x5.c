@@ -17,6 +17,9 @@
 #if defined(CONFIG_X5_SEAMLESS_DISPLAY)
 #include "hb_display.h"
 #endif
+#if IS_ENABLED(CONFIG_CMD_OTP_MAC)
+#include <otp_mac.h>
+#endif
 
 #define HPS_CRM_CLK_GENERATOR_REG   (0x34211000)
 #define HSIO_ENET_AXI_CLK_GEN       (HPS_CRM_CLK_GENERATOR_REG + 0x6a0)
@@ -203,6 +206,14 @@ int board_late_init(void)
 		env_set("stdout", "serial");
 		env_set("stderr", "serial");
 	}
+#endif
+#if IS_ENABLED(CONFIG_CMD_OTP_MAC)
+	/*
+	 * Apply OTP MAC to ethaddr/eth1addr/... for this boot only.
+	 * Do not saveenv — OTP is the persistent source.
+	 * verbose=false: stay quiet if no SPI NAND / blank OTP.
+	 */
+	otp_mac_apply(NULL, false);
 #endif
 	return 0;
 }

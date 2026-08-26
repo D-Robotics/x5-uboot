@@ -129,6 +129,7 @@
 
 /* configuration register */
 #define REG_CFG			0xb0
+#define CFG_OTP_PROTECT		BIT(7)
 #define CFG_OTP_ENABLE		BIT(6)
 #define CFG_ECC_ENABLE		BIT(4)
 #define CFG_QUAD_ENABLE		BIT(0)
@@ -253,6 +254,22 @@ struct spinand_ecc_info {
 #define SPINAND_HAS_CR_FEAT_BIT		BIT(1)
 
 /**
+ * struct spinand_otp_layout - user OTP region described in pages
+ * @npages: number of OTP pages (0 = not supported)
+ * @start_page: first OTP page index
+ */
+struct spinand_otp_layout {
+	unsigned int npages;
+	unsigned int start_page;
+};
+
+#define SPINAND_OTP_INFO(__npages, __start_page)			\
+	.otp = {							\
+		.npages = __npages,					\
+		.start_page = __start_page,				\
+	},
+
+/**
  * struct spinand_info - Structure used to describe SPI NAND chips
  * @model: model name
  * @devid: device ID
@@ -284,6 +301,7 @@ struct spinand_info {
 	} op_variants;
 	int (*select_target)(struct spinand_device *spinand,
 			     unsigned int target);
+	struct spinand_otp_layout otp;
 };
 
 #define SPINAND_INFO_OP_VARIANTS(__read, __write, __update)		\
@@ -369,6 +387,7 @@ struct spinand_device {
 	u8 *scratchbuf;
 	const struct spinand_manufacturer *manufacturer;
 	void *priv;
+	struct spinand_otp_layout otp;
 };
 
 /**
@@ -450,5 +469,12 @@ int spinand_match_and_init(struct spinand_device *dev,
 
 int spinand_upd_cfg(struct spinand_device *spinand, u8 mask, u8 val);
 int spinand_select_target(struct spinand_device *spinand, unsigned int target);
+size_t spinand_otp_size(struct spinand_device *spinand);
+int spinand_otp_locked(struct spinand_device *spinand);
+int spinand_otp_read(struct spinand_device *spinand, loff_t ofs, size_t len,
+		     size_t *retlen, u8 *buf);
+int spinand_otp_write(struct spinand_device *spinand, loff_t ofs, size_t len,
+		      size_t *retlen, const u8 *buf);
+int spinand_otp_lock(struct spinand_device *spinand);
 
 #endif /* __LINUX_MTD_SPINAND_H */

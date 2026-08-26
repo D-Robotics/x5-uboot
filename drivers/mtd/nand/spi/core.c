@@ -560,6 +560,157 @@ static int spinand_write_page(struct spinand_device *spinand,
 	return ret;
 }
 
+static size_t spinand_otp_page_size(struct spinand_device *spinand)
+{
+	return nanddev_page_size(spinand_to_nand(spinand));
+}
+
+size_t spinand_otp_size(struct spinand_device *spinand)
+{
+	return spinand->otp.npages * spinand_otp_page_size(spinand);
+}
+
+static int spinand_otp_check_bounds(struct spinand_device *spinand, loff_t ofs,
+				    size_t len)
+{
+	if (!spinand->otp.npages)
+		return -EOPNOTSUPP;
+
+	if (ofs < 0 || len == 0 ||
+	    (u64)ofs + len > spinand_otp_size(spinand))
+		return -EINVAL;
+
+	return 0;
+}
+
+int spinand_otp_locked(struct spinand_device *spinand)
+{
+	u8 cfg;
+	int ret;
+
+	if (!spinand->otp.npages)
+		return -EOPNOTSUPP;
+
+	ret = spinand_get_cfg(spinand, &cfg);
+	if (ret)
+		return ret;
+
+	return !!(cfg & CFG_OTP_PROTECT);
+}
+
+static int spinand_otp_rw(struct spinand_device *spinand, loff_t ofs,
+			  size_t len, size_t *retlen, u8 *buf, bool is_write)
+{
+	struct nand_page_io_req req = {};
+	size_t pagesz = spinand_otp_page_size(spinand);
+	size_t copied = 0;
+	unsigned int page;
+	int ret;
+
+	*retlen = 0;
+	ret = spinand_otp_check_bounds(spinand, ofs, len);
+	if (ret)
+		return ret;
+
+	ret = spinand_select_target(spinand, 0);
+	if (ret)
+		return ret;
+
+	ret = spinand_ecc_enable(spinand, false);
+	if (ret)
+		return ret;
+
+	ret = spinand_upd_cfg(spinand, CFG_OTP_ENABLE, CFG_OTP_ENABLE);
+	if (ret)
+		return ret;
+
+	page = (unsigned int)ofs / pagesz;
+	req.dataoffs = (unsigned int)ofs % pagesz;
+	req.pos.page = page + spinand->otp.start_page;
+	req.mode = MTD_OPS_RAW;
+	req.databuf.in = buf;
+
+	while (copied < len) {
+		req.datalen = min_t(size_t, pagesz - req.dataoffs,
+				    len - copied);
+
+		if (is_write)
+			ret = spinand_write_page(spinand, &req);
+		else
+			ret = spinand_read_page(spinand, &req, false);
+
+		if (ret < 0)
+			break;
+
+		req.databuf.in += req.datalen;
+		req.pos.page++;
+		req.dataoffs = 0;
+		copied += req.datalen;
+	}
+
+	*retlen = copied;
+
+	if (spinand_upd_cfg(spinand, CFG_OTP_ENABLE, 0)) {
+		dev_err(spinand->slave->dev, "Can not disable OTP mode\n");
+		if (!ret)
+			ret = -EIO;
+	}
+
+	return ret;
+}
+
+int spinand_otp_read(struct spinand_device *spinand, loff_t ofs, size_t len,
+		     size_t *retlen, u8 *buf)
+{
+	return spinand_otp_rw(spinand, ofs, len, retlen, buf, false);
+}
+
+int spinand_otp_write(struct spinand_device *spinand, loff_t ofs, size_t len,
+		      size_t *retlen, const u8 *buf)
+{
+	return spinand_otp_rw(spinand, ofs, len, retlen, (u8 *)buf, true);
+}
+
+int spinand_otp_lock(struct spinand_device *spinand)
+{
+	struct spi_mem_op exec_op = SPINAND_PROG_EXEC_OP(0);
+	u8 status;
+	int ret;
+
+	if (!spinand->otp.npages)
+		return -EOPNOTSUPP;
+
+	ret = spinand_select_target(spinand, 0);
+	if (ret)
+		return ret;
+
+	ret = spinand_upd_cfg(spinand, CFG_OTP_ENABLE | CFG_OTP_PROTECT,
+			      CFG_OTP_ENABLE | CFG_OTP_PROTECT);
+	if (ret)
+		return ret;
+
+	ret = spinand_write_enable_op(spinand);
+	if (ret)
+		goto out;
+
+	ret = spi_mem_exec_op(spinand->slave, &exec_op);
+	if (ret)
+		goto out;
+
+	ret = spinand_wait(spinand, &status);
+	if (!ret && (status & STATUS_PROG_FAILED))
+		ret = -EIO;
+
+out:
+	if (spinand_upd_cfg(spinand, CFG_OTP_ENABLE, 0)) {
+		dev_err(spinand->slave->dev, "Can not disable OTP mode\n");
+		if (!ret)
+			ret = -EIO;
+	}
+
+	return ret;
+}
+
 static int spinand_mtd_read(struct mtd_info *mtd, loff_t from,
 			    struct mtd_oob_ops *ops)
 {
@@ -941,6 +1092,7 @@ int spinand_match_and_init(struct spinand_device *spinand,
 		spinand->eccinfo = table[i].eccinfo;
 		spinand->flags = table[i].flags;
 		spinand->select_target = table[i].select_target;
+		spinand->otp = table[i].otp;
 
 		op = spinand_select_op_variant(spinand,
 					       info->op_variants.read_cache);
@@ -1000,6 +1152,10 @@ static int spinand_detect(struct spinand_device *spinand)
 		 "%llu MiB, block size: %zu KiB, page size: %zu, OOB size: %u\n",
 		 nanddev_size(nand) >> 20, nanddev_eraseblock_size(nand) >> 10,
 		 nanddev_page_size(nand), nanddev_per_page_oobsize(nand));
+	if (spinand->otp.npages)
+		dev_info(spinand->slave->dev,
+			 "User OTP: %u pages (%zu bytes)\n",
+			 spinand->otp.npages, spinand_otp_size(spinand));
 
 	return 0;
 }
