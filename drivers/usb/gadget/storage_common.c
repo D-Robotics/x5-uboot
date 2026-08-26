@@ -337,6 +337,10 @@ struct fsg_buffhd {
 	 */
 	unsigned int			bulk_out_intended_length;
 
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
+	u64				bulk_out_start_us;
+#endif
+
 	struct usb_request		*inreq;
 	int				inreq_busy;
 	struct usb_request		*outreq;

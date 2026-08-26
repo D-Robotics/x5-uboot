@@ -19,10 +19,16 @@ struct ums {
 			   ulong start, lbaint_t blkcnt, void *buf);
 	int (*write_sector)(struct ums *ums_dev,
 			    ulong start, lbaint_t blkcnt, const void *buf);
+	int (*flush)(struct ums *ums_dev);
 	unsigned int start_sector;
 	unsigned int num_sectors;
 	const char *name;
 	struct blk_desc block_dev;
+#if CONFIG_IS_ENABLED(USB_MASS_STORAGE_WRITE_CACHE)
+	void *write_cache;
+	lbaint_t write_cache_start;
+	lbaint_t write_cache_blocks;
+#endif
 };
 
 int fsg_init(struct ums *ums_devs, int count, unsigned int controller_idx);

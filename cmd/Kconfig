@@ -1510,6 +1510,34 @@ config CMD_USB_MASS_STORAGE
 	  export a block device: U-Boot, the USB device, acts as a simple
 	  external hard drive plugged on the host USB port.
 
+config USB_MASS_STORAGE_PROFILE
+	bool "Profile USB mass-storage writes"
+	depends on CMD_USB_MASS_STORAGE
+	help
+	  Measure the USB receive, backing-store write, and command wall-clock
+	  time.  A compact report is printed for every 64 MiB written and when
+	  the host issues SYNCHRONIZE CACHE.  This is intended to identify the
+	  actual bottleneck before changing buffer sizes or storage timings.
+
+config USB_MASS_STORAGE_WRITE_CACHE
+	bool "Coalesce USB mass-storage writes"
+	depends on CMD_USB_MASS_STORAGE
+	help
+	  Coalesce adjacent small SCSI writes in an aligned RAM buffer before
+	  writing the backing block device.  This reduces MMC command, STOP,
+	  busy-poll, and fixed controller-delay overhead.  Cached data is flushed
+	  before reads, for FUA writes, on SYNCHRONIZE CACHE, and when UMS exits.
+	  This does not make Bulk-Only Transport command queuing asynchronous.
+
+config USB_MASS_STORAGE_WRITE_CACHE_KB
+	int "USB mass-storage write-cache size in KiB"
+	depends on USB_MASS_STORAGE_WRITE_CACHE
+	range 128 4096
+	default 512
+	help
+	  Size of each LUN's coalescing buffer.  RDK X5 limits a single generic
+	  MMC write to 1024 512-byte blocks, so 512 KiB avoids an extra split.
+
 config CMD_PVBLOCK
 	bool "Xen para-virtualized block device"
 	depends on XEN
