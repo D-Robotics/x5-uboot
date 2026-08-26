@@ -18,6 +18,9 @@
 #include <linux/err.h>
 
 #include <linux/ctype.h>
+#if IS_ENABLED(CONFIG_MTD_SPI_NAND)
+#include <linux/mtd/spinand.h>
+#endif
 
 static struct mtd_info *get_mtd_by_name(const char *name)
 {
@@ -492,6 +495,151 @@ out_put_mtd:
 	return CMD_RET_SUCCESS;
 }
 
+#if IS_ENABLED(CONFIG_MTD_SPI_NAND)
+static struct spinand_device *mtd_get_spinand(struct mtd_info *mtd)
+{
+	while (mtd_is_partition(mtd))
+		mtd = mtd->parent;
+
+	if (!mtd->dev || !mtd->dev->driver ||
+	    strcmp(mtd->dev->driver->name, "spi_nand"))
+		return NULL;
+
+	return mtd_to_spinand(mtd);
+}
+
+static int do_mtd_otp(struct cmd_tbl *cmdtp, int flag, int argc,
+		      char *const argv[])
+{
+	const char *cmd = argv[0];
+	struct mtd_info *mtd;
+	struct spinand_device *spinand;
+	size_t otpsz, retlen = 0;
+	loff_t off = 0;
+	size_t len;
+	u8 *buf;
+	int ret, locked;
+	bool do_read, do_write, do_lock, do_info;
+
+	do_read = strstr(cmd, ".read");
+	do_write = strstr(cmd, ".write");
+	do_lock = strstr(cmd, ".lock");
+	do_info = strstr(cmd, ".info") || !strcmp(cmd, "otp");
+
+	if (!do_read && !do_write && !do_lock && !do_info)
+		return CMD_RET_USAGE;
+
+	if (argc < 2)
+		return CMD_RET_USAGE;
+
+	mtd = get_mtd_by_name(argv[1]);
+	if (IS_ERR_OR_NULL(mtd))
+		return CMD_RET_FAILURE;
+
+	spinand = mtd_get_spinand(mtd);
+	if (!spinand) {
+		printf("%s is not an SPI NAND device\n", mtd->name);
+		ret = CMD_RET_FAILURE;
+		goto out_put_mtd;
+	}
+
+	otpsz = spinand_otp_size(spinand);
+	if (!otpsz) {
+		printf("SPI NAND %s has no user OTP\n", mtd->name);
+		ret = CMD_RET_FAILURE;
+		goto out_put_mtd;
+	}
+
+	if (do_info) {
+		locked = spinand_otp_locked(spinand);
+		printf("SPI NAND user OTP on %s:\n", mtd->name);
+		printf("  pages: %u (start %u)\n",
+		       spinand->otp.npages, spinand->otp.start_page);
+		printf("  size: 0x%zx (%zu bytes)\n", otpsz, otpsz);
+		printf("  page size: %zu\n", nanddev_page_size(&spinand->base));
+		if (locked < 0)
+			printf("  locked: unknown (%d)\n", locked);
+		else
+			printf("  locked: %s\n", locked ? "yes" : "no");
+		ret = CMD_RET_SUCCESS;
+		goto out_put_mtd;
+	}
+
+	if (do_lock) {
+		printf("Permanently lock SPI NAND OTP on %s? This cannot be undone.\n",
+		       mtd->name);
+		if (!confirm_yesno()) {
+			ret = CMD_RET_FAILURE;
+			goto out_put_mtd;
+		}
+		ret = spinand_otp_lock(spinand);
+		if (ret) {
+			printf("OTP lock failed: %d\n", ret);
+			ret = CMD_RET_FAILURE;
+		} else {
+			printf("OTP locked\n");
+			ret = CMD_RET_SUCCESS;
+		}
+		goto out_put_mtd;
+	}
+
+	if (argc < 3) {
+		ret = CMD_RET_USAGE;
+		goto out_put_mtd;
+	}
+
+	buf = map_sysmem(hextoul(argv[2], NULL), 0);
+	if (!buf) {
+		printf("Could not map the user buffer\n");
+		ret = CMD_RET_FAILURE;
+		goto out_put_mtd;
+	}
+
+	if (argc > 3)
+		off = hextoul(argv[3], NULL);
+	if (off >= (loff_t)otpsz) {
+		printf("OTP offset 0x%llx out of range (size 0x%zx)\n",
+		       (unsigned long long)off, otpsz);
+		unmap_sysmem(buf);
+		ret = CMD_RET_FAILURE;
+		goto out_put_mtd;
+	}
+	if (argc > 4)
+		len = hextoul(argv[4], NULL);
+	else
+		len = do_write ? nanddev_page_size(&spinand->base) :
+		      (otpsz - (size_t)off);
+
+	if (do_write)
+		printf("Writing %zu byte(s) to OTP offset 0x%llx (cannot erase)\n",
+		       len, (unsigned long long)off);
+	else
+		printf("Reading %zu byte(s) from OTP offset 0x%llx\n",
+		       len, (unsigned long long)off);
+
+	if (do_write)
+		ret = spinand_otp_write(spinand, off, len, &retlen, buf);
+	else
+		ret = spinand_otp_read(spinand, off, len, &retlen, buf);
+
+	unmap_sysmem(buf);
+
+	if (ret) {
+		printf("OTP %s failed: %d (copied %zu)\n",
+		       do_write ? "write" : "read", ret, retlen);
+		ret = CMD_RET_FAILURE;
+	} else {
+		printf("OTP %s %zu byte(s)\n",
+		       do_write ? "wrote" : "read", retlen);
+		ret = CMD_RET_SUCCESS;
+	}
+
+out_put_mtd:
+	put_mtd_device(mtd);
+	return ret;
+}
+#endif /* CONFIG_MTD_SPI_NAND */
+
 #ifdef CONFIG_AUTO_COMPLETE
 static int mtd_name_complete(int argc, char *const argv[], char last_char,
 			     int maxv, char *cmdv[])
@@ -540,6 +688,12 @@ static char mtd_help_text[] =
 	"\n"
 	"Specific functions:\n"
 	"mtd bad                               <name>\n"
+#if IS_ENABLED(CONFIG_MTD_SPI_NAND)
+	"mtd otp.info                          <name>\n"
+	"mtd otp.read                          <name> <addr> [<off> [<size>]]\n"
+	"mtd otp.write                         <name> <addr> [<off> [<size>]]\n"
+	"mtd otp.lock                          <name>\n"
+#endif
 	"\n"
 	"With:\n"
 	"\t<name>: NAND partition/chip name (or corresponding DM device name or OF path)\n"
@@ -550,6 +704,12 @@ static char mtd_help_text[] =
 	"\t<size>: length of the operation in bytes (default: the entire device)\n"
 	"\t\t* must be a multiple of a block for erase\n"
 	"\t\t* must be a multiple of a page otherwise (special case: default is a page with dump)\n"
+#if IS_ENABLED(CONFIG_MTD_SPI_NAND)
+	"\n"
+	"SPI NAND user OTP (not a normal partition; cannot erase; one program per page):\n"
+	"\t* otp.read default size is the whole OTP; otp.write default size is one page\n"
+	"\t* otp.lock permanently sets OTP_PRT (cannot be undone)\n"
+#endif
 	"\n"
 	"The .dontskipff option forces writing empty pages, don't use it if unsure.\n";
 #endif
@@ -565,4 +725,9 @@ U_BOOT_CMD_WITH_SUBCMDS(mtd, "MTD utils", mtd_help_text,
 		U_BOOT_SUBCMD_MKENT_COMPLETE(erase, 4, 0, do_mtd_erase,
 					     mtd_name_complete),
 		U_BOOT_SUBCMD_MKENT_COMPLETE(bad, 2, 1, do_mtd_bad,
-					     mtd_name_complete));
+					     mtd_name_complete)
+#if IS_ENABLED(CONFIG_MTD_SPI_NAND)
+		, U_BOOT_SUBCMD_MKENT_COMPLETE(otp, 6, 0, do_mtd_otp,
+					       mtd_name_complete)
+#endif
+		);

@@ -1286,6 +1286,15 @@ config CMD_MTD
 	help
 	  MTD commands support.
 
+config CMD_OTP_MAC
+	bool "otp_mac"
+	depends on CMD_MTD && MTD_SPI_NAND
+	default y
+	help
+	  Read MAC addresses from SPI NAND user OTP and set ethaddr /
+	  eth1addr / ... for the current boot (not saved to env storage).
+	  Also applied automatically from board_late_init when enabled.
+
 config CMD_MUX
 	bool "mux"
 	depends on MULTIPLEXER
