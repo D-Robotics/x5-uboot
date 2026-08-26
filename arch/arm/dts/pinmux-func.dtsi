@@ -72,6 +72,18 @@
 			drive-strength = <8>;
 	};
 
+	pconf_sd_pu_ds3_ipvol: pconf-sd-pu-ds3-ipvol {
+		bias-pull-up;
+		power-source = <HORIZON_IO_PAD_VOLTAGE_IP_CTRL>;
+		drive-strength = <3>;
+	};
+
+	pconf_sd_clk_pu_ds4_ipvol: pconf-sd-clk-pu-ds4-ipvol {
+		bias-pull-up;
+		power-source = <HORIZON_IO_PAD_VOLTAGE_IP_CTRL>;
+		drive-strength = <4>;
+	};
+
 	pconf_drv_pu_3v3_max: pconf-dev-pu-max-high {
 		bias-pull-up;
 		power-source = <HORIZON_IO_PAD_VOLTAGE_3V3>;
@@ -571,14 +583,14 @@ pinctrl_dsp_i2s1: i2s1grp {
 
 	pinctrl_sd: sdgrp {
 		horizon,pins = <
-			HSIO_SD_WP		HSIO_PINMUX_2	BIT_OFFSET24	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_CLK		HSIO_PINMUX_2	BIT_OFFSET22	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_CMD		HSIO_PINMUX_2	BIT_OFFSET20	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_CDN		HSIO_PINMUX_2	BIT_OFFSET18	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_DATA0	HSIO_PINMUX_2	BIT_OFFSET16	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_DATA1	HSIO_PINMUX_2	BIT_OFFSET14	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_DATA2	HSIO_PINMUX_2	BIT_OFFSET12	MUX_ALT0	&pconf_drv_pu_ipvol
-			HSIO_SD_DATA3	HSIO_PINMUX_2	BIT_OFFSET10	MUX_ALT0	&pconf_drv_pu_ipvol
+			HSIO_SD_WP		HSIO_PINMUX_2	BIT_OFFSET24	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_CLK		HSIO_PINMUX_2	BIT_OFFSET22	MUX_ALT0	&pconf_sd_clk_pu_ds4_ipvol
+			HSIO_SD_CMD		HSIO_PINMUX_2	BIT_OFFSET20	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_CDN		HSIO_PINMUX_2	BIT_OFFSET18	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_DATA0	HSIO_PINMUX_2	BIT_OFFSET16	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_DATA1	HSIO_PINMUX_2	BIT_OFFSET14	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_DATA2	HSIO_PINMUX_2	BIT_OFFSET12	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
+			HSIO_SD_DATA3	HSIO_PINMUX_2	BIT_OFFSET10	MUX_ALT0	&pconf_sd_pu_ds3_ipvol
 		>;
 	};
 	pinctrl_sdio: sdiogrp {
