@@ -306,8 +306,12 @@ static struct fsg_lun *fsg_lun_from_dev(struct device *dev)
 #define EP0_BUFSIZE	256
 #define DELAYED_STATUS	(EP0_BUFSIZE + 999)	/* An impossibly large value */
 
-/* Number of buffers we will use.  2 is enough for double-buffering */
+/* Number of buffers we will use.  Upstream defaults to double-buffering. */
+#ifdef CONFIG_USB_MASS_STORAGE_NUM_BUFFERS
+#define FSG_NUM_BUFFERS	CONFIG_USB_MASS_STORAGE_NUM_BUFFERS
+#else
 #define FSG_NUM_BUFFERS	2
+#endif
 
 /* Default size of buffer length. */
 #define FSG_BUFLEN	((u32)131072)
@@ -338,7 +342,7 @@ struct fsg_buffhd {
 	unsigned int			bulk_out_intended_length;
 
 #if CONFIG_IS_ENABLED(USB_MASS_STORAGE_PROFILE)
-	u64				bulk_out_start_us;
+	u64				bulk_out_end_us;
 #endif
 
 	struct usb_request		*inreq;

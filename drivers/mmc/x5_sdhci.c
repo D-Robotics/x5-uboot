@@ -6,6 +6,7 @@
  */
 
 #include <common.h>
+#include <asm/gpio.h>
 #include <clk.h>
 #include <dm.h>
 #include <malloc.h>
@@ -46,7 +47,12 @@ struct x5_sdhci_plat {
 
 struct x5_sdhci_priv {
 	struct sdhci_host *host;
+	struct gpio_desc power_gpio;
+	struct gpio_desc voltage_gpio;
+	u32 toggle_interval_us;
+	enum mmc_voltage signal_voltage;
 	uint has_pad_init;
+	bool is_sd;
 	u32 mshc_ctrl_addr;
 	u8 mshc_ctrl_val;
 	u32 clock_gate;
@@ -379,18 +385,79 @@ static void x5_sdhci_set_control_reg(struct sdhci_host *host)
 {
 	struct mmc *mmc = (struct mmc *)host->mmc;
 	struct x5_sdhci_priv *priv = dev_get_priv(mmc->dev);
+	int ret;
 
-	if (priv->has_pad_init)
-		return;
+	if (!priv->has_pad_init) {
+		x5_update_phy(host);
+		priv->has_pad_init = 1;
+	}
 
-	x5_update_phy(host);
-	priv->has_pad_init = 1;
+	/*
+	 * The RDK X5 switches the SD I/O rail with HSIO_GPIO1_1 instead of a
+	 * regulator.  The DT marks the GPIO active-low, so a logical active
+	 * value selects the physical low level used for 1.8 V.
+	 */
+	if (priv->is_sd && dm_gpio_is_valid(&priv->voltage_gpio) &&
+	    priv->signal_voltage != mmc->signal_voltage) {
+		if (mmc->signal_voltage != MMC_SIGNAL_VOLTAGE_330 &&
+		    mmc->signal_voltage != MMC_SIGNAL_VOLTAGE_180)
+			return;
+
+		ret = dm_gpio_set_value(&priv->voltage_gpio,
+					mmc->signal_voltage ==
+					MMC_SIGNAL_VOLTAGE_180);
+		if (ret) {
+			printf("X5 SD: signal-voltage GPIO failed: %d\n", ret);
+			return;
+		}
+
+		priv->signal_voltage = mmc->signal_voltage;
+		printf("X5 SD: signal voltage %s\n",
+		       mmc->signal_voltage == MMC_SIGNAL_VOLTAGE_180 ?
+		       "1.8 V" : "3.3 V");
+	}
+
+	/* Set the SDHCI voltage-select bit and the selected UHS timing. */
+	if (priv->is_sd)
+		sdhci_set_control_reg(host);
+}
+
+static int x5_sdhci_host_power_cycle(struct sdhci_host *host)
+{
+	struct x5_sdhci_priv *priv = dev_get_priv(host->mmc->dev);
+	int ret;
+
+	if (!priv->is_sd || !dm_gpio_is_valid(&priv->power_gpio))
+		return 0;
+
+	ret = dm_gpio_set_value(&priv->power_gpio, 0);
+	if (ret)
+		return ret;
+	udelay(priv->toggle_interval_us);
+
+	/* A new SD power-up must always begin with the I/O rail at 3.3 V. */
+	if (dm_gpio_is_valid(&priv->voltage_gpio)) {
+		ret = dm_gpio_set_value(&priv->voltage_gpio, 0);
+		if (ret)
+			return ret;
+		priv->signal_voltage = MMC_SIGNAL_VOLTAGE_330;
+		udelay(5000);
+	}
+
+	ret = dm_gpio_set_value(&priv->power_gpio, 1);
+	if (ret)
+		return ret;
+	udelay(priv->toggle_interval_us);
+
+	printf("X5 SD: TF power cycle complete at 3.3 V\n");
+	return 0;
 }
 
 const struct sdhci_ops x5_sdhci_ops = {
 	.platform_execute_tuning	= &x5_sdhci_execute_tuning,
 	.set_control_reg = &x5_sdhci_set_control_reg,
 	.platform_set_clock = &x5_sdhci_set_clock,
+	.host_power_cycle = &x5_sdhci_host_power_cycle,
 };
 
 static int x5_soc_reset(struct udevice *dev)
@@ -459,6 +526,28 @@ static int x5_sdhci_probe(struct udevice *dev)
 	int ret = 0;
 
 	host = priv->host;
+	priv->is_sd = dev_read_bool(dev, "sd-socrst");
+	if (priv->is_sd && dev_read_bool(dev, "voltage-gpios")) {
+		ret = gpio_request_by_name(dev, "voltage-gpios", 0,
+					   &priv->voltage_gpio, GPIOD_IS_OUT);
+		if (ret) {
+			printf("X5 SD: cannot request signal-voltage GPIO: %d\n",
+			       ret);
+			return ret;
+		}
+		priv->signal_voltage = MMC_SIGNAL_VOLTAGE_330;
+	}
+	if (priv->is_sd && dev_read_bool(dev, "power-gpios")) {
+		ret = gpio_request_by_name(dev, "power-gpios", 0,
+					   &priv->power_gpio, GPIOD_IS_OUT);
+		if (ret) {
+			printf("X5 SD: cannot request TF power GPIO: %d\n", ret);
+			return ret;
+		}
+		priv->toggle_interval_us = dev_read_u32_default(dev,
+								 "toggle-interval-us",
+								 20000);
+	}
 
 	debug("sdio is at %s %d\n", __FILE__, __LINE__);
 	x5_soc_reset(dev);

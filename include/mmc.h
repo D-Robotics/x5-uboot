@@ -943,6 +943,19 @@ void mmc_set_preinit(struct mmc *mmc, int preinit);
 void board_mmc_power_init(void);
 int board_mmc_init(struct bd_info *bis);
 int cpu_mmc_init(struct bd_info *bis);
+
+/**
+ * mmc_set_io_poll_hook() - install a cooperative callback for MMC waits
+ * @poll: callback to invoke, or NULL to remove the current callback
+ *
+ * A polled peripheral can use this while MMC DMA or card programming is in
+ * progress.  The callback must be short and must not issue MMC operations.
+ */
+void mmc_set_io_poll_hook(void (*poll)(void));
+
+/** mmc_io_poll() - invoke the registered cooperative callback, if any */
+void mmc_io_poll(void);
+
 int mmc_get_env_addr(struct mmc *mmc, int copy, u32 *env_addr);
 # ifdef CONFIG_SYS_MMC_ENV_PART
 extern uint mmc_get_env_part(struct mmc *mmc);

@@ -273,6 +273,7 @@ struct sdhci_ops {
 	int (*platform_execute_tuning)(struct mmc *host, u8 opcode);
 	int (*set_delay)(struct sdhci_host *host);
 	int	(*deferred_probe)(struct sdhci_host *host);
+	int	(*host_power_cycle)(struct sdhci_host *host);
 
 	/**
 	 * set_enhanced_strobe() - Set HS400 Enhanced Strobe config

@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <g_dnl.h>
 #include <malloc.h>
+#include <mmc.h>
 #include <part.h>
 #include <usb.h>
 #include <usb_mass_storage.h>
@@ -205,6 +206,15 @@ static int ums_init(const char *devtype, const char *devnums_part_str)
 		       ums[ums_count].block_dev.hwpart,
 		       ums[ums_count].start_sector,
 		       ums[ums_count].num_sectors);
+		if (!strcmp(devtype, "mmc")) {
+			struct mmc *mmc = find_mmc_device(block_dev->devnum);
+
+			if (mmc)
+				printf("UMS: MMC mode %s, clock %u Hz, bus width %u, signal %d mV\n",
+				       mmc_mode_name(mmc->selected_mode), mmc->clock,
+				       mmc->bus_width,
+				       mmc_voltage_to_mv(mmc->signal_voltage));
+		}
 
 #if CONFIG_IS_ENABLED(USB_MASS_STORAGE_WRITE_CACHE)
 		if (ums[ums_count].write_cache)
@@ -265,14 +275,14 @@ static int do_usb_mass_storage(struct cmd_tbl *cmdtp, int flag,
 	if (rc) {
 		pr_err("fsg_init failed\n");
 		rc = CMD_RET_FAILURE;
-		goto cleanup_board;
+		goto cleanup_fsg;
 	}
 
 	rc = g_dnl_register("usb_dnl_ums", controller_index);
 	if (rc) {
 		pr_err("g_dnl_register failed\n");
 		rc = CMD_RET_FAILURE;
-		goto cleanup_board;
+		goto cleanup_fsg;
 	}
 
 	/* Timeout unit: seconds */
@@ -327,7 +337,8 @@ static int do_usb_mass_storage(struct cmd_tbl *cmdtp, int flag,
 
 cleanup_register:
 	g_dnl_unregister();
-cleanup_board:
+cleanup_fsg:
+	fsg_cleanup();
 	usb_gadget_release(controller_index);
 cleanup_ums_init:
 	ums_fini();
