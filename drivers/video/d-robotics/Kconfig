@@ -143,6 +143,31 @@ config VIDEO_X5_BOOT_UI
 	select CONSOLE_MUX
 	select SYS_CONSOLE_IS_IN_ENV
 
+config VIDEO_X5_CFG_TXT
+	bool "Read x5_* keys from config.txt into the U-Boot env"
+	depends on VIDEO_X5_BOOT_UI
+	default n
+	help
+	  Board-layout-agnostic config.txt support (Raspberry-Pi style).
+	  During board_late_init, scan mmc 1 then mmc 0 for /boot/config.txt
+	  (ext4 rootfs) and /config.txt (FAT CONFIG partition), and inject
+	  the well-known x5_* keys into the U-Boot environment:
+
+	    x5_boot_ui=console|logo   boot UI selection
+	    x5_lcd_panel=<alias>      LCD panel alias for x5_panel_detect()
+
+	  Keys are table-driven (see x5_cfgtxt_keys in x5_display.c); unknown
+	  lines are ignored. An env variable already set (setenv + saveenv)
+	  wins over config.txt, so runtime debugging keeps priority.
+
+	  Also pre-loads user logo.bmp from the same filesystem/prefix when
+	  no dedicated "logo" GPT partition exists.
+
+	  Enable this for user-facing images whose boot medium is meant to
+	  be edited (e.g. RDK X5 SD/eMMC). Vendor/SDK images that control
+	  everything via defconfig and saveenv should leave it off; with it
+	  off, no config.txt is ever read and behaviour is unchanged.
+
 config VIDEO_DROBOTICS
 	bool
 	help
