@@ -23,4 +23,11 @@ void x5_bt1120_log_timing_regs(void __iomem *base, const char *where,
 void x5_bt1120_log_irq_status(void __iomem *base, const char *where);
 void x5_bt1120_dump_all_regs(void __iomem *bt1120_base);
 
+/* Online-capture health probe + re-arm (see x5_bt1120.c). */
+u32 x5_bt1120_irq_status(void __iomem *base);
+void x5_bt1120_irq_clear(void __iomem *base, u32 mask);
+bool x5_bt1120_capture_is_bad(void __iomem *base);
+void x5_bt1120_capture_rearm(void __iomem *base);
+u32 x5_bt1120_capture_rearm_vblank(void __iomem *base, u32 vactive_lines);
+
 #endif /* __X5_BT1120_H__ */

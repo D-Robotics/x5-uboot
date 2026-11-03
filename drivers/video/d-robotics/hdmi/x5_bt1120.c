@@ -11,6 +11,7 @@
 
 #include <common.h>
 #include <errno.h>
+#include <linux/delay.h>
 #include <linux/types.h>
 #include <linux/bitops.h>
 #include <linux/string.h>
@@ -19,6 +20,7 @@
 #include <media_bus_format.h>
 
 #include "x5_bt1120.h"
+#include "../dc8000/x5_dc8000.h"
 #include <hb_display_log.h>
 
 /* Register offsets from vs_bt1120_reg.h */
@@ -123,6 +125,98 @@ void x5_bt1120_disable(void __iomem *base)
 
 	X5_DISP_LOG_INFO("bt1120_disable: CTL before=0x%08x (clear bit0)\n", ctl);
 	bt1120_set_clear(base, REG_BT1120_CTL, 0, BIT(0));
+}
+
+/*
+ * Online-capture health probe + re-arm.
+ *
+ * The BT1120 online capture latches its YUV422 pixel-pair phase on the CTL
+ * BIT(0) rising edge; a bad latch swaps Cb/Cr (pure red shows as pure blue)
+ * and keeps the ONLINE_MISMATCH status re-triggering: clear 0x54 bit3 and
+ * it comes back while the bad phase is live. A good latch keeps the bit
+ * clear. Use mismatch recurrence as the "bad capture" oracle:
+ * x5_bt1120_capture_is_bad() clears the sticky bit, waits past a frame,
+ * and reports whether it re-asserted.
+ */
+u32 x5_bt1120_irq_status(void __iomem *base)
+{
+	return bt1120_read(base, REG_BT1120_IRQ_STATUS);
+}
+
+void x5_bt1120_irq_clear(void __iomem *base, u32 mask)
+{
+	bt1120_write(base, REG_BT1120_IRQ_STATUS, mask);
+}
+
+bool x5_bt1120_capture_is_bad(void __iomem *base)
+{
+	u32 st;
+
+	/* clear mismatch (and any other sticky bits), then wait ~2 frames */
+	bt1120_write(base, REG_BT1120_IRQ_STATUS, 0xF);
+	mdelay(40);
+	st = bt1120_read(base, REG_BT1120_IRQ_STATUS);
+	return !!(st & BT1120_ONLINE_MISMATCH_IRQ_MASK);
+}
+
+void x5_bt1120_capture_rearm(void __iomem *base)
+{
+	u32 ctl = bt1120_read(base, REG_BT1120_CTL);
+
+	bt1120_set_clear(base, REG_BT1120_CTL, 0, BIT(0));
+	udelay(50 * 1000);
+	bt1120_set_clear(base, REG_BT1120_CTL, ctl | BIT(0), 0);
+}
+
+/*
+ * Vblank-aligned capture re-arm (deterministic fix).
+ *
+ * The BT1120 online capture latches its YUV422 pixel-pair phase on the CTL
+ * BIT(0) rising edge. When that edge lands mid-frame (active video), the
+ * captured pixel-pair phase is random: Cb/Cr swap, pure red shows as pure
+ * blue, ~half of cold boots. The rising edge INSIDE the vertical blanking
+ * interval latches deterministically: the capture logic then starts
+ * counting pixel pairs from the first pixel of the frame and the phase
+ * is fixed.
+ *
+ * Read DC8000's GCREG_DISPLAY_CURRENT_LOCATION (y = bits [27:16], read-only
+ * scan position) and drop BIT(0) low while y is inside vblank (y >= vactive),
+ * then raise it within the same vblank. Total low time is a few hundred
+ * nanoseconds of blanking lines — invisible on screen.
+ */
+u32 x5_bt1120_capture_rearm_vblank(void __iomem *base, u32 vactive_lines)
+{
+	u32 ctl = bt1120_read(base, REG_BT1120_CTL);
+	u32 loc, y;
+	ulong t0 = get_timer(0);
+	const ulong timeout_ms = 100;
+
+	if (vactive_lines == 0)
+		vactive_lines = 1;
+
+	/*
+	 * ORDER MATTERS: dropping BIT(0) first and waiting for vblank (up to
+	 * 100 ms) breaks the BT1120->SII902x stream for a long time; the
+	 * deterministic variant keeps BIT(0) high the whole wait and only
+	 * pulses it low for the duration of one register write (~100 ns,
+	 * inside vblank).
+	 */
+	/* 1) wait for DC8000 to enter vertical blanking (y >= vactive) */
+	do {
+		loc = x5_dc8000_read_current_location();
+		y = (loc >> 16) & 0xFFF;
+		if (y >= vactive_lines)
+			break;
+	} while (get_timer(t0) < timeout_ms);
+
+	if (y < vactive_lines)
+		return 1; /* timed out — do NOT touch BIT(0) */
+
+	/* 2) inside vblank: pulse BIT(0) low for ~one register write, then high */
+	bt1120_set_clear(base, REG_BT1120_CTL, 0, BIT(0));
+	bt1120_set_clear(base, REG_BT1120_CTL, ctl | BIT(0), 0);
+
+	return 0;
 }
 
 /*

@@ -39,6 +39,13 @@ static inline void dc_write(u32 reg, u32 value)
 	writel(value, (void __iomem *)(ulong)(DC8000_REG_BASE + reg));
 }
 
+/* DC8000 current scan location: X=[15:0], Y=[27:16], read-only */
+u32 x5_dc8000_read_current_location(void)
+{
+	return readl((void __iomem *)(ulong)(DC8000_REG_BASE +
+					    GCREG_CURRENT_LOCATION_Address));
+}
+
 /**
  * dc_read - Read from DC8000 register
  */

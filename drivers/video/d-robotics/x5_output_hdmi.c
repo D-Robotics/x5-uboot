@@ -26,6 +26,7 @@
 #include "bridge/x5_syscon.h"
 #include "clock/x5_crm.h"
 #include "hdmi/x5_bt1120.h"
+#include "dc8000/x5_dc8000.h"
 #if CONFIG_IS_ENABLED(X5_HDMI_BRIDGE_LT8618)
 #include "hdmi/x5_lt8618.h"
 #endif
@@ -48,6 +49,8 @@
 #define X5_HDMI_PCLK_ENV_MAX_HZ		340000000UL
 #define X5_HDMI_DELAY_SII902_MS			50
 #define X5_HDMI_DELAY_LT8618_SETTLE_MS	300
+/* BT1120 capture convergence retries (each roll: 30ms probe + 50ms rearm). */
+#define X5_HDMI_BT1120_CAPT_RETRIES		10
 
 static ofnode hdmi_bt1120_node(void);
 
@@ -694,6 +697,64 @@ static int hdmi_enable(void)
 		if (hdmi_bt1120_base)
 			x5_bt1120_log_irq_status(hdmi_bt1120_base,
 						 "hdmi_post_bt1120_delay");
+
+		/*
+		 * Cold-boot R/B colour-swap fix — BT1120 capture
+		 * convergence loop.
+		 *
+		 * Root cause: the BT1120 online capture latches its YUV422
+		 * pixel-pair phase on the CTL BIT(0) rising edge. On cold
+		 * boot that edge lands at a random stream phase; a bad latch
+		 * swaps Cb/Cr for every pair (pure red shows as pure blue)
+		 * and keeps the ONLINE_MISMATCH sticky status re-asserting:
+		 * clear 0x54 bit3 and it returns while the bad phase is
+		 * live. A good latch keeps it silent. Warm reboots never
+		 * show the defect because U-Boot skips re-init and keeps
+		 * the previously latched phase, and the kernel seamless
+		 * handoff preserves the latch into Xorg.
+		 *
+		 * Fix: after arming online mode (step 1 above, stream
+		 * already running), probe the mismatch oracle; while the
+		 * capture is bad, re-roll it with a vblank-aligned re-arm
+		 * and probe again. Converges within a few rolls; bounded
+		 * by retries.
+		 */
+		if (hdmi_bt1120_base) {
+			int roll;
+			u32 vactive = hdmi_timing.vactive.typ;
+			u32 rc;
+
+			/*
+			 * ALWAYS do one vblank-aligned re-arm first: the initial
+			 * arm in step 1 raised BIT(0) at a random stream phase.
+			 * The mismatch oracle is silent on the pure Cb/Cr-swap
+			 * error class, so "probe good" does NOT mean "phase
+			 * good" — only the aligned re-arm is deterministic.
+			 * Cost: one vblank wait, invisible.
+			 */
+			rc = x5_bt1120_capture_rearm_vblank(hdmi_bt1120_base,
+							    vactive);
+			if (rc)
+				DISP_LOG_WARN("HDMI: vblank wait timed out, capture phase unaligned\n");
+			else
+				DISP_LOG_INFO("HDMI: BT1120 capture re-armed in vblank (deterministic)\n");
+
+			/* safety net: mismatch-oracle retries */
+			for (roll = 0; roll < X5_HDMI_BT1120_CAPT_RETRIES; roll++) {
+				if (!x5_bt1120_capture_is_bad(hdmi_bt1120_base))
+					break;
+				DISP_LOG_INFO("HDMI: BT1120 capture bad (roll %d), vblank re-arm...\n",
+					      roll);
+				x5_bt1120_capture_rearm_vblank(hdmi_bt1120_base, vactive);
+			}
+			if (roll < X5_HDMI_BT1120_CAPT_RETRIES)
+				DISP_LOG_INFO("HDMI: BT1120 capture good after %d roll(s)\n", roll);
+			else
+				DISP_LOG_WARN("HDMI: BT1120 capture still bad after %d rolls\n",
+					      X5_HDMI_BT1120_CAPT_RETRIES);
+			x5_bt1120_log_irq_status(hdmi_bt1120_base, "hdmi_capture_converged");
+		}
+
 		ret = x5_sii902x_enable_output();
 		if (ret) {
 			DISP_LOG_ERROR("HDMI: SII902x enable failed (%d)\n", ret);
