@@ -24,6 +24,9 @@ struct dc8000_config
 };
 
 /* DC8000 API */
+/* Current scan location, for vblank-aligned capture re-arm */
+u32 x5_dc8000_read_current_location(void);
+
 int x5_dc8000_init(struct display_timing *timing);
 void x5_dc8000_setup_output(void);
 int x5_dc8000_set_framebuffer(u32 fb_addr, u32 format);

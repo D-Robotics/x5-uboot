@@ -79,7 +79,15 @@
 #define ENABLE_CMD_MODE			BIT(0)
 
 #define DSI_VID_MODE_CFG		0x38
-#define ENABLE_LOW_POWER		(0x3f << 8)
+#define LP_HFP_EN			BIT(13)
+#define LP_HBP_EN			BIT(12)
+/*
+ * LP entry/exit runs at the TX escape clock (lane byte clock / 5), so the
+ * round trip overruns a short horizontal back porch, shifting the DPI pixel
+ * FIFO by a byte and rotating the colour channels (red/blue swap). LP during
+ * blanking is only a power optimisation, so leave LP_HBP_EN off.
+ */
+#define ENABLE_LOW_POWER		((0x3f << 8) & ~LP_HBP_EN)
 #define ENABLE_LOW_POWER_MASK		(0x3f << 8)
 #define VID_MODE_TYPE_NON_BURST_SYNC_PULSES	0x0
 #define VID_MODE_TYPE_NON_BURST_SYNC_EVENTS	0x1

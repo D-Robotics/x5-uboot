@@ -33,6 +33,7 @@
 #include <blk.h>
 #include <part.h>
 #include <env.h>
+#include <fs.h>
 #include <linux/string.h>
 #if CONFIG_IS_ENABLED(VIDEO_X5_BOOT_UI) && CONFIG_IS_ENABLED(CONSOLE_MUX) && \
 	CONFIG_IS_ENABLED(CONSOLE_RECORD)
@@ -166,18 +167,40 @@ bool x5_hdmi_edid_enabled(void)
 }
 #endif
 
+/* config.txt parser (later in this file); used by x5_detect_output(). */
+#if CONFIG_IS_ENABLED(VIDEO_X5_CFG_TXT)
+static bool x5_cfgtxt_dsi_requested_get(void);
+#endif
+
 /*
  * Detect which output path is active by scanning Device-Tree nodes.
  *
- * /chosen x5,display-output = "hdmi" | "dsi" forces a specific path.
- * If chosen is "hdmi" but HDMI detect fails, DSI is tried when built in
- * and x5_hdmi_fb_lcd is not "off".
- * Without an explicit choice, auto-detect: DSI first, then HDMI.
+ * Priority (first match wins):
+ *   1. User DSI intent from config.txt (dtoverlay=dsi-*): follow the same
+ *      output the kernel will use, so the boot logo lands on the same screen
+ *      as the desktop (VIDEO_X5_CFG_TXT only; no DSI line -> skipped).
+ *   2. /chosen x5,display-output = "hdmi" | "dsi" forces a specific path.
+ *      If chosen is "hdmi" but HDMI detect fails, DSI is tried when built in
+ *      and x5_hdmi_fb_lcd is not "off".
+ *   3. No explicit choice — auto-detect: DSI first, then HDMI.
+ *
+ * HDMI stays the default whenever the user did not configure DSI.
  */
 static const struct x5_display_output_ops *x5_detect_output(void)
 {
 	const char *choice;
 	ofnode chosen = ofnode_path("/chosen");
+
+#if CONFIG_IS_ENABLED(VIDEO_X5_CFG_TXT)
+	/* User explicitly enabled DSI via config.txt: honour that intent. */
+	if (x5_cfgtxt_dsi_requested_get()) {
+		if (x5_dsi_output_ops.detect &&
+		    x5_dsi_output_ops.detect() == 0)
+			return &x5_dsi_output_ops;
+		DISP_LOG_WARN("config.txt requested DSI but detect failed; "
+			      "falling back to default output selection\n");
+	}
+#endif
 
 	choice = NULL;
 	if (ofnode_valid(chosen))
@@ -495,6 +518,304 @@ bool x5_boot_ui_is_fbcon(void)
 #endif
 
 /*
+ * config.txt key-value parser (Raspberry-Pi style, board-layout agnostic).
+ * Reads well-known x5_* keys from config.txt (root of the boot medium or
+ * FAT CONFIG partition) and injects them into the U-Boot env, so every later
+ * decision point (stdio routing, logo path, LCD panel detect, bootargs,
+ * kernel cmdline) follows the same source automatically. File missing or
+ * invalid -> env is left untouched and the existing default logic applies.
+ *
+ * Keys are table-driven: adding a future key is one table row (+ optional
+ * value validator). Each key is recorded independently, so line order in
+ * config.txt does not matter; the whole file is always scanned.
+ *
+ * An env variable already set (e.g. via setenv + saveenv) takes priority and
+ * is NOT overwritten: setenv is the debug/admin semantics, config.txt is the
+ * provisioning semantics.
+ *
+ * Scan order: mmc 1 (SD card, easiest for users to edit on a PC) first, then
+ * mmc 0 (eMMC). Both /config.txt (FAT first partition) and plain /config.txt
+ * on the first partition are tried; unknown lines are ignored.
+ */
+
+/*
+ * Logo FAT cache + helpers: declared outside VIDEO_X5_CFG_TXT because the
+ * logo consumers later in this file live inside VIDEO_X5_BOOT_UI and must
+ * compile when CFG_TXT is off (cache stays NULL; FAT path is a no-op then).
+ */
+static void *x5_logo_fat_cache;
+#if CONFIG_IS_ENABLED(VIDEO_X5_CFG_TXT)
+static ulong x5_logo_fat_cache_len;
+#endif
+
+/* Defined later (near the logo consumers); needed early for preload policy. */
+static bool x5_logo_partition_present(void);
+
+#if CONFIG_IS_ENABLED(VIDEO_X5_CFG_TXT)
+#define X5_CFG_MAX_SIZE	512
+
+/*
+ * User DSI intent, recorded (NOT as an env variable) while scanning
+ * config.txt: any active "dtoverlay=dsi-*" line means the user enabled the
+ * DSI panel. The output selection in x5_detect_output() honours this
+ * intent, so the U-Boot logo lands on the same screen the kernel will use.
+ */
+static bool x5_cfgtxt_dsi_requested;
+
+static bool x5_cfgtxt_dsi_requested_get(void)
+{
+	return x5_cfgtxt_dsi_requested;
+}
+
+struct x5_cfgtxt_key {
+	const char *key;		/* line prefix to match, incl. '=' */
+	const char *env;		/* U-Boot env variable to set     */
+	bool (*validate)(const char *val);	/* NULL = accept any */
+};
+
+static bool x5_cfgtxt_ui_valid(const char *v)
+{
+	return !strcmp(v, "console") || !strcmp(v, "logo");
+}
+
+/* Add future config.txt keys here; the outer scan loop never changes. */
+static const struct x5_cfgtxt_key x5_cfgtxt_keys[] = {
+	{ "x5_boot_ui=",   "x5_boot_ui",   x5_cfgtxt_ui_valid },
+	{ "x5_lcd_panel=", "x5_lcd_panel", NULL },	/* validated later
+							 * by x5_panel_detect()
+							 * (WARN + ignore) */
+};
+
+/*
+ * Returns true when a valid x5_boot_ui= line was seen (caller keeps scanning
+ * other files only when false). Other keys are set as encountered and do not
+ * affect the return value.
+ */
+static bool x5_cfgtxt_parse_and_set(const char *buf, size_t len, const char *src)
+{
+	char line[64];
+	size_t pos = 0, i;
+	bool ui_parsed = false;
+
+	while (pos < len) {
+		char *p, *v, *end;
+		size_t k;
+
+		i = 0;
+		while (pos < len && buf[pos] != '\n' && i < sizeof(line) - 1)
+			line[i++] = buf[pos++];
+		if (pos < len && buf[pos] == '\n')
+			pos++;
+		line[i] = '\0';
+
+		/* trim leading spaces and tabs */
+		p = line;
+		while (*p == ' ' || *p == '\t')
+			p++;
+
+		for (k = 0; k < ARRAY_SIZE(x5_cfgtxt_keys); k++) {
+			const struct x5_cfgtxt_key *ck = &x5_cfgtxt_keys[k];
+			size_t klen = strlen(ck->key);
+
+			if (strncmp(p, ck->key, klen))
+				continue;
+
+			v = p + klen;
+			end = v + strlen(v);
+
+			/* trim trailing whitespace / CR */
+			while (end > v && (end[-1] == ' ' || end[-1] == '\t' ||
+					   end[-1] == '\r'))
+				*--end = '\0';
+
+			if (ck->validate && !ck->validate(v)) {
+				DISP_LOG_WARN("config.txt: invalid %s value '%s' ignored\n",
+					      ck->env, v);
+				break;
+			}
+			if (env_get(ck->env)) {
+				DISP_LOG_INFO("config.txt: %s already set in env, keeping env value\n",
+					      ck->env);
+				break;
+			}
+			env_set(ck->env, v);
+			env_set("x5_cfgsrc", src);
+			DISP_LOG_INFO("config.txt: %s=%s (from %s)\n",
+				      ck->env, v, src);
+			if (!strcmp(ck->env, "x5_boot_ui"))
+				ui_parsed = true;
+			break;
+		}
+
+		/*
+		 * User DSI intent (not an env key): any active
+		 * "dtoverlay=dsi-*" line. Commented-out lines
+		 * (#dtoverlay=...) never reach here because strncmp
+		 * compares from line start after whitespace trim.
+		 */
+		if (!strncmp(p, "dtoverlay=dsi-", 14)) {
+			x5_cfgtxt_dsi_requested = true;
+			DISP_LOG_INFO("config.txt: DSI overlay requested by user\n");
+		}
+	}
+
+	return ui_parsed;
+}
+
+/*
+ * Pre-load /boot/logo.bmp (or FAT CONFIG /logo.bmp) in the same early
+ * window as config.txt (board_late_init start), so file access never
+ * happens after display init. x5_display_load_logo_from_fat() then only
+ * consumes the cached buffer.
+ */
+static void x5_logo_early_preload(const char *path, struct blk_desc *dev_desc, int part)
+{
+	struct bmp_image *bmp;
+	loff_t actread = 0;
+	void *hdr_buf, *logo_buf;
+	ulong logo_size;
+
+	if (x5_logo_fat_cache)
+		return;	/* already have one (SD first wins) */
+
+	/* fs_read() closes the fs; re-select device+partition first. */
+	if (fs_set_blk_dev_with_part(dev_desc, part) != 0)
+		return;
+
+	/* Small header buffer first (early-phase friendly). */
+	hdr_buf = malloc(SZ_1K);
+	if (!hdr_buf)
+		return;
+
+	if (fs_read(path, (ulong)hdr_buf, 0, sizeof(struct bmp_header),
+		    &actread) != 0 || actread < (loff_t)sizeof(struct bmp_header)) {
+		free(hdr_buf);
+		return;
+	}
+
+	bmp = (struct bmp_image *)hdr_buf;
+	logo_size = le32_to_cpu(bmp->header.file_size);
+	free(hdr_buf);
+	if (logo_size < sizeof(struct bmp_header) ||
+	    logo_size > X5_LOGO_FILE_MAX_BYTES)
+		return;
+
+	/* Now allocate exactly what the file needs. */
+	logo_buf = malloc(logo_size);
+	if (!logo_buf)
+		return;
+
+	/* fs_read() closed the fs again; re-select before the full read. */
+	if (fs_set_blk_dev_with_part(dev_desc, part) != 0) {
+		free(logo_buf);
+		return;
+	}
+
+	actread = 0;
+	if (fs_read(path, (ulong)logo_buf, 0, logo_size, &actread) != 0 ||
+	    actread < (loff_t)logo_size) {
+		free(logo_buf);
+		return;
+	}
+
+	x5_logo_fat_cache = logo_buf;
+	x5_logo_fat_cache_len = logo_size;
+	env_set("x5_logosrc", "preloaded");
+	DISP_LOG_INFO("logo.bmp preloaded: %s (%lu bytes)\n", path, logo_size);
+}
+
+static void x5_cfgtxt_boot_ui_init(void)
+{
+	char *buf = (char *)CONFIG_SYS_LOAD_ADDR;
+	int dev;
+
+	for (dev = 1; dev >= 0; dev--) {
+		struct blk_desc *dev_desc;
+		struct disk_partition part_info;
+		loff_t actread = 0;
+		const char *paths[2] = { "/boot/config.txt", "/config.txt" };
+		int part, i;
+
+		dev_desc = blk_get_devnum_by_typename("mmc", dev);
+		if (!dev_desc)
+			continue;
+
+		/*
+		 * boot medium layout: the boot script and config.txt live on
+		 * the ext4 rootfs (partition 2, /boot). Also try the FAT CONFIG
+		 * partition (partition 1) for completeness.
+		 */
+		for (i = 0; i < 2; i++) {
+			const char *prefix = paths[i];
+			char src[24];
+
+			/* /boot/... is on the ext4 rootfs (partition 2). */
+			if (!strcmp(prefix, "/boot/config.txt"))
+				part = part_get_info(dev_desc, 2, &part_info) ? -1 : 2;
+			else
+				part = part_get_info_by_name(dev_desc, "CONFIG", &part_info);
+			if (part < 0)
+				part = part_get_info(dev_desc, 1, &part_info) ? -1 : 1;
+			if (part < 0) {
+				printf("[X5DIAG] mmc%d %s: no partition\n", dev, prefix);
+				continue;
+			}
+
+			snprintf(src, sizeof(src), "%s%d:%d",
+				 dev ? "sd" : "emmc", dev, part);
+
+			if (fs_set_blk_dev_with_part(dev_desc, part) != 0) {
+				printf("[X5DIAG] %s %s: fs probe failed\n", src, prefix);
+				continue;
+			}
+
+			if (fs_read(prefix, (ulong)buf, 0, X5_CFG_MAX_SIZE,
+				    &actread) != 0 || actread <= 0) {
+				printf("[X5DIAG] %s %s: read failed (actread=%ld)\n",
+				       src, prefix, (long)actread);
+				/*
+				 * No config.txt here; still preload logo.bmp on
+				 * this fs (same partition-policy as below).
+				 */
+				if (!x5_logo_partition_present())
+					x5_logo_early_preload(!strcmp(prefix, "/boot/config.txt") ?
+							 "/boot/logo.bmp" : "/logo.bmp",
+							 dev_desc, part);
+				fs_close();
+				continue;
+			}
+
+			buf[actread < X5_CFG_MAX_SIZE - 1 ? actread : X5_CFG_MAX_SIZE - 1] = '\0';
+
+			{
+				bool parsed = x5_cfgtxt_parse_and_set(buf, actread, src);
+
+				printf("[X5DIAG] %s %s: read %ld bytes, parsed=%d\n",
+				       src, prefix, (long)actread, parsed);
+				fs_close();
+				/*
+				 * Logo preload is decoupled from x5_boot_ui
+				 * parsing: whenever config.txt is readable,
+				 * logo.bmp is preloaded too from the SAME
+				 * filesystem + prefix as the config that was
+				 * just read (ext4 rootfs uses /boot/logo.bmp,
+				 * FAT CONFIG uses /logo.bmp) — unless a
+				 * dedicated logo partition exists, where the
+				 * partition logo has priority.
+				 */
+				if (!x5_logo_partition_present())
+					x5_logo_early_preload(!strcmp(prefix, "/boot/config.txt") ?
+							 "/boot/logo.bmp" : "/logo.bmp",
+							 dev_desc, part);
+				if (parsed)
+					return;
+			}
+		}
+	}
+}
+#endif /* VIDEO_X5_CFG_TXT */
+
+/*
  * Enable video output.
  *
  * The sequence mirrors the kernel DRM atomic commit path:
@@ -681,7 +1002,13 @@ static void x5_display_boot_try_seamless_env(bool display_ready)
  * board_late_init() delegates here so board code stays free of display policy.
  * When CONFIG_VIDEO_X5_BOOT_UI is off, stdio stays serial-only (no auto video).
  * When on, env x5_boot_ui selects logo vs framebuffer console (console).
- * If x5_boot_ui is missing or empty, default is logo (set here for a stable cmdline).
+ * Default policy when x5_boot_ui is missing or empty:
+ *   - CFG_TXT build: layout-based — a "logo" GPT partition or a
+ *     config.txt that was read (x5_cfgsrc set) -> show the logo; neither
+ *     -> stay headless (no icon, no built-in logo); serial-only.
+ *   - Non-CFG_TXT build: keep the historical default —
+ *     always show the logo, regardless of partitions (NAND layout
+ *     without a logo partition included).
  * When CONFIG_VIDEO_X5_HDMI, x5_display_hdmi_env_defaults() sets x5_hdmi_fb_lcd
  * and x5_hdmi_edid to on/off when unset (RAM env; printenv shows values).
  */
@@ -697,6 +1024,11 @@ void x5_display_boot_board_late(void)
 	x5_display_hdmi_env_defaults();
 #endif
 
+#if CONFIG_IS_ENABLED(VIDEO_X5_CFG_TXT)
+	/* config.txt (boot medium) takes priority for x5_boot_ui / x5_lcd_panel. */
+	x5_cfgtxt_boot_ui_init();
+#endif
+
 #if !CONFIG_IS_ENABLED(VIDEO_X5_BOOT_UI)
 	env_set("stdin", "serial");
 	env_set("stdout", "serial");
@@ -705,8 +1037,18 @@ void x5_display_boot_board_late(void)
 #else
 	ui = env_get("x5_boot_ui");
 	if (!ui || !*ui) {
+		/*
+		 * Default to the logo path: config.txt / "logo" GPT
+		 * partition are explicit opt-ins, not requirements, so
+		 * MBR/NAND layouts — which can never carry a GPT partition
+		 * name and ship without config.txt — still get display init
+		 * and the BT1120 capture-phase fix in x5_output_hdmi.
+		 * (A headless default made NAND cold boots skip that fix,
+		 * leaving the capture phase random: Cb/Cr swap.)
+		 */
 		env_set("x5_boot_ui", "logo");
 		ui = "logo";
+		printf("[X5DIAG] no explicit x5_boot_ui: defaulting to logo (NAND compatible)\n");
 	}
 
 	fbcon = x5_boot_ui_is_fbcon();
@@ -1110,6 +1452,128 @@ static void *x5_display_load_logo_from_partition(void)
 	return logo_buf;
 }
 
+/*
+ * Pre-load a user-provided logo.bmp from the FAT CONFIG partition
+ * (Raspberry-Pi style) instead of forcing a full U-Boot rebuild for a logo
+ * swap. Tries SD (mmc 1) first — the medium a user edits on a PC — then
+ * eMMC (mmc 0). Validated by x5_logo_bmp_check(); on any failure the caller
+ * falls back to the built-in logo.
+ */
+static void *x5_display_load_logo_from_fat(void)
+{
+	struct blk_desc *dev_desc;
+	struct disk_partition part_info;
+	struct bmp_image *bmp;
+	loff_t actread = 0;
+	void *logo_buf = NULL;
+	ulong logo_size;
+	int dev, part, i;
+
+#if !CONFIG_IS_ENABLED(VIDEO_X5_CFG_TXT)
+	/*
+	 * Without CFG_TXT nothing can populate the cache and no user-facing
+	 * FAT partition is expected: skip the scan entirely so vendor/SDK
+	 * builds never touch removable media during logo display.
+	 */
+	return NULL;
+#endif
+
+	/*
+	 * Fast path: logo.bmp was preloaded in the early config.txt phase
+	 * (same reliable window, before display init). Hand it to the caller
+	 * without touching the filesystem again.
+	 */
+	if (x5_logo_fat_cache) {
+		DISP_LOG_INFO("logo.bmp: using early-preloaded copy\n");
+		return x5_logo_fat_cache;
+	}
+
+	env_set("x5_logosrc", "nocache");
+	for (dev = 1; dev >= 0; dev--) {
+		dev_desc = blk_get_devnum_by_typename("mmc", dev);
+		if (!dev_desc) {
+			env_set("x5_logosrc", "nodev");
+			continue;
+		}
+
+		/*
+		 * Two user locations:
+		 *   1. ext4 rootfs partition 2, /boot/logo.bmp (ssh path)
+		 *   2. FAT CONFIG partition (named CONFIG or partition 1),
+		 *      /logo.bmp (SD-card-on-PC path)
+		 */
+		for (i = 0; i < 2; i++) {
+			const char *logo_path = (i == 0) ? "/boot/logo.bmp" : "/logo.bmp";
+
+			if (i == 0)
+				part = part_get_info(dev_desc, 2, &part_info) ? -1 : 2;
+			else {
+				part = part_get_info_by_name(dev_desc, "CONFIG", &part_info);
+				if (part < 0)
+					part = part_get_info(dev_desc, 1, &part_info) ? -1 : 1;
+			}
+			if (part < 0)
+				continue;
+
+			if (fs_set_blk_dev_with_part(dev_desc, part) != 0) {
+				env_set("x5_logosrc", "fsset");
+				continue;
+			}
+
+			/* Read the header first to learn the file size. */
+			logo_buf = malloc(X5_LOGO_FILE_MAX_BYTES);
+			if (!logo_buf) {
+				fs_close();
+				return NULL;
+			}
+			actread = 0;
+			if (fs_read(logo_path, (ulong)logo_buf, 0,
+				    sizeof(struct bmp_header), &actread) != 0 ||
+			    actread < (loff_t)sizeof(struct bmp_header)) {
+				free(logo_buf);
+				logo_buf = NULL;
+				fs_close();
+				env_set("x5_logosrc", "hdrfail");
+				continue;
+			}
+
+			bmp = (struct bmp_image *)logo_buf;
+			logo_size = le32_to_cpu(bmp->header.file_size);
+			if (logo_size < sizeof(struct bmp_header) ||
+			    logo_size > X5_LOGO_FILE_MAX_BYTES) {
+				DISP_LOG_WARN("logo.bmp: invalid size %lu\n", logo_size);
+				env_set("x5_logosrc", "badsize");
+				free(logo_buf);
+				logo_buf = NULL;
+				fs_close();
+				continue;
+			}
+
+			/* Re-read the whole file into the same buffer. */
+			actread = 0;
+			if (fs_read(logo_path, (ulong)logo_buf, 0, logo_size,
+				    &actread) != 0 || actread < (loff_t)logo_size) {
+				DISP_LOG_WARN("logo.bmp: read failed (%lld/%lu)\n",
+					      (long long)actread, logo_size);
+				env_set("x5_logosrc", "readfail");
+				free(logo_buf);
+				logo_buf = NULL;
+				fs_close();
+				continue;
+			}
+
+			DISP_LOG_INFO("logo.bmp loaded from %s (part %d, %lu bytes)\n",
+				      dev ? "SD" : "eMMC", part, logo_size);
+			env_set("x5_logosrc", i == 0 ?
+				(dev ? "sd:rootfs" : "emmc:rootfs") :
+				(dev ? "sd:config" : "emmc:config"));
+			fs_close();
+			return logo_buf;
+		}
+	}
+	return NULL;
+}
+
 /* Show logo (tries partition first, then built-in fallback) */
 int x5_display_show_logo_auto(int x, int y, bool clear)
 {
@@ -1168,6 +1632,37 @@ int x5_display_show_logo_auto(int x, int y, bool clear)
 	} else if (part_present) {
 		DISP_LOG_ERROR("Logo partition data is unsuitable\n");
 		return -EINVAL;
+	}
+	/*
+	 * User logo.bmp on the FAT CONFIG partition (SD first). Only makes
+	 * sense with VIDEO_X5_CFG_TXT: x5_display_load_logo_from_fat()
+	 * returns NULL immediately otherwise, so a plain vendor/SDK build
+	 * never touches removable media here.
+	 */
+	else if ((logo_data = x5_display_load_logo_from_fat()) != NULL) {
+		/*
+		 * Cached copy (early preload) must not be freed below — its
+		 * lifetime spans the whole U-Boot run. Fresh malloc'd buffers
+		 * are freed as before.
+		 */
+		from_partition = (logo_data != x5_logo_fat_cache);
+		logo_len = le32_to_cpu(((struct bmp_image *)logo_data)->header.file_size);
+		if (x5_logo_bmp_check(logo_data, logo_len, uc_priv->xsize,
+				      uc_priv->ysize) < 0) {
+			DISP_LOG_WARN("logo.bmp unsuitable, falling back to built-in\n");
+			if (from_partition) {
+				free(logo_data);
+				logo_data = NULL;
+			} else {
+				/* Drop the unsuitable cached copy for good. */
+				x5_logo_fat_cache = NULL;
+				logo_data = NULL;
+			}
+		} else {
+			DISP_LOG_INFO("Using user logo.bmp from CONFIG partition\n");
+			if (!from_partition)
+				env_set("x5_logosrc", "cached-ok");
+		}
 	}
 #ifdef CONFIG_VIDEO_LOGO
 	else {
